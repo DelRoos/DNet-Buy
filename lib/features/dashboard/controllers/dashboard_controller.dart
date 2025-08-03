@@ -1,13 +1,19 @@
 import 'package:get/get.dart';
+import 'package:dnet_buy/app/controllers/auth_controller.dart';
+import 'package:dnet_buy/app/services/merchant_service.dart';
 
 class DashboardController extends GetxController {
-  var userName = ''.obs;
+  final AuthController _authController = Get.find<AuthController>();
+  final MerchantService _merchantService = Get.find<MerchantService>();
+
   var totalRevenue = 0.obs;
   var ticketsSoldToday = 0.obs;
   var activeZones = 0.obs;
   var availableTickets = 0.obs;
-
   var isLoading = true.obs;
+
+  // Getters
+  String get userName => _authController.userName;
 
   @override
   void onInit() {
@@ -16,23 +22,27 @@ class DashboardController extends GetxController {
   }
 
   Future<void> fetchDashboardData() async {
-    isLoading.value = true;
-    print("Fetching dashboard data...");
+    try {
+      isLoading.value = true;
+      
+      final uid = _authController.currentUser.value?.uid;
+      if (uid == null) return;
 
-    await Future.delayed(const Duration(milliseconds: 1500));
+      final stats = await _merchantService.getMerchantStats(uid);
+      
+      totalRevenue.value = stats['totalRevenue'] ?? 0;
+      ticketsSoldToday.value = stats['ticketsSoldToday'] ?? 0;
+      activeZones.value = stats['activeZones'] ?? 0;
+      availableTickets.value = stats['availableTickets'] ?? 0;
 
-    userName.value = 'Restaurant Le Gourmet';
-    totalRevenue.value = 125500;
-    ticketsSoldToday.value = 83;
-    activeZones.value = 3;
-    availableTickets.value = 1452;
-
-    isLoading.value = false;
-    print("Dashboard data loaded.");
+    } catch (e) {
+      Get.snackbar('Erreur', 'Impossible de charger les données');
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   void logout() {
-    Get.offAllNamed('/login');
-    Get.snackbar('Déconnexion', 'Vous avez été déconnecté avec succès.');
+    _authController.signOut();
   }
 }

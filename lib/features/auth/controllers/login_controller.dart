@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:dnet_buy/app/controllers/auth_controller.dart';
 
 class LoginController extends GetxController {
+  final AuthController _authController = Get.find<AuthController>();
+  
   final formKey = GlobalKey<FormState>();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  var isLoading = false.obs;
-
+  
   var isPasswordVisible = false.obs;
+
+  // Getters pour l'état de chargement
+  bool get isLoading => _authController.isLoading.value;
 
   void togglePasswordVisibility() {
     isPasswordVisible.value = !isPasswordVisible.value;
@@ -17,14 +22,19 @@ class LoginController extends GetxController {
     final isValid = formKey.currentState?.validate() ?? false;
     if (!isValid) return;
 
-    isLoading.value = true;
-    print('Simulation de la requête de connexion...');
-    await Future.delayed(const Duration(seconds: 2));
-    print('Réponse reçue.');
+    await _authController.signIn(
+      email: emailController.text.trim(),
+      password: passwordController.text,
+    );
+  }
 
-    Get.offAllNamed("/dashboard");
+  Future<void> forgotPassword() async {
+    if (emailController.text.trim().isEmpty) {
+      Get.snackbar('Erreur', 'Veuillez saisir votre email');
+      return;
+    }
 
-    isLoading.value = false;
+    await _authController.resetPassword(emailController.text.trim());
   }
 
   @override

@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Règles pour les marchands
+    match /merchants/{merchantId} {
+      allow read, write: if request.auth != null && request.auth.uid == merchantId;
+      
+      allow create: if request.auth != null 
+        && request.auth.uid == merchantId
+        && validateMerchantData(resource.data);
+        
+      allow update: if request.auth != null 
+        && request.auth.uid == merchantId
+        && validateMerchantUpdate(resource.data, request.resource.data);
+    }
+    
+    // Règles pour les zones
+    match /zones/{zoneId} {
+      allow read: if true; // Lecture publique pour les portails d'achat
+      allow write: if request.auth != null 
+        && request.auth.uid == resource.data.merchantId;
+    }
+    
+    // Règles pour les types de tickets
+    match /ticket_types/{typeId} {
+      allow read: if resource.data.isActive == true; // Seulement les actifs
+      allow write: if request.auth != null 
+        && request.auth.uid == get(/databases/$(database)/documents/zones/$(resource.data.zoneId)).data.merchantId;
+    }
+    
+    // Règles pour les tickets
+    match /tickets/{ticketId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Règles pour les transactions
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null 
+        && request.auth.uid == resource.data.merchantId;
+      allow create: if true; // Pour les webhooks de paiement
+      allow update: if request.auth != null 
+        && request.auth.uid == resource.data.merchantId;
+    }
+    
+    // Fonctions de validation
+    function validateMerchantData(data) {
+      return data.keys().hasAll(['name', 'email', 'phone', 'status'])
+        && data.name is string && data.name.size() > 0
+        && data.email is string && data.email.matches('.*@.*\\..*')
+        && data.phone is string && data.phone.size() > 0
+        && data.status in ['active', 'suspended'];
+    }
+    
+    function validateMerchantUpdate(currentData, newData) {
+      return newData.diff(currentData).affectedKeys().hasOnly(['name', 'phone', 'supportPhone', 'freemopayKeys', 'callbackUrl', 'updatedAt']);
+    }
+  }
+}

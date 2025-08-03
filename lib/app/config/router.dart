@@ -1,6 +1,10 @@
 import 'package:get/get.dart';
+import 'package:dnet_buy/app/middleware/auth_middleware.dart';
 import 'package:dnet_buy/features/auth/views/login_page.dart';
 import 'package:dnet_buy/features/auth/views/register_page.dart';
+import 'package:dnet_buy/features/auth/views/email_verification_page.dart';
+import 'package:dnet_buy/features/auth/views/forgot_password_page.dart';
+import 'package:dnet_buy/features/auth/views/splash_screen.dart';
 import 'package:dnet_buy/features/dashboard/views/dashboard_page.dart';
 import 'package:dnet_buy/features/portal/views/portal_page.dart';
 import 'package:dnet_buy/features/settings/views/settings_page.dart';
@@ -16,42 +20,99 @@ import 'package:dnet_buy/features/zones/views/zone_details_page.dart';
 import 'package:dnet_buy/features/zones/views/zones_page.dart';
 
 class AppRoutes {
+  // Routes publiques
+  static const String splash = '/';
   static const String login = '/login';
   static const String register = '/register';
+  static const String forgotPassword = '/forgot-password';
   static const String buy = '/buy';
   static const String retrieveTicket = '/retrieve-ticket';
 
+  // Routes d'authentification
+  static const String emailVerification = '/email-verification';
+
+  // Routes protégées
   static const String dashboard = '/dashboard';
+  static const String dashboardZones = '/dashboard/zones';
+  static const String dashboardTransactions = '/dashboard/transactions';
+  static const String dashboardSettings = '/dashboard/settings';
   static const String addZone = '/dashboard/zones/add';
+  
+  // Routes dynamiques
   static String addTicketType(String zoneId) =>
       '/dashboard/zones/$zoneId/add-ticket';
   static String ticketManagement(String zoneId, String typeId) =>
       '/dashboard/zones/$zoneId/ticket-types/$typeId';
-
-  static const String dashboardZones = '/dashboard/zones';
-  static const String dashboardTransactions = '/dashboard/transactions';
-  static const String dashboardSettings = '/dashboard/settings';
   static String zoneDetails(String zoneId) => '/dashboard/zones/$zoneId';
 
+  // Routes portail client
   static const String portal = '/portal';
 }
 
 class AppPages {
   static final routes = [
-    GetPage(name: AppRoutes.login, page: () => const LoginPage()),
-    GetPage(name: AppRoutes.register, page: () => const RegisterPage()),
-    GetPage(name: AppRoutes.dashboard, page: () => const DashboardPage()),
-    GetPage(name: AppRoutes.dashboardZones, page: () => const ZonesPage()),
-    GetPage(name: AppRoutes.addZone, page: () => const AddZonePage()),
-    GetPage(name: AppRoutes.portal, page: () => const PortalPage()),
-
+    // Route de démarrage
     GetPage(
-      name: AppRoutes.retrieveTicket,
-      page: () => const TicketRetrievalPage(),
+      name: AppRoutes.splash,
+      page: () => const SplashScreen(),
     ),
+
+    // Routes publiques (guest only)
+    GetPage(
+      name: AppRoutes.login,
+      page: () => const LoginPage(),
+      middlewares: [GuestOnlyMiddleware()],
+    ),
+    GetPage(
+      name: AppRoutes.register,
+      page: () => const RegisterPage(),
+      middlewares: [GuestOnlyMiddleware()],
+    ),
+    GetPage(
+      name: AppRoutes.forgotPassword,
+      page: () => const ForgotPasswordPage(),
+      middlewares: [GuestOnlyMiddleware()],
+    ),
+
+    // Routes d'authentification
+    GetPage(
+      name: AppRoutes.emailVerification,
+      page: () => const EmailVerificationPage(),
+      middlewares: [AuthMiddleware()],
+    ),
+
+    // Routes protégées (authentification requise)
+    GetPage(
+      name: AppRoutes.dashboard,
+      page: () => const DashboardPage(),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
+    ),
+    GetPage(
+      name: AppRoutes.dashboardZones,
+      page: () => const ZonesPage(),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
+    ),
+    GetPage(
+      name: AppRoutes.addZone,
+      page: () => const AddZonePage(),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
+    ),
+    GetPage(
+      name: AppRoutes.dashboardTransactions,
+      page: () => const TransactionHistoryPage(),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
+    ),
+    GetPage(
+      name: AppRoutes.dashboardSettings,
+      page: () => const SettingsPage(),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
+    ),
+
+    // Routes dynamiques protégées
     GetPage(
       name: '/dashboard/zones/:zoneId',
       page: () => const ZoneDetailsPage(),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
       binding: BindingsBuilder(() {
         final zoneId = Get.parameters['zoneId']!;
         Get.lazyPut<ZoneDetailsController>(
@@ -62,6 +123,7 @@ class AppPages {
     GetPage(
       name: '/dashboard/zones/:zoneId/add-ticket',
       page: () => const AddTicketTypePage(),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
       binding: BindingsBuilder(() {
         Get.lazyPut<AddTicketTypeController>(
           () => AddTicketTypeController(zoneId: Get.parameters['zoneId']!),
@@ -71,6 +133,7 @@ class AppPages {
     GetPage(
       name: '/dashboard/zones/:zoneId/ticket-types/:typeId',
       page: () => const TicketManagementPage(),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
       binding: BindingsBuilder(() {
         Get.lazyPut<TicketManagementController>(
           () => TicketManagementController(
@@ -80,13 +143,15 @@ class AppPages {
         );
       }),
     ),
+
+    // Routes publiques (portail client)
     GetPage(
-      name: AppRoutes.dashboardTransactions,
-      page: () => const TransactionHistoryPage(),
+      name: AppRoutes.portal,
+      page: () => const PortalPage(),
     ),
     GetPage(
-      name: AppRoutes.dashboardSettings,
-      page: () => const SettingsPage(),
+      name: AppRoutes.retrieveTicket,
+      page: () => const TicketRetrievalPage(),
     ),
   ];
 }

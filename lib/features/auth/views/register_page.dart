@@ -26,7 +26,7 @@ class RegisterPage extends GetView<RegisterController> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset('assets/logo.png', height: 60),
+                  Image.asset('assets/images/logo.png', height: 60),
                   const SizedBox(height: AppConstants.defaultPadding),
                   Center(
                     child: Text(
@@ -40,7 +40,7 @@ class RegisterPage extends GetView<RegisterController> {
 
                   CustomTextField(
                     controller: controller.nameController,
-                    labelText: "Nom",
+                    labelText: "Nom de l'entreprise",
                     validator: (val) => Validators.validateNotEmpty(val, 'Nom'),
                     prefixIcon: Icons.person_outline,
                   ),
@@ -50,6 +50,7 @@ class RegisterPage extends GetView<RegisterController> {
                     labelText: "Adresse Email",
                     validator: Validators.validateEmail,
                     prefixIcon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
                   CustomTextField(
@@ -57,6 +58,7 @@ class RegisterPage extends GetView<RegisterController> {
                     labelText: "Numéro de téléphone",
                     validator: Validators.validateCameroonianPhoneNumber,
                     prefixIcon: Icons.phone_outlined,
+                    keyboardType: TextInputType.phone,
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
                   Obx(
@@ -126,6 +128,7 @@ class RegisterPage extends GetView<RegisterController> {
                         (val) =>
                             Validators.validateNotEmpty(val, 'Callback URL'),
                     prefixIcon: Icons.link_outlined,
+                    keyboardType: TextInputType.url,
                   ),
 
                   const SizedBox(height: AppConstants.defaultPadding * 2),
@@ -133,7 +136,7 @@ class RegisterPage extends GetView<RegisterController> {
                   Obx(
                     () => CustomButton(
                       text: "S'inscrire",
-                      isLoading: controller.isLoading.value,
+                      isLoading: controller.isLoading,
                       onPressed: controller.registerUser,
                     ),
                   ),
@@ -153,11 +156,8 @@ class RegisterPage extends GetView<RegisterController> {
                               color: Theme.of(context).primaryColor,
                               decoration: TextDecoration.underline,
                             ),
-                            recognizer:
-                                TapGestureRecognizer()
-                                  ..onTap =
-                                      () =>
-                                          Get.back(),
+                            recognizer: TapGestureRecognizer()
+                              ..onTap = () => Get.back(),
                           ),
                         ],
                       ),

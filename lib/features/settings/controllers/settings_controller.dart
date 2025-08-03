@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:dnet_buy/app/controllers/auth_controller.dart';
+import 'package:dnet_buy/app/services/auth_service.dart';
+import 'package:dnet_buy/app/services/merchant_service.dart';
 
 class SettingsController extends GetxController {
+  final AuthController _authController = Get.find<AuthController>();
+  final AuthService _authService = Get.find<AuthService>();
+  final MerchantService _merchantService = Get.find<MerchantService>();
+
   final personalInfoFormKey = GlobalKey<FormState>();
   final passwordFormKey = GlobalKey<FormState>();
   final apiKeysFormKey = GlobalKey<FormState>();
@@ -23,59 +30,109 @@ class SettingsController extends GetxController {
   var isSavingPersonalInfo = false.obs;
   var isChangingPassword = false.obs;
   var isSavingApiKeys = false.obs;
-
   var areApiKeysVisible = false.obs;
 
   @override
   void onInit() {
-    loadUserSettings();
     super.onInit();
+    loadUserSettings();
   }
 
   Future<void> loadUserSettings() async {
-    isLoading.value = true;
-    await Future.delayed(const Duration(seconds: 1));
-
-    nameController.text = 'Restaurant Le Gourmet';
-    emailController.text = 'gourmet@dnet.com';
-    phoneController.text = '699112233';
-    supportPhoneController.text = '677445566';
-    appKeyController.text = 'app_key_live_xxxxxxxxxxxx';
-    secretKeyController.text = 'secret_key_live_xxxxxxxxxxxx';
-    callbackUrlController.text = 'https://mon-backend.com/webhook/freemopay';
-
-    isLoading.value = false;
+    try {
+      isLoading.value = true;
+      
+      final merchantData = _authController.merchantData.value;
+      if (merchantData != null) {
+        nameController.text = merchantData['name'] ?? '';
+        emailController.text = merchantData['email'] ?? '';
+        phoneController.text = merchantData['phone'] ?? '';
+        supportPhoneController.text = merchantData['supportPhone'] ?? '';
+        callbackUrlController.text = merchantData['callbackUrl'] ?? '';
+        
+        // Les clés API sont chiffrées, ne pas les afficher directement
+        appKeyController.text = '••••••••••••••••';
+        secretKeyController.text = '••••••••••••••••';
+      }
+    } catch (e) {
+      Get.snackbar('Erreur', 'Impossible de charger les paramètres');
+    } finally {
+      isLoading.value = false;
+    }
   }
 
-
   Future<void> savePersonalInfo() async {
-    if (personalInfoFormKey.currentState!.validate()) {
+    if (!personalInfoFormKey.currentState!.validate()) return;
+
+    try {
       isSavingPersonalInfo.value = true;
-      await Future.delayed(const Duration(seconds: 2));
+      
+      final uid = _authController.currentUser.value?.uid;
+      if (uid == null) return;
+
+      final data = {
+        'name': nameController.text.trim(),
+        'phone': phoneController.text.trim(),
+        'supportPhone': supportPhoneController.text.trim(),
+      };
+
+      await _merchantService.updatePersonalInfo(uid, data);
+      Get.snackbar('Succès', 'Informations mises à jour avec succès');
+      
+    } catch (e) {
+      Get.snackbar('Erreur', e.toString());
+    } finally {
       isSavingPersonalInfo.value = false;
-      Get.snackbar('Succès', 'Informations personnelles mises à jour.');
     }
   }
 
   Future<void> changePassword() async {
-    if (passwordFormKey.currentState!.validate()) {
-      isChangingPassword.value = true;
-      await Future.delayed(const Duration(seconds: 2));
-      isChangingPassword.value = false;
+    if (!passwordFormKey.currentState!.validate()) return;
 
+    try {
+      isChangingPassword.value = true;
+
+      await _authService.updatePassword(
+        currentPassword: currentPasswordController.text,
+        newPassword: newPasswordController.text,
+      );
+
+      // Nettoyer les champs
       currentPasswordController.clear();
       newPasswordController.clear();
       confirmNewPasswordController.clear();
-      Get.snackbar('Succès', 'Mot de passe changé avec succès.');
+
+      Get.snackbar('Succès', 'Mot de passe modifié avec succès');
+      
+    } catch (e) {
+      Get.snackbar('Erreur', e.toString());
+    } finally {
+      isChangingPassword.value = false;
     }
   }
 
   Future<void> saveApiKeys() async {
-    if (apiKeysFormKey.currentState!.validate()) {
+    if (!apiKeysFormKey.currentState!.validate()) return;
+
+    try {
       isSavingApiKeys.value = true;
-      await Future.delayed(const Duration(seconds: 2));
+      
+      final uid = _authController.currentUser.value?.uid;
+      if (uid == null) return;
+
+      // En production, chiffrer les clés avant de les sauvegarder
+      final keys = {
+        'appKey': appKeyController.text.trim(),
+        'secretKey': secretKeyController.text.trim(),
+      };
+
+      await _merchantService.updateApiKeys(uid, keys);
+      Get.snackbar('Succès', 'Clés API mises à jour avec succès');
+      
+    } catch (e) {
+      Get.snackbar('Erreur', e.toString());
+    } finally {
       isSavingApiKeys.value = false;
-      Get.snackbar('Succès', 'Clés API Freemopay mises à jour.');
     }
   }
 

@@ -17,7 +17,7 @@ class DashboardPage extends GetView<DashboardController> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Image.asset('assets/logo.png', height: 35),
+        title: Image.asset('assets/images/logo.png', height: 35),
         centerTitle: false,
         actions: [
           IconButton(
@@ -41,7 +41,7 @@ class DashboardPage extends GetView<DashboardController> {
                 Text('Bonjour,', style: Theme.of(context).textTheme.titleLarge),
                 Obx(
                   () => Text(
-                    controller.userName.value,
+                    controller.userName,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),

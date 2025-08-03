@@ -26,7 +26,7 @@ class LoginPage extends GetView<LoginController> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset('assets/logo.png', height: 80),
+                  Image.asset('assets/images/logo.png', height: 80),
                   const SizedBox(height: AppConstants.defaultPadding),
                   Text(
                     'Bienvenue sur DNet',
@@ -45,6 +45,7 @@ class LoginPage extends GetView<LoginController> {
                     hintText: 'exemple@email.com',
                     prefixIcon: Icons.email_outlined,
                     validator: Validators.validateEmail,
+                    keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
                   Obx(
@@ -52,10 +53,7 @@ class LoginPage extends GetView<LoginController> {
                       controller: controller.passwordController,
                       labelText: 'Mot de passe',
                       prefixIcon: Icons.lock_outline,
-                      obscureText:
-                          !controller
-                              .isPasswordVisible
-                              .value,
+                      obscureText: !controller.isPasswordVisible.value,
                       validator: Validators.validatePassword,
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -68,16 +66,28 @@ class LoginPage extends GetView<LoginController> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppConstants.defaultPadding * 2),
+                  const SizedBox(height: AppConstants.defaultPadding),
+                  
+                  // Lien mot de passe oublié
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Get.toNamed('/forgot-password'),
+                      child: const Text('Mot de passe oublié ?'),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: AppConstants.defaultPadding),
                   Obx(
                     () => CustomButton(
                       text: 'Se connecter',
-                      isLoading: controller.isLoading.value,
-                      onPressed: () => controller.loginUser(),
+                      isLoading: controller.isLoading,
+                      onPressed: controller.loginUser,
                     ),
                   ),
                   const SizedBox(height: AppConstants.defaultPadding * 2),
                   RichText(
+                    textAlign: TextAlign.center,
                     text: TextSpan(
                       style: Theme.of(context).textTheme.bodyMedium,
                       children: [
@@ -89,11 +99,8 @@ class LoginPage extends GetView<LoginController> {
                             color: Theme.of(context).primaryColor,
                             decoration: TextDecoration.underline,
                           ),
-                          recognizer:
-                              TapGestureRecognizer()
-                                ..onTap = () {
-                                  Get.toNamed('/register');
-                                },
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => Get.toNamed('/register'),
                         ),
                       ],
                     ),

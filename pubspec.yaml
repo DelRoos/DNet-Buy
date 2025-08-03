@@ -26,6 +26,7 @@ dependencies:
   firebase_core: ^4.0.0
   firebase_storage: ^13.0.0
   firebase_auth: ^6.0.0
+  crypto: ^3.0.6
 
 # --- DÉPENDANCES DE DÉVELOPPEMENT ---
 dev_dependencies:

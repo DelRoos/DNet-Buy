@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:dnet_buy/app/controllers/auth_controller.dart';
 
 class RegisterController extends GetxController {
+  final AuthController _authController = Get.find<AuthController>();
+  
   final formKey = GlobalKey<FormState>();
-
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final phoneController = TextEditingController();
@@ -13,13 +15,15 @@ class RegisterController extends GetxController {
   final secretKeyController = TextEditingController();
   final callbackUrlController = TextEditingController();
 
-  var isLoading = false.obs;
-
   var isPasswordVisible = false.obs;
   var isConfirmPasswordVisible = false.obs;
 
+  // Getters pour l'état de chargement
+  bool get isLoading => _authController.isLoading.value;
+
   void togglePasswordVisibility() =>
       isPasswordVisible.value = !isPasswordVisible.value;
+  
   void toggleConfirmPasswordVisibility() =>
       isConfirmPasswordVisible.value = !isConfirmPasswordVisible.value;
 
@@ -27,22 +31,15 @@ class RegisterController extends GetxController {
     final isValid = formKey.currentState?.validate() ?? false;
     if (!isValid) return;
 
-    isLoading.value = true;
-    print('Simulation de la création du compte...');
-    await Future.delayed(const Duration(seconds: 2));
-
-    isLoading.value = false;
-    print('Compte créé avec succès (simulation).');
-
-    Get.snackbar(
-      'Succès',
-      'Votre compte a été créé. Veuillez vous connecter.',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.green,
-      colorText: Colors.white,
+    await _authController.signUp(
+      name: nameController.text.trim(),
+      email: emailController.text.trim(),
+      phone: phoneController.text.trim(),
+      password: passwordController.text,
+      appKey: appKeyController.text.trim(),
+      secretKey: secretKeyController.text.trim(),
+      callbackUrl: callbackUrlController.text.trim(),
     );
-
-    Get.offNamed('/login');
   }
 
   @override
