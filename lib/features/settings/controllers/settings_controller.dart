@@ -41,7 +41,7 @@ class SettingsController extends GetxController {
   Future<void> loadUserSettings() async {
     try {
       isLoading.value = true;
-      
+
       final merchantData = _authController.merchantData.value;
       if (merchantData != null) {
         nameController.text = merchantData['name'] ?? '';
@@ -49,7 +49,7 @@ class SettingsController extends GetxController {
         phoneController.text = merchantData['phone'] ?? '';
         supportPhoneController.text = merchantData['supportPhone'] ?? '';
         callbackUrlController.text = merchantData['callbackUrl'] ?? '';
-        
+
         // Les clés API sont chiffrées, ne pas les afficher directement
         appKeyController.text = '••••••••••••••••';
         secretKeyController.text = '••••••••••••••••';
@@ -66,7 +66,7 @@ class SettingsController extends GetxController {
 
     try {
       isSavingPersonalInfo.value = true;
-      
+
       final uid = _authController.currentUser.value?.uid;
       if (uid == null) return;
 
@@ -78,7 +78,6 @@ class SettingsController extends GetxController {
 
       await _merchantService.updatePersonalInfo(uid, data);
       Get.snackbar('Succès', 'Informations mises à jour avec succès');
-      
     } catch (e) {
       Get.snackbar('Erreur', e.toString());
     } finally {
@@ -103,7 +102,6 @@ class SettingsController extends GetxController {
       confirmNewPasswordController.clear();
 
       Get.snackbar('Succès', 'Mot de passe modifié avec succès');
-      
     } catch (e) {
       Get.snackbar('Erreur', e.toString());
     } finally {
@@ -116,7 +114,7 @@ class SettingsController extends GetxController {
 
     try {
       isSavingApiKeys.value = true;
-      
+
       final uid = _authController.currentUser.value?.uid;
       if (uid == null) return;
 
@@ -128,7 +126,6 @@ class SettingsController extends GetxController {
 
       await _merchantService.updateApiKeys(uid, keys);
       Get.snackbar('Succès', 'Clés API mises à jour avec succès');
-      
     } catch (e) {
       Get.snackbar('Erreur', e.toString());
     } finally {

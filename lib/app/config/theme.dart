@@ -6,8 +6,7 @@ class AppTheme {
     return ThemeData(
       primaryColor: AppColors.primaryColor,
       scaffoldBackgroundColor: AppColors.lightGrey,
-      fontFamily:
-          'Poppins',
+      fontFamily: 'Poppins',
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryColor,

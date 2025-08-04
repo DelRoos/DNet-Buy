@@ -50,11 +50,9 @@ class TicketListItem extends StatelessWidget {
             ),
           ),
         ),
-
-        children:
-            isSold
-                ? _buildSoldTicketDetails(context)
-                : _buildAvailableTicketActions(context),
+        children: isSold
+            ? _buildSoldTicketDetails(context)
+            : _buildAvailableTicketActions(context),
       ),
     );
   }
@@ -155,19 +153,18 @@ class TicketListItem extends StatelessWidget {
           context,
         ).textTheme.bodyLarge?.copyWith(fontFamily: 'monospace'),
       ),
-      trailing:
-          canCopy
-              ? IconButton(
-                icon: const Icon(Icons.copy, size: 18),
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: value));
-                  Get.snackbar(
-                    'Copié !',
-                    '$label copié dans le presse-papiers.',
-                  );
-                },
-              )
-              : null,
+      trailing: canCopy
+          ? IconButton(
+              icon: const Icon(Icons.copy, size: 18),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: value));
+                Get.snackbar(
+                  'Copié !',
+                  '$label copié dans le presse-papiers.',
+                );
+              },
+            )
+          : null,
     );
   }
 }

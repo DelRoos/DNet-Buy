@@ -24,7 +24,6 @@ void showPaymentPopup(BuildContext context, TicketTypeModel ticketType) {
   );
 }
 
-
 Widget _buildIdleView(
   BuildContext context,
   TicketTypeModel ticketType,
@@ -34,13 +33,11 @@ Widget _buildIdleView(
     children: [
       Text('Forfait: ${ticketType.name} - ${ticketType.price} XAF'),
       const SizedBox(height: 16),
-
       Obx(() {
-        final errorText =
-            !controller.isPhoneNumberValid.value &&
-                    controller.phoneController.text.isNotEmpty
-                ? 'Numéro camerounais invalide'
-                : null;
+        final errorText = !controller.isPhoneNumberValid.value &&
+                controller.phoneController.text.isNotEmpty
+            ? 'Numéro camerounais invalide'
+            : null;
 
         return TextField(
           controller: controller.phoneController,
@@ -53,7 +50,6 @@ Widget _buildIdleView(
           autofocus: true,
         );
       }),
-
       const SizedBox(height: 16),
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -62,13 +58,11 @@ Widget _buildIdleView(
             onPressed: () => controller.resetPayment(),
             child: const Text('Annuler'),
           ),
-
           Obx(
             () => ElevatedButton(
-              onPressed:
-                  controller.isPhoneNumberValid.value
-                      ? () => controller.initiatePayment(ticketType)
-                      : null,
+              onPressed: controller.isPhoneNumberValid.value
+                  ? () => controller.initiatePayment(ticketType)
+                  : null,
               child: const Text('Payer'),
             ),
           ),

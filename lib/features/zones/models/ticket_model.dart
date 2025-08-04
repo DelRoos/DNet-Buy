@@ -14,7 +14,6 @@ class TicketModel {
     required this.username,
     required this.password,
     required this.status,
-
     this.soldAt,
     this.firstUsedAt,
     this.buyerPhoneNumber,

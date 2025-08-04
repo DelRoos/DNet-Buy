@@ -140,14 +140,13 @@ class PortalController extends GetxController {
   void loadPurchasedTickets() {
     List<dynamic>? storedTickets = box.read<List>('purchasedTickets');
     if (storedTickets != null) {
-      purchasedTickets.value =
-          storedTickets
-              .map(
-                (e) => PurchasedTicketModel.fromJson(e as Map<String, dynamic>),
-              )
-              .toList()
-              .reversed
-              .toList();
+      purchasedTickets.value = storedTickets
+          .map(
+            (e) => PurchasedTicketModel.fromJson(e as Map<String, dynamic>),
+          )
+          .toList()
+          .reversed
+          .toList();
     }
   }
 }

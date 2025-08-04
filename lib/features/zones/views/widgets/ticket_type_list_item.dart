@@ -29,33 +29,29 @@ class TicketTypeListItem extends StatelessWidget {
         subtitle: Text(
           '${numberFormatter.format(ticketType.price)} XAF - Validité: ${ticketType.validity}',
         ),
-
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color:
-                    ticketType.isActive
-                        ? Colors.green.shade100
-                        : Colors.grey.shade200,
+                color: ticketType.isActive
+                    ? Colors.green.shade100
+                    : Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 ticketType.isActive ? 'Actif' : 'Inactif',
                 style: TextStyle(
-                  color:
-                      ticketType.isActive
-                          ? Colors.green.shade800
-                          : Colors.grey.shade700,
+                  color: ticketType.isActive
+                      ? Colors.green.shade800
+                      : Colors.grey.shade700,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
             const SizedBox(width: 8),
-
             IconButton(
               icon: const Icon(Icons.link),
               tooltip: 'Copier le lien de paiement',

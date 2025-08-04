@@ -29,7 +29,6 @@ class TicketManagementPage extends GetView<TicketManagementController> {
             children: [
               _buildStatsGrid(),
               const SizedBox(height: AppConstants.defaultPadding * 1.5),
-
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(AppConstants.defaultPadding),
@@ -39,8 +38,8 @@ class TicketManagementPage extends GetView<TicketManagementController> {
                       Text(
                         'Importer des Tickets',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
                       const SizedBox(height: 8),
                       const Text(
@@ -60,7 +59,6 @@ class TicketManagementPage extends GetView<TicketManagementController> {
                 ),
               ),
               const SizedBox(height: AppConstants.defaultPadding * 1.5),
-
               Text(
                 'Tickets Importés',
                 style: Theme.of(

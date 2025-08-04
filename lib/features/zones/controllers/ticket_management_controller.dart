@@ -82,7 +82,6 @@ class TicketManagementController extends GetxController {
   Future<void> pickAndUploadCsv() async {
     isUploading.value = true;
 
-
     Get.snackbar('Simulation', 'Sélection du fichier CSV...');
     await Future.delayed(const Duration(seconds: 3));
 

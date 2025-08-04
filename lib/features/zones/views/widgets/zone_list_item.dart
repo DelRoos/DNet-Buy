@@ -32,19 +32,17 @@ class ZoneListItem extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color:
-                    zone.isActive
-                        ? Colors.green.shade100
-                        : Colors.grey.shade200,
+                color: zone.isActive
+                    ? Colors.green.shade100
+                    : Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 zone.isActive ? 'Actif' : 'Inactif',
                 style: TextStyle(
-                  color:
-                      zone.isActive
-                          ? Colors.green.shade800
-                          : Colors.grey.shade700,
+                  color: zone.isActive
+                      ? Colors.green.shade800
+                      : Colors.grey.shade700,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),

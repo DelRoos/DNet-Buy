@@ -34,9 +34,9 @@ class TicketCard extends StatelessWidget {
                 Text(
                   '${ticketType.price} XAF',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Theme.of(context).primaryColor,
-                    fontWeight: FontWeight.bold,
-                  ),
+                        color: Theme.of(context).primaryColor,
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 Text(
                   'Validité : ${ticketType.validity}',

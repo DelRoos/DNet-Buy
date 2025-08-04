@@ -56,7 +56,7 @@ class MerchantService extends GetxService {
       // Compter les transactions du jour
       final today = DateTime.now();
       final startOfDay = DateTime(today.year, today.month, today.day);
-      
+
       final transactionsQuery = await _firestore
           .collection('transactions')
           .where('merchantId', isEqualTo: uid)
@@ -67,7 +67,7 @@ class MerchantService extends GetxService {
       // Calculer le revenu total
       double totalRevenue = 0;
       int ticketsSoldToday = 0;
-      
+
       for (var doc in transactionsQuery.docs) {
         final data = doc.data();
         totalRevenue += (data['amount'] ?? 0).toDouble();

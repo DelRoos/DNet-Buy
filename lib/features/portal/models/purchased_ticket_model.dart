@@ -16,13 +16,13 @@ class PurchasedTicketModel {
   });
 
   Map<String, dynamic> toJson() => {
-    'transactionId': transactionId,
-    'ticketTypeName': ticketTypeName,
-    'price': price,
-    'username': username,
-    'password': password,
-    'purchaseDate': purchaseDate.toIso8601String(),
-  };
+        'transactionId': transactionId,
+        'ticketTypeName': ticketTypeName,
+        'price': price,
+        'username': username,
+        'password': password,
+        'purchaseDate': purchaseDate.toIso8601String(),
+      };
 
   factory PurchasedTicketModel.fromJson(Map<String, dynamic> json) =>
       PurchasedTicketModel(

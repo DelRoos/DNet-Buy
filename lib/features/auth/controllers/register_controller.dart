@@ -4,7 +4,7 @@ import 'package:dnet_buy/app/controllers/auth_controller.dart';
 
 class RegisterController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
-  
+
   final formKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
   final emailController = TextEditingController();
@@ -23,7 +23,7 @@ class RegisterController extends GetxController {
 
   void togglePasswordVisibility() =>
       isPasswordVisible.value = !isPasswordVisible.value;
-  
+
   void toggleConfirmPasswordVisibility() =>
       isConfirmPasswordVisible.value = !isConfirmPasswordVisible.value;
 

@@ -31,13 +31,14 @@ class RegisterPage extends GetView<RegisterController> {
                   Center(
                     child: Text(
                       'Créer votre compte DNet',
-                      style: Theme.of(context).textTheme.headlineSmall
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineSmall
                           ?.copyWith(fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: AppConstants.defaultPadding * 2),
-
                   CustomTextField(
                     controller: controller.nameController,
                     labelText: "Nom de l'entreprise",
@@ -102,37 +103,32 @@ class RegisterPage extends GetView<RegisterController> {
                     ),
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
-
                   const Divider(height: 30),
-
                   CustomTextField(
                     controller: controller.appKeyController,
                     labelText: "Freemopay App Key",
-                    validator:
-                        (val) => Validators.validateNotEmpty(val, 'App Key'),
+                    validator: (val) =>
+                        Validators.validateNotEmpty(val, 'App Key'),
                     prefixIcon: Icons.vpn_key_outlined,
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
                   CustomTextField(
                     controller: controller.secretKeyController,
                     labelText: "Freemopay Secret Key",
-                    validator:
-                        (val) => Validators.validateNotEmpty(val, 'Secret Key'),
+                    validator: (val) =>
+                        Validators.validateNotEmpty(val, 'Secret Key'),
                     prefixIcon: Icons.vpn_key_outlined,
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
                   CustomTextField(
                     controller: controller.callbackUrlController,
                     labelText: "Callback URL",
-                    validator:
-                        (val) =>
-                            Validators.validateNotEmpty(val, 'Callback URL'),
+                    validator: (val) =>
+                        Validators.validateNotEmpty(val, 'Callback URL'),
                     prefixIcon: Icons.link_outlined,
                     keyboardType: TextInputType.url,
                   ),
-
                   const SizedBox(height: AppConstants.defaultPadding * 2),
-
                   Obx(
                     () => CustomButton(
                       text: "S'inscrire",
@@ -141,7 +137,6 @@ class RegisterPage extends GetView<RegisterController> {
                     ),
                   ),
                   const SizedBox(height: AppConstants.defaultPadding * 2),
-
                   Center(
                     child: RichText(
                       textAlign: TextAlign.center,

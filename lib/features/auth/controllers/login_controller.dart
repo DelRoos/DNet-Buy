@@ -4,11 +4,11 @@ import 'package:dnet_buy/app/controllers/auth_controller.dart';
 
 class LoginController extends GetxController {
   final AuthController _authController = Get.find<AuthController>();
-  
+
   final formKey = GlobalKey<FormState>();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  
+
   var isPasswordVisible = false.obs;
 
   // Getters pour l'état de chargement

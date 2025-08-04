@@ -28,14 +28,15 @@ class AuthController extends GetxController {
   void _initAuthListener() {
     _authService.authStateChanges.listen((User? user) async {
       currentUser.value = user;
-      
+
       if (user != null) {
         await _loadMerchantData(user.uid);
         _handleUserStateChange(user);
-      } else {
-        merchantData.value = null;
-        Get.offAllNamed('/login');
       }
+      //  else {
+      //   merchantData.value = null;
+      //   Get.offAllNamed('/login');
+      // }
     });
   }
 
@@ -52,9 +53,9 @@ class AuthController extends GetxController {
   // Gérer les changements d'état utilisateur
   void _handleUserStateChange(User user) {
     final currentRoute = Get.currentRoute;
-    
+
     // Ne pas rediriger si on est déjà sur la bonne page
-    if (currentRoute == '/dashboard' || 
+    if (currentRoute == '/dashboard' ||
         currentRoute == '/email-verification' ||
         currentRoute.startsWith('/dashboard/')) {
       return;
@@ -100,7 +101,6 @@ class AuthController extends GetxController {
         'Compte créé ! Vérifiez votre email pour l\'activer.',
         snackPosition: SnackPosition.BOTTOM,
       );
-
     } catch (e) {
       Get.snackbar('Erreur', e.toString());
     } finally {

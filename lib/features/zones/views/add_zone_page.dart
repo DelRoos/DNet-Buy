@@ -26,8 +26,8 @@ class AddZonePage extends GetView<AddZoneController> {
                 controller: controller.nameController,
                 labelText: 'Nom de la zone',
                 hintText: 'ex: Restaurant - Terrasse',
-                validator:
-                    (v) => Validators.validateNotEmpty(v, 'Nom de la zone'),
+                validator: (v) =>
+                    Validators.validateNotEmpty(v, 'Nom de la zone'),
               ),
               const SizedBox(height: AppConstants.defaultPadding),
               CustomTextField(
@@ -41,8 +41,8 @@ class AddZonePage extends GetView<AddZoneController> {
                 controller: controller.routerTypeController,
                 labelText: 'Type de routeur',
                 hintText: 'ex: MikroTik hAP ac²',
-                validator:
-                    (v) => Validators.validateNotEmpty(v, 'Type de routeur'),
+                validator: (v) =>
+                    Validators.validateNotEmpty(v, 'Type de routeur'),
               ),
               const SizedBox(height: AppConstants.defaultPadding * 2),
               Obx(

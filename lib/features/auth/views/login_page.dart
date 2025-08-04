@@ -31,8 +31,8 @@ class LoginPage extends GetView<LoginController> {
                   Text(
                     'Bienvenue sur DNet',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   Text(
                     'Connectez-vous à votre espace marchand',
@@ -67,7 +67,7 @@ class LoginPage extends GetView<LoginController> {
                     ),
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
-                  
+
                   // Lien mot de passe oublié
                   Align(
                     alignment: Alignment.centerRight,
@@ -76,7 +76,7 @@ class LoginPage extends GetView<LoginController> {
                       child: const Text('Mot de passe oublié ?'),
                     ),
                   ),
-                  
+
                   const SizedBox(height: AppConstants.defaultPadding),
                   Obx(
                     () => CustomButton(

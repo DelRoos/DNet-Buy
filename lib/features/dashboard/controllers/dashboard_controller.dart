@@ -24,17 +24,16 @@ class DashboardController extends GetxController {
   Future<void> fetchDashboardData() async {
     try {
       isLoading.value = true;
-      
+
       final uid = _authController.currentUser.value?.uid;
       if (uid == null) return;
 
       final stats = await _merchantService.getMerchantStats(uid);
-      
+
       totalRevenue.value = stats['totalRevenue'] ?? 0;
       ticketsSoldToday.value = stats['ticketsSoldToday'] ?? 0;
       activeZones.value = stats['activeZones'] ?? 0;
       availableTickets.value = stats['availableTickets'] ?? 0;
-
     } catch (e) {
       Get.snackbar('Erreur', 'Impossible de charger les données');
     } finally {

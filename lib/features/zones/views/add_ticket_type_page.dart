@@ -27,8 +27,8 @@ class AddTicketTypePage extends GetView<AddTicketTypeController> {
                 controller: controller.nameController,
                 labelText: 'Nom du forfait',
                 hintText: 'ex: Pass Journée',
-                validator:
-                    (v) => Validators.validateNotEmpty(v, 'Nom du forfait'),
+                validator: (v) =>
+                    Validators.validateNotEmpty(v, 'Nom du forfait'),
               ),
               const SizedBox(height: AppConstants.defaultPadding),
               CustomTextField(
@@ -53,14 +53,12 @@ class AddTicketTypePage extends GetView<AddTicketTypeController> {
                 validator: (v) => Validators.validateNotEmpty(v, 'Validité'),
               ),
               const SizedBox(height: AppConstants.defaultPadding),
-
               const Divider(height: 30),
               Text(
                 'Paramètres Avancés',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: AppConstants.defaultPadding),
-
               CustomTextField(
                 controller: controller.expirationAfterCreationController,
                 labelText: 'Expiration si non utilisé (en jours)',
@@ -74,14 +72,12 @@ class AddTicketTypePage extends GetView<AddTicketTypeController> {
                 labelText: 'Nombre max. d\'utilisations',
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                validator:
-                    (v) => Validators.validateNotEmpty(
-                      v,
-                      'Nombre max. d\'utilisations',
-                    ),
+                validator: (v) => Validators.validateNotEmpty(
+                  v,
+                  'Nombre max. d\'utilisations',
+                ),
               ),
               const SizedBox(height: AppConstants.defaultPadding),
-
               Obx(
                 () => SwitchListTile.adaptive(
                   title: const Text('Activer ce forfait'),
@@ -93,7 +89,6 @@ class AddTicketTypePage extends GetView<AddTicketTypeController> {
                   activeColor: Theme.of(context).primaryColor,
                 ),
               ),
-
               const SizedBox(height: AppConstants.defaultPadding * 2),
               Obx(
                 () => CustomButton(

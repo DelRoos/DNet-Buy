@@ -1,3 +1,4 @@
+import 'package:dnet_buy/app/middleware/public_middleware.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/app/middleware/auth_middleware.dart';
 import 'package:dnet_buy/features/auth/views/login_page.dart';
@@ -37,7 +38,7 @@ class AppRoutes {
   static const String dashboardTransactions = '/dashboard/transactions';
   static const String dashboardSettings = '/dashboard/settings';
   static const String addZone = '/dashboard/zones/add';
-  
+
   // Routes dynamiques
   static String addTicketType(String zoneId) =>
       '/dashboard/zones/$zoneId/add-ticket';
@@ -81,7 +82,6 @@ class AppPages {
       middlewares: [AuthMiddleware()],
     ),
 
-    // Routes protégées (authentification requise)
     GetPage(
       name: AppRoutes.dashboard,
       page: () => const DashboardPage(),
@@ -148,10 +148,12 @@ class AppPages {
     GetPage(
       name: AppRoutes.portal,
       page: () => const PortalPage(),
+      middlewares: [PublicMiddleware()],
     ),
     GetPage(
       name: AppRoutes.retrieveTicket,
       page: () => const TicketRetrievalPage(),
+      middlewares: [PublicMiddleware()],
     ),
   ];
 }

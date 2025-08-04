@@ -34,13 +34,12 @@ class TransactionListItem extends StatelessWidget {
             Text('Date: ${dateFormatter.format(transaction.transactionDate)}'),
           ],
         ),
-        trailing:
-            transaction.status == TransactionStatus.success
-                ? Text(
-                  transaction.ticketUsername,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                )
-                : null,
+        trailing: transaction.status == TransactionStatus.success
+            ? Text(
+                transaction.ticketUsername,
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              )
+            : null,
         isThreeLine: true,
       ),
     );

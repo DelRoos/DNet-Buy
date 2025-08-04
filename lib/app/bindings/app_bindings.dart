@@ -9,7 +9,7 @@ class AppBindings extends Bindings {
     // Services (permanents)
     Get.put<AuthService>(AuthService(), permanent: true);
     Get.put<MerchantService>(MerchantService(), permanent: true);
-    
+
     // Contrôleur d'authentification (permanent)
     Get.put<AuthController>(AuthController(), permanent: true);
   }

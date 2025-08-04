@@ -27,6 +27,7 @@ class DNetApp extends StatelessWidget {
       initialRoute: AppRoutes.splash,
       getPages: AppPages.routes,
       initialBinding: AppBindings(),
+      defaultTransition: Transition.fadeIn,
     );
   }
 }

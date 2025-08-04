@@ -18,11 +18,10 @@ class CustomButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return icon != null
         ? ElevatedButton.icon(
-          onPressed: isLoading ? null : onPressed,
-          icon: isLoading ? Container() : Icon(icon),
-          label:
-              isLoading
-                  ? const SizedBox(
+            onPressed: isLoading ? null : onPressed,
+            icon: isLoading ? Container() : Icon(icon),
+            label: isLoading
+                ? const SizedBox(
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
@@ -30,13 +29,12 @@ class CustomButton extends StatelessWidget {
                       strokeWidth: 2,
                     ),
                   )
-                  : Text(text),
-        )
+                : Text(text),
+          )
         : ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          child:
-              isLoading
-                  ? const SizedBox(
+            onPressed: isLoading ? null : onPressed,
+            child: isLoading
+                ? const SizedBox(
                     width: 24,
                     height: 24,
                     child: CircularProgressIndicator(
@@ -44,7 +42,7 @@ class CustomButton extends StatelessWidget {
                       strokeWidth: 2,
                     ),
                   )
-                  : Text(text),
-        );
+                : Text(text),
+          );
   }
 }

@@ -37,8 +37,8 @@ class ForgotPasswordPage extends GetView<AuthController> {
                   Text(
                     'Réinitialiser votre mot de passe',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                          fontWeight: FontWeight.bold,
+                        ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),

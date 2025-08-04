@@ -71,11 +71,10 @@ class SettingsPage extends GetView<SettingsController> {
                     controller: controller.currentPasswordController,
                     labelText: 'Mot de passe actuel',
                     obscureText: true,
-                    validator:
-                        (v) => Validators.validateNotEmpty(
-                          v,
-                          'Mot de passe actuel',
-                        ),
+                    validator: (v) => Validators.validateNotEmpty(
+                      v,
+                      'Mot de passe actuel',
+                    ),
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
                   CustomTextField(
@@ -114,8 +113,8 @@ class SettingsPage extends GetView<SettingsController> {
                       controller: controller.appKeyController,
                       labelText: 'Merchant App Key',
                       obscureText: !controller.areApiKeysVisible.value,
-                      validator:
-                          (v) => Validators.validateNotEmpty(v, 'App Key'),
+                      validator: (v) =>
+                          Validators.validateNotEmpty(v, 'App Key'),
                     ),
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
@@ -124,16 +123,16 @@ class SettingsPage extends GetView<SettingsController> {
                       controller: controller.secretKeyController,
                       labelText: 'Merchant Secret Key',
                       obscureText: !controller.areApiKeysVisible.value,
-                      validator:
-                          (v) => Validators.validateNotEmpty(v, 'Secret Key'),
+                      validator: (v) =>
+                          Validators.validateNotEmpty(v, 'Secret Key'),
                     ),
                   ),
                   const SizedBox(height: AppConstants.defaultPadding),
                   CustomTextField(
                     controller: controller.callbackUrlController,
                     labelText: 'Callback URL',
-                    validator:
-                        (v) => Validators.validateNotEmpty(v, 'Callback URL'),
+                    validator: (v) =>
+                        Validators.validateNotEmpty(v, 'Callback URL'),
                     keyboardType: TextInputType.url,
                   ),
                   Obx(

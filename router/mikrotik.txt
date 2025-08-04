@@ -1,0 +1,26 @@
+IP: 10.5.10.1
+PASS: 
+
+
+------ Configuration Mikrotik Back To Home ---------
+- IP > Cloud :
+--> Enable DDNS
+--> Make DDNS Update interval: 00:00:60
+--> Apply
+--> DNS Name: 
+
+BTH VPN
+--> Back To home VPN: enabled
+
+
+
+Connect phone to the network
+Download Mikrotik back to home VPN App (playstore or appstore)
+open the app
+Click create new(Mikrotik address, username, pass)
+Click connect 
+Setup tunel name 
+click create button
+Maintenant se connecter
+
+Une fois connecter aller dans le navigateur et taper l'adresse ip du routeur

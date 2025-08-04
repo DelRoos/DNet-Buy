@@ -36,8 +36,8 @@ class EmailVerificationPage extends GetView<AuthController> {
                 Text(
                   'Vérifiez votre email',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppConstants.defaultPadding),
@@ -50,9 +50,9 @@ class EmailVerificationPage extends GetView<AuthController> {
                 Text(
                   controller.userEmail,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).primaryColor,
-                  ),
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColor,
+                      ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppConstants.defaultPadding * 2),
@@ -67,35 +67,36 @@ class EmailVerificationPage extends GetView<AuthController> {
                     text: 'Renvoyer l\'email',
                     isLoading: controller.isLoading.value,
                     onPressed: controller.resendEmailVerification,
-                  ),),
-               const SizedBox(height: AppConstants.defaultPadding),
-               Obx(
-                 () => CustomButton(
-                   text: 'J\'ai vérifié mon email',
-                   isLoading: controller.isLoading.value,
-                   onPressed: () async {
-                     await controller.refreshUser();
-                     if (controller.isEmailVerified) {
-                       Get.offAllNamed('/dashboard');
-                     } else {
-                       Get.snackbar(
-                         'Email non vérifié',
-                         'Veuillez cliquer sur le lien dans votre email.',
-                       );
-                     }
-                   },
-                 ),
-               ),
-               const SizedBox(height: AppConstants.defaultPadding * 2),
-               TextButton(
-                 onPressed: controller.signOut,
-                 child: const Text('Se déconnecter'),
-               ),
-             ],
-           ),
-         ),
-       ),
-     ),
-   );
- }
+                  ),
+                ),
+                const SizedBox(height: AppConstants.defaultPadding),
+                Obx(
+                  () => CustomButton(
+                    text: 'J\'ai vérifié mon email',
+                    isLoading: controller.isLoading.value,
+                    onPressed: () async {
+                      await controller.refreshUser();
+                      if (controller.isEmailVerified) {
+                        Get.offAllNamed('/dashboard');
+                      } else {
+                        Get.snackbar(
+                          'Email non vérifié',
+                          'Veuillez cliquer sur le lien dans votre email.',
+                        );
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(height: AppConstants.defaultPadding * 2),
+                TextButton(
+                  onPressed: controller.signOut,
+                  child: const Text('Se déconnecter'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

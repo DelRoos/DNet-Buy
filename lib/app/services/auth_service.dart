@@ -114,9 +114,10 @@ class AuthService extends GetxService {
   }
 
   // Sauvegarder les données marchand
-  Future<void> _saveMerchantData(String uid, Map<String, dynamic> userData) async {
+  Future<void> _saveMerchantData(
+      String uid, Map<String, dynamic> userData) async {
     final encryptedKeys = _encryptApiKeys(userData);
-    
+
     await _firestore.collection('merchants').doc(uid).set({
       'name': userData['name'],
       'email': userData['email'],
@@ -134,7 +135,7 @@ class AuthService extends GetxService {
   // Chiffrement des clés API
   Map<String, String> _encryptApiKeys(Map<String, dynamic> userData) {
     final key = utf8.encode(currentUser?.uid ?? 'default_key');
-    
+
     return {
       'appKey': _encrypt(userData['appKey'], key),
       'secretKey': _encrypt(userData['secretKey'], key),

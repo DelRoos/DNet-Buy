@@ -43,19 +43,17 @@ class DashboardPage extends GetView<DashboardController> {
                   () => Text(
                     controller.userName,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ),
                 const SizedBox(height: AppConstants.defaultPadding),
-
                 GridView.count(
                   crossAxisCount: 2,
                   crossAxisSpacing: AppConstants.defaultPadding,
                   mainAxisSpacing: AppConstants.defaultPadding,
                   shrinkWrap: true,
-                  physics:
-                      const NeverScrollableScrollPhysics(),
+                  physics: const NeverScrollableScrollPhysics(),
                   children: [
                     StatCard(
                       icon: Icons.monetization_on,
@@ -89,7 +87,6 @@ class DashboardPage extends GetView<DashboardController> {
                   ],
                 ),
                 const SizedBox(height: AppConstants.defaultPadding * 2),
-
                 Text(
                   'Actions Rapides',
                   style: Theme.of(
@@ -97,7 +94,6 @@ class DashboardPage extends GetView<DashboardController> {
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: AppConstants.defaultPadding / 2),
-
                 ActionListTile(
                   icon: Icons.router,
                   title: 'Gérer mes Zones WiFi',

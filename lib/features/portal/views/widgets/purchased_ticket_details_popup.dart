@@ -25,7 +25,6 @@ void showPurchasedTicketDetailsPopup(
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
-
         Card(
           elevation: 2,
           color: Theme.of(context).primaryColor.withOpacity(0.1),
