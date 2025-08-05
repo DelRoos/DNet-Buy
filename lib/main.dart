@@ -24,7 +24,7 @@ class DNetApp extends StatelessWidget {
       title: 'DNet',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      initialRoute: AppRoutes.splash,
+      initialRoute: AppRoutes.login,
       getPages: AppPages.routes,
       initialBinding: AppBindings(),
       defaultTransition: Transition.fadeIn,

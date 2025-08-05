@@ -72,7 +72,7 @@ class ZoneDetailsController extends GetxController {
   void copyPaymentLink(String ticketTypeId) {
     const merchantId = 'simulated_merchant_id';
 
-    final baseUrl = 'https://app.dnet.com';
+    const baseUrl = 'https://app.dnet.com';
     final paymentUrl =
         '$baseUrl/buy?merchantId=$merchantId&zoneId=$zoneId&typeId=$ticketTypeId';
 

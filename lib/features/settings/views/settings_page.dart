@@ -89,8 +89,9 @@ class SettingsPage extends GetView<SettingsController> {
                     labelText: 'Confirmer le nouveau mot de passe',
                     obscureText: true,
                     validator: (v) {
-                      if (v != controller.newPasswordController.text)
+                      if (v != controller.newPasswordController.text) {
                         return 'Les mots de passe ne correspondent pas.';
+                      }
                       return null;
                     },
                   ),

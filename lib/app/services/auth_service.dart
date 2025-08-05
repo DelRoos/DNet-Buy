@@ -147,7 +147,7 @@ class AuthService extends GetxService {
     final bytes = utf8.encode(text);
     final hmac = Hmac(sha256, key);
     final digest = hmac.convert(bytes);
-    return base64.encode(bytes) + '.' + digest.toString();
+    return '${base64.encode(bytes)}.$digest';
   }
 
   // Gestion des erreurs Firebase

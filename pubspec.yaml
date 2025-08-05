@@ -27,9 +27,11 @@ dependencies:
   firebase_storage: ^13.0.0
   firebase_auth: ^6.0.0
   crypto: ^3.0.6
+  logger: ^2.6.1
 
 # --- DÉPENDANCES DE DÉVELOPPEMENT ---
 dev_dependencies:
+  flutter_native_splash: ^2.4.6
   flutter_test:
     sdk: flutter
 
@@ -40,6 +42,7 @@ flutter:
   # --- GESTION DES ASSETS ---
   assets:
     - assets/images/
+    - assets/images/splash.gif
 
   # --- GESTION DES POLICES (FONTS) ---
   
@@ -55,3 +58,13 @@ flutter:
   #         weight: 600
   #       - asset: assets/fonts/Poppins-Bold.ttf
   #         weight: 700
+
+
+# --- CONFIGURATION DU SPLASH SCREEN NATIF ---
+flutter_native_splash:
+  # Couleur de fond du splash screen
+  color: "#ffffff" 
+  image_web: assets/images/splash.gif
+  image: assets/images/splash.gif
+  web: true
+  web_image_mode: center
