@@ -28,16 +28,16 @@ class TicketManagementController extends GetxController {
     isLoading.value = true;
     await Future.delayed(const Duration(seconds: 1));
 
-    ticketType.value = TicketTypeModel(
-      id: ticketTypeId,
-      name: 'Pass Journée',
-      description: 'Accès 24h',
-      price: 1000,
-      validity: '24 Heures',
-      expirationAfterCreation: 30,
-      nbMaxUtilisations: 1,
-      isActive: true,
-    );
+    // ticketType.value = TicketTypeModel(
+    //   id: ticketTypeId,
+    //   name: 'Pass Journée',
+    //   description: 'Accès 24h',
+    //   price: 1000,
+    //   validity: '24 Heures',
+    //   expirationAfterCreation: 30,
+    //   nbMaxUtilisations: 1,
+    //   isActive: true,
+    // );
 
     tickets.assignAll([
       TicketModel(

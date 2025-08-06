@@ -42,7 +42,6 @@ class AdvancedLoggerService extends GetxService {
   final GetStorage _storage = GetStorage('logs');
   final Queue<LogEntry> _logQueue = Queue<LogEntry>();
   final int _maxLogs = 1000; // Nombre max de logs en mémoire
-  final int _maxStoredLogs = 5000; // Nombre max de logs stockés
 
   static AdvancedLoggerService get to => Get.find<AdvancedLoggerService>();
 
