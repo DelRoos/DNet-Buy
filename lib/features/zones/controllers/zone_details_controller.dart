@@ -100,19 +100,6 @@ class ZoneDetailsController extends GetxController {
     isRefreshing.value = false;
   }
 
-// // Aller aux détails d'un type de ticket
-// void goToTicketTypeDetails(String ticketTypeId) {
-//   _logger.logUserAction('view_ticket_type_details', details: {
-//     'ticketTypeId': ticketTypeId,
-//     'zoneId': zoneId,
-//   });
-
-//   _logger.logNavigation('/dashboard/zones/$zoneId/tickets/$ticketTypeId',
-//       params: {'zoneId': zoneId, 'ticketTypeId': ticketTypeId});
-
-//   Get.toNamed('/dashboard/zones/$zoneId/tickets/$ticketTypeId');
-// }
-
 // Mettre à jour le filtre
   void updateFilter(String filter) {
     selectedFilter.value = filter;
@@ -196,8 +183,8 @@ class ZoneDetailsController extends GetxController {
     _logger.logUserAction('view_ticket_type_details',
         details: {'zoneId': zoneId, 'ticketTypeId': ticketTypeId});
     _logger
-        .logNavigation('/dashboard/zones/$zoneId/ticket-types/$ticketTypeId');
-    Get.toNamed('/dashboard/zones/$zoneId/ticket-types/$ticketTypeId');
+        .logNavigation('/dashboard/zones/$zoneId/ticket/$ticketTypeId');
+    Get.toNamed( '/dashboard/zones/$zoneId/tickets/$ticketTypeId/manage');
   }
 
   // Copier le lien de paiement
