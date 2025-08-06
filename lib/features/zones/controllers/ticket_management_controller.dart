@@ -1,12 +1,19 @@
 // lib/features/zones/controllers/ticket_management_controller.dart
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
+import 'package:csv/csv.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:dnet_buy/app/services/ticket_service.dart';
 import 'package:dnet_buy/app/services/ticket_type_service.dart';
 import 'package:dnet_buy/app/services/logger_service.dart';
+import 'package:dnet_buy/features/zones/models/ticket_model.dart';
 import 'package:dnet_buy/features/zones/models/ticket_type_model.dart';
 
 class TicketManagementController extends GetxController {
   final TicketTypeService _ticketTypeService = Get.find<TicketTypeService>();
+  final TicketService _ticketService = Get.find<TicketService>();
   final LoggerService _logger = LoggerService.to;
 
   final String zoneId;
@@ -18,7 +25,7 @@ class TicketManagementController extends GetxController {
   var ticketType =
       Rx<TicketTypeModel?>(null); // Pour stocker un type de ticket spécifique
   var isUploading = false.obs; // Pour l'état d'upload
-  var tickets = <dynamic>[].obs; // Liste de tickets génériques
+  var tickets = <TicketModel>[].obs; // Liste de tickets génériques
 
   TicketManagementController(
       {required this.zoneId,
@@ -34,6 +41,7 @@ class TicketManagementController extends GetxController {
     // Si un ticketTypeId est fourni, charger les détails de ce type de ticket
     if (ticketTypeId != null) {
       loadTicketTypeDetails();
+      loadTickets(); // Charger aussi les tickets
     }
   }
 
@@ -47,15 +55,36 @@ class TicketManagementController extends GetxController {
           await _ticketTypeService.getTicketType(ticketTypeId!);
       ticketType.value = loadedTicketType;
 
-      // Charger les tickets associés à ce type de ticket
-      // Cette méthode dépendrait de votre implémentation
-      // await loadTickets();
-
       _logger.debug(
           'Détails du type de ticket chargés: ${loadedTicketType?.name}');
     } catch (e) {
       _logger.error('Erreur lors du chargement des détails du type de ticket',
           error: e);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Charger les tickets pour le type de ticket actuel
+  Future<void> loadTickets() async {
+    if (ticketTypeId == null) return;
+    try {
+      isLoading.value = true;
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('tickets')
+          .where('zoneId', isEqualTo: zoneId)
+          .where('ticketTypeId', isEqualTo: ticketTypeId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      final loadedTickets = querySnapshot.docs
+          .map((doc) => TicketModel.fromFirestore(doc))
+          .toList();
+      tickets.assignAll(loadedTickets);
+      _logger.debug('${loadedTickets.length} tickets chargés.');
+    } catch (e, stackTrace) {
+      _logger.error('Erreur lors du chargement des tickets',
+          error: e, stackTrace: stackTrace);
     } finally {
       isLoading.value = false;
     }
@@ -198,46 +227,143 @@ class TicketManagementController extends GetxController {
     }
   }
 
-  // Méthode pour simuler le téléchargement d'un fichier CSV
-  void pickAndUploadCsv() async {
-    try {
-      isUploading.value = true;
 
-      // Simulation d'un téléchargement
-      await Future.delayed(const Duration(seconds: 2));
+void pickAndUploadCsv() async {
+  try {
+    isUploading.value = true;
 
-      // Simulation de tickets chargés
-      tickets.assignAll([
-        {
-          'id': '1',
-          'username': 'user1',
-          'password': 'pass1',
-          'status': 'available'
-        },
-        {
-          'id': '2',
-          'username': 'user2',
-          'password': 'pass2',
-          'status': 'available'
-        },
-        {'id': '3', 'username': 'user3', 'password': 'pass3', 'status': 'sold'},
-      ]);
+    _logger.logUserAction('csv_import_initiated', details: {
+      'zoneId': zoneId,
+      'ticketTypeId': ticketTypeId,
+    });
 
-      Get.snackbar(
-        'Succès',
-        'Fichier CSV importé avec succès',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } catch (e) {
-      _logger.error('Erreur lors du téléchargement du fichier CSV', error: e);
+    // 1. Sélectionner le fichier
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['csv'],
+    );
 
-      Get.snackbar(
-        'Erreur',
-        'Impossible d\'importer le fichier: ${e.toString()}',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      isUploading.value = false;
+    if (result == null || result.files.single.bytes == null) {
+      _logger.info('Aucun fichier sélectionné.', category: 'CSV_IMPORT');
+      return;
     }
+
+    final fileBytes = result.files.single.bytes!;
+    final csvString = utf8.decode(fileBytes);
+
+final List<List<dynamic>> rows = const CsvToListConverter(
+  fieldDelimiter: ',',
+).convert(csvString);
+
+// Log pour inspection
+_logger.debug('Nombre de lignes CSV: ${rows.length}', category: 'CSV_IMPORT');
+_logger.debug('Contenu brut du CSV:\n$csvString', category: 'CSV_IMPORT');
+
+
+    if (rows.isEmpty) {
+      _logger.warning('Fichier CSV vide.', category: 'CSV_IMPORT');
+      Get.snackbar('Erreur', 'Le fichier CSV est vide.');
+      return;
+    }
+
+    // 🔍 Log des colonnes
+    final headers = rows.first.map((e) => e.toString()).toList();
+    _logger.debug('Colonnes détectées dans le CSV: $headers',
+        category: 'CSV_IMPORT');
+
+    // 🔍 Log du contenu ligne par ligne
+    for (int i = 1; i < rows.length; i++) {
+      _logger.debug('Ligne $i: ${rows[i]}', category: 'CSV_IMPORT');
+    }
+
+    if (rows.length < 2) {
+      Get.snackbar('Erreur', 'Le fichier CSV ne contient que l\'en-tête.');
+      return;
+    }
+
+    // 3. Traiter chaque ligne
+    int successCount = 0;
+    int duplicateCount = 0;
+    int errorCount = 0;
+
+    for (final row in rows.skip(1)) {
+      if (row.length < 2) {
+        _logger.warning('Ligne ignorée (colonnes insuffisantes): $row',
+            category: 'CSV_IMPORT');
+        errorCount++;
+        continue;
+      }
+
+      final username = row[0].toString().trim();
+      final password = row[1].toString().trim();
+
+      if (username.isEmpty || password.isEmpty) {
+        _logger.warning('Ligne ignorée (username ou password vide): $row',
+            category: 'CSV_IMPORT');
+        errorCount++;
+        continue;
+      }
+
+      try {
+        final bool exists = await _ticketService.doesTicketExist(username, zoneId);
+        if (exists) {
+          duplicateCount++;
+          _logger.debug('Ticket déjà existant ignoré: $username',
+              category: 'CSV_IMPORT');
+        } else {
+          await _ticketService.createTicket({
+            'username': username,
+            'password': password,
+            'zoneId': zoneId,
+            'ticketTypeId': ticketTypeId,
+          });
+          successCount++;
+          _logger.debug('Ticket créé pour $username', category: 'CSV_IMPORT');
+        }
+      } catch (e) {
+        errorCount++;
+        _logger.error(
+          'Erreur lors de la création du ticket pour $username',
+          error: e,
+          category: 'CSV_IMPORT',
+        );
+      }
+    }
+
+    // 4. Résumé structuré
+    _logger.logEvent('csv_ticket_import', {
+      'zoneId': zoneId,
+      'ticketTypeId': ticketTypeId,
+      'columns': headers,
+      'totalLines': rows.length - 1,
+      'created': successCount,
+      'duplicates': duplicateCount,
+      'errors': errorCount,
+    });
+
+    Get.snackbar(
+      'Importation terminée',
+      '$successCount ticket(s) créé(s), $duplicateCount doublon(s), $errorCount erreur(s).',
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 5),
+    );
+
+    await loadTickets();
+  } catch (e, stackTrace) {
+    _logger.error(
+      'Erreur lors de l\'importation du fichier CSV',
+      error: e,
+      stackTrace: stackTrace,
+      category: 'CSV_IMPORT',
+    );
+    Get.snackbar(
+      'Erreur d\'importation',
+      'Un problème est survenu: ${e.toString()}',
+      snackPosition: SnackPosition.BOTTOM,
+    );
+  } finally {
+    isUploading.value = false;
   }
+}
+
 }

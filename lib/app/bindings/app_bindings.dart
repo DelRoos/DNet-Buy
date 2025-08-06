@@ -6,7 +6,8 @@ import 'package:dnet_buy/app/services/merchant_service.dart';
 import 'package:dnet_buy/app/services/logger_service.dart';
 import 'package:dnet_buy/app/services/advanced_logger_service.dart';
 import 'package:dnet_buy/app/services/zone_service.dart';
-import 'package:dnet_buy/app/services/ticket_type_service.dart'; // NOUVEAU
+import 'package:dnet_buy/app/services/ticket_type_service.dart';
+import 'package:dnet_buy/app/services/ticket_service.dart';
 
 class AppBindings extends Bindings {
   @override
@@ -19,7 +20,8 @@ class AppBindings extends Bindings {
     Get.put<AuthService>(AuthService(), permanent: true);
     Get.put<MerchantService>(MerchantService(), permanent: true);
     Get.put<ZoneService>(ZoneService(), permanent: true);
-    Get.put<TicketTypeService>(TicketTypeService(), permanent: true); // NOUVEAU
+    Get.put<TicketTypeService>(TicketTypeService(), permanent: true);
+    Get.put<TicketService>(TicketService(), permanent: true);
 
     // Contrôleur d'authentification (permanent)
     Get.put<AuthController>(AuthController(), permanent: true);

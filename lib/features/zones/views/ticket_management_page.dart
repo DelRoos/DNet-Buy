@@ -168,6 +168,7 @@ class TicketManagementPage extends GetView<TicketManagementController> {
     );
   }
 
+
   // Liste des tickets importés
   Widget _buildTicketsList() {
     return Column(
@@ -205,17 +206,17 @@ class TicketManagementPage extends GetView<TicketManagementController> {
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
-                  title: Text('Utilisateur: ${ticket['username']}'),
-                  subtitle: Text('Mot de passe: ${ticket['password']}'),
+                  title: Text('Utilisateur: ${ticket.username}'),
+                  subtitle: Text('Mot de passe: ${ticket.password}'),
                   trailing: Chip(
                     label: Text(
-                      ticket['status'] == 'sold' ? 'Vendu' : 'Disponible',
+                      ticket.status == 'sold' ? 'Vendu' : 'Disponible',
                     ),
-                    backgroundColor: ticket['status'] == 'sold'
+                    backgroundColor: ticket.status == 'sold'
                         ? Colors.orange.shade100
                         : Colors.green.shade100,
                     labelStyle: TextStyle(
-                      color: ticket['status'] == 'sold'
+                      color: ticket.status == 'sold'
                           ? Colors.orange.shade800
                           : Colors.green.shade800,
                     ),
@@ -228,6 +229,7 @@ class TicketManagementPage extends GetView<TicketManagementController> {
       ],
     );
   }
+
 
   // Vue pour la liste des types de tickets
   Widget _buildTicketTypesListView() {
