@@ -62,9 +62,9 @@ class ZonesPage extends GetView<ZonesController> {
             ),
             onChanged: controller.updateSearchQuery,
           ),
-          
+
           const SizedBox(height: AppConstants.defaultPadding),
-          
+
           // Filtres
           Row(
             children: [
@@ -82,16 +82,16 @@ class ZonesPage extends GetView<ZonesController> {
 
   Widget _buildFilterChip(String label, String value) {
     return Obx(() => FilterChip(
-      label: Text(label),
-      selected: controller.selectedFilter.value == value,
-      onSelected: (selected) {
-        if (selected) {
-          controller.updateFilter(value);
-        }
-      },
-      selectedColor: Get.theme.primaryColor.withOpacity(0.2),
-      checkmarkColor: Get.theme.primaryColor,
-    ));
+          label: Text(label),
+          selected: controller.selectedFilter.value == value,
+          onSelected: (selected) {
+            if (selected) {
+              controller.updateFilter(value);
+            }
+          },
+          selectedColor: Get.theme.primaryColor.withOpacity(0.2),
+          checkmarkColor: Get.theme.primaryColor,
+        ));
   }
 
   Widget _buildZonesList() {
@@ -120,7 +120,8 @@ class ZonesPage extends GetView<ZonesController> {
             return ZoneListItem(
               zone: zone,
               onTap: () => controller.goToZoneDetails(zone.id),
-              onToggleStatus: (newStatus) => controller.toggleZoneStatus(zone.id, newStatus),
+              onToggleStatus: (newStatus) =>
+                  controller.toggleZoneStatus(zone.id, newStatus),
               onDelete: () => controller.deleteZone(zone.id),
             );
           },

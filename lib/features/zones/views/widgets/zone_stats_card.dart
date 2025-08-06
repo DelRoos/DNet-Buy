@@ -40,9 +40,7 @@ class ZoneStatsCard extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          
           const SizedBox(height: 16),
-          
           Row(
             children: [
               Expanded(

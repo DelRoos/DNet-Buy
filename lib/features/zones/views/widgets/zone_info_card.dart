@@ -23,15 +23,15 @@ class ZoneInfoCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: zone.isActive 
+                    color: zone.isActive
                         ? Get.theme.primaryColor.withOpacity(0.1)
                         : Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     Icons.wifi,
-                    color: zone.isActive 
-                        ? Get.theme.primaryColor 
+                    color: zone.isActive
+                        ? Get.theme.primaryColor
                         : Colors.grey.shade500,
                     size: 28,
                   ),
@@ -54,32 +54,32 @@ class ZoneInfoCard extends StatelessWidget {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Informations détaillées
             _buildInfoRow(
               Icons.description_outlined,
               'Description',
               zone.description,
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             _buildInfoRow(
               Icons.router_outlined,
               'Type de routeur',
               zone.routerType,
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             _buildInfoRow(
               Icons.calendar_today_outlined,
               'Créée le',
               zone.formattedCreationDate,
             ),
-            
+
             // Tags si disponibles
             if (zone.tags != null && zone.tags!.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -126,9 +126,7 @@ class ZoneInfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: zone.isActive 
-            ? Colors.green.shade100 
-            : Colors.orange.shade100,
+        color: zone.isActive ? Colors.green.shade100 : Colors.orange.shade100,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -138,8 +136,8 @@ class ZoneInfoCard extends StatelessWidget {
             width: 6,
             height: 6,
             decoration: BoxDecoration(
-              color: zone.isActive 
-                  ? Colors.green.shade600 
+              color: zone.isActive
+                  ? Colors.green.shade600
                   : Colors.orange.shade600,
               shape: BoxShape.circle,
             ),
@@ -148,8 +146,8 @@ class ZoneInfoCard extends StatelessWidget {
           Text(
             zone.statusText,
             style: TextStyle(
-              color: zone.isActive 
-                  ? Colors.green.shade800 
+              color: zone.isActive
+                  ? Colors.green.shade800
                   : Colors.orange.shade800,
               fontSize: 12,
               fontWeight: FontWeight.bold,

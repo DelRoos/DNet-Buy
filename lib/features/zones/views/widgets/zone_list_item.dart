@@ -35,8 +35,8 @@ class ZoneListItem extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.wifi,
-                    color: zone.isActive 
-                        ? Get.theme.primaryColor 
+                    color: zone.isActive
+                        ? Get.theme.primaryColor
                         : Colors.grey.shade400,
                     size: 28,
                   ),
@@ -64,9 +64,9 @@ class ZoneListItem extends StatelessWidget {
                   _buildStatusChip(),
                 ],
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Description
               Text(
                 zone.description,
@@ -76,9 +76,9 @@ class ZoneListItem extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              
+
               const SizedBox(height: 8),
-              
+
               // Tags si disponibles
               if (zone.tags != null && zone.tags!.isNotEmpty)
                 Wrap(
@@ -105,9 +105,9 @@ class ZoneListItem extends StatelessWidget {
                     );
                   }).toList(),
                 ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Actions en bas
               Row(
                 children: [
@@ -132,9 +132,7 @@ class ZoneListItem extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: zone.isActive 
-            ? Colors.green.shade100 
-            : Colors.grey.shade200,
+        color: zone.isActive ? Colors.green.shade100 : Colors.grey.shade200,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -144,9 +142,8 @@ class ZoneListItem extends StatelessWidget {
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: zone.isActive 
-                  ? Colors.green.shade600 
-                  : Colors.grey.shade500,
+              color:
+                  zone.isActive ? Colors.green.shade600 : Colors.grey.shade500,
               shape: BoxShape.circle,
             ),
           ),
@@ -154,9 +151,8 @@ class ZoneListItem extends StatelessWidget {
           Text(
             zone.statusText,
             style: TextStyle(
-              color: zone.isActive 
-                  ? Colors.green.shade800 
-                  : Colors.grey.shade700,
+              color:
+                  zone.isActive ? Colors.green.shade800 : Colors.grey.shade700,
               fontSize: 12,
               fontWeight: FontWeight.bold,
             ),
@@ -179,7 +175,7 @@ class ZoneListItem extends StatelessWidget {
           onPressed: () => onToggleStatus(!zone.isActive),
           tooltip: zone.isActive ? 'Désactiver' : 'Activer',
         ),
-        
+
         // Bouton supprimer
         IconButton(
           icon: Icon(
@@ -189,7 +185,7 @@ class ZoneListItem extends StatelessWidget {
           onPressed: onDelete,
           tooltip: 'Supprimer',
         ),
-        
+
         // Bouton détails
         Icon(
           Icons.arrow_forward_ios,

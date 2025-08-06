@@ -3,12 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/app/services/ticket_type_service.dart';
 import 'package:dnet_buy/app/services/logger_service.dart';
+import 'package:dnet_buy/features/zones/models/ticket_type_model.dart';
 import 'package:dnet_buy/features/zones/controllers/zone_details_controller.dart';
+import 'package:dnet_buy/features/zones/controllers/ticket_management_controller.dart';
 
 class AddTicketTypeController extends GetxController {
-  final String zoneId;
-  AddTicketTypeController({required this.zoneId});
-
   final TicketTypeService _ticketTypeService = Get.find<TicketTypeService>();
   final LoggerService _logger = LoggerService.to;
 
@@ -19,109 +18,241 @@ class AddTicketTypeController extends GetxController {
   final nameController = TextEditingController();
   final descriptionController = TextEditingController();
   final priceController = TextEditingController();
-  final validityController = TextEditingController();
-  final expirationAfterCreationController = TextEditingController(text: '30');
-  final nbMaxUtilisationsController = TextEditingController(text: '1');
+  final validityDaysController = TextEditingController();
+  final downloadLimitController = TextEditingController();
+  final uploadLimitController = TextEditingController();
+  final sessionTimeController = TextEditingController();
+  final notesController = TextEditingController();
 
   // États réactifs
   var isLoading = false.obs;
-  var isActive = true.obs;
-  var selectedValidityType = 'hours'.obs; // hours, days, weeks
-  var validityHours = 24.obs;
+  var hasDownloadLimit = false.obs;
+  var hasUploadLimit = false.obs;
+  var hasSessionTimeLimit = false.obs;
+  var isEditMode = false.obs;
+  var ticketTypeId = ''.obs;
+  var zoneId = ''.obs;
+  var ticketType = Rx<TicketTypeModel?>(null);
 
-  // Options prédéfinies
-  final List<Map<String, dynamic>> validityPresets = [
-    {'label': '1 Heure', 'hours': 1, 'display': '1h'},
-    {'label': '3 Heures', 'hours': 3, 'display': '3h'},
-    {'label': '6 Heures', 'hours': 6, 'display': '6h'},
-    {'label': '12 Heures', 'hours': 12, 'display': '12h'},
-    {'label': '24 Heures', 'hours': 24, 'display': '1 jour'},
-    {'label': '48 Heures', 'hours': 48, 'display': '2 jours'},
-    {'label': '72 Heures', 'hours': 72, 'display': '3 jours'},
-    {'label': '7 Jours', 'hours': 168, 'display': '1 semaine'},
-    {'label': '30 Jours', 'hours': 720, 'display': '1 mois'},
-  ];
-
-  final List<String> pricePresets = [
-    '500',
-    '1000',
-    '1500',
-    '2000',
-    '2500',
-    '5000',
-  ];
+  // Options de validité prédéfinies (en jours)
+  final List<int> validityOptions = [1, 3, 7, 14, 30, 60, 90, 180, 365];
 
   @override
   void onInit() {
     super.onInit();
-    _logger.info('🚀 AddTicketTypeController initialisé pour zone: $zoneId', 
+    _logger.info('🚀 AddTicketTypeController initialisé',
         category: 'CONTROLLER');
-    
-    // Écouter les changements des heures de validité
-    validityHours.listen((hours) {
-      _updateValidityDisplay();
+
+    // Obtenir l'ID de la zone des arguments (création et édition)
+    if (Get.arguments != null) {
+      if (Get.arguments['zoneId'] != null) {
+        zoneId.value = Get.arguments['zoneId'];
+      }
+
+      // Vérifier si nous sommes en mode édition
+      if (Get.arguments['ticketTypeId'] != null) {
+        ticketTypeId.value = Get.arguments['ticketTypeId'];
+        isEditMode.value = true;
+        _loadTicketTypeData();
+      }
+    }
+
+    // Initialiser les écouteurs pour les limites
+    _initLimitListeners();
+  }
+
+  void _initLimitListeners() {
+    // Écouteurs pour activer/désactiver les champs selon les toggles
+    hasDownloadLimit.listen((enabled) {
+      if (!enabled) {
+        downloadLimitController.text = '';
+      }
+    });
+
+    hasUploadLimit.listen((enabled) {
+      if (!enabled) {
+        uploadLimitController.text = '';
+      }
+    });
+
+    hasSessionTimeLimit.listen((enabled) {
+      if (!enabled) {
+        sessionTimeController.text = '';
+      }
     });
   }
 
-  // Sauvegarder le type de ticket
+  // Charger les données du type de ticket en mode édition
+  Future<void> _loadTicketTypeData() async {
+    try {
+      isLoading.value = true;
+      _logger.debug(
+          'Chargement des données du ticket pour édition: ${ticketTypeId.value}',
+          category: 'ADD_TICKET_TYPE_CONTROLLER');
+
+      final loadedTicketType =
+          await _ticketTypeService.getTicketType(ticketTypeId.value);
+      if (loadedTicketType != null) {
+        ticketType.value = loadedTicketType;
+        zoneId.value = loadedTicketType.zoneId;
+
+        // Remplir les champs avec les données existantes
+        nameController.text = loadedTicketType.name;
+        descriptionController.text = loadedTicketType.description;
+        priceController.text = loadedTicketType.price.toString();
+        validityDaysController.text = loadedTicketType.validityHours.toString();
+
+        _logger.debug('Données du ticket chargées pour édition',
+            data: {
+              'ticketTypeId': loadedTicketType.id,
+              'name': loadedTicketType.name,
+              'price': loadedTicketType.price,
+            },
+            category: 'ADD_TICKET_TYPE_CONTROLLER');
+      } else {
+        _logger.error('Type de ticket non trouvé: ${ticketTypeId.value}',
+            category: 'ADD_TICKET_TYPE_CONTROLLER');
+
+        Get.snackbar(
+          'Erreur',
+          'Type de ticket non trouvé',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red.shade100,
+          colorText: Colors.red.shade800,
+        );
+
+        // Retourner à la page précédente si le type de ticket n'existe pas
+        Get.back();
+      }
+    } catch (e, stackTrace) {
+      _logger.error('Erreur lors du chargement des données du ticket',
+          error: e,
+          stackTrace: stackTrace,
+          category: 'ADD_TICKET_TYPE_CONTROLLER');
+
+      Get.snackbar(
+        'Erreur',
+        'Impossible de charger les données du ticket: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade800,
+      );
+
+      // Retourner à la page précédente en cas d'erreur
+      Get.back();
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // Sauvegarder le type de ticket (création ou mise à jour)
   Future<void> saveTicketType() async {
     try {
       if (!formKey.currentState!.validate()) {
-        _logger.warning('Formulaire invalide', category: 'ADD_TICKET_TYPE_CONTROLLER');
+        _logger.warning('Formulaire invalide',
+            category: 'ADD_TICKET_TYPE_CONTROLLER');
         return;
       }
 
       isLoading.value = true;
-      _logger.debug('Création d\'un nouveau type de ticket', category: 'ADD_TICKET_TYPE_CONTROLLER');
 
-      // Préparer les données
+      // Préparer les données de base
       final ticketTypeData = {
-        'zoneId': zoneId,
         'name': nameController.text.trim(),
         'description': descriptionController.text.trim(),
-        'price': int.parse(priceController.text.trim()),
-        'validity': validityController.text.trim(),
-        'validityHours': validityHours.value,
-        'expirationAfterCreation': int.parse(expirationAfterCreationController.text.trim()),
-        'nbMaxUtilisations': int.parse(nbMaxUtilisationsController.text.trim()),
-        'isActive': isActive.value,
+        'price': double.parse(priceController.text),
+        'validityDays': int.parse(validityDaysController.text),
+        'zoneId': zoneId.value,
       };
 
-      _logger.debug('Données du type de ticket à créer', 
-          data: ticketTypeData, category: 'ADD_TICKET_TYPE_CONTROLLER');
+      // Ajouter les limites si activées
+      if (hasDownloadLimit.value && downloadLimitController.text.isNotEmpty) {
+        ticketTypeData['downloadLimit'] =
+            int.parse(downloadLimitController.text);
+      } else {
+        ticketTypeData['downloadLimit'] = 0;
+      }
 
-      // Créer le type de ticket
-      final ticketTypeId = await _ticketTypeService.createTicketType(ticketTypeData);
+      if (hasUploadLimit.value && uploadLimitController.text.isNotEmpty) {
+        ticketTypeData['uploadLimit'] = int.parse(uploadLimitController.text);
+      } else {
+        ticketTypeData['uploadLimit'] = 0;
+      }
 
-      _logger.logUserAction('ticket_type_created_success', details: {
-        'ticketTypeId': ticketTypeId,
-        'ticketTypeName': ticketTypeData['name'],
-        'zoneId': zoneId,
-      });
+      if (hasSessionTimeLimit.value && sessionTimeController.text.isNotEmpty) {
+        ticketTypeData['sessionTimeLimit'] =
+            int.parse(sessionTimeController.text);
+      } else {
+        ticketTypeData['sessionTimeLimit'] = 0;
+      }
 
+      // Ajouter les notes si présentes
+      if (notesController.text.isNotEmpty) {
+        ticketTypeData['notes'] = notesController.text.trim();
+      }
+
+      _logger.debug(
+          isEditMode.value
+              ? 'Mise à jour du type de ticket: ${ticketTypeId.value}'
+              : 'Création d\'un nouveau type de ticket',
+          data: ticketTypeData,
+          category: 'ADD_TICKET_TYPE_CONTROLLER');
+
+      String successMessage;
+      String operationId;
+
+      if (isEditMode.value) {
+        // Mode édition - mettre à jour un type de ticket existant
+        await _ticketTypeService.updateTicketType(
+            ticketTypeId.value, ticketTypeData);
+        operationId = ticketTypeId.value;
+
+        _logger.logUserAction('ticket_type_updated_success', details: {
+          'ticketTypeId': ticketTypeId.value,
+          'ticketTypeName': ticketTypeData['name'],
+          'zoneId': zoneId.value
+        });
+
+        successMessage =
+            'Forfait "${ticketTypeData['name']}" mis à jour avec succès';
+      } else {
+        // Mode création - créer un nouveau type de ticket
+        operationId = await _ticketTypeService.createTicketType(ticketTypeData);
+
+        _logger.logUserAction('ticket_type_created_success', details: {
+          'ticketTypeId': operationId,
+          'ticketTypeName': ticketTypeData['name'],
+          'zoneId': zoneId.value
+        });
+
+        successMessage = 'Forfait "${ticketTypeData['name']}" créé avec succès';
+      }
+
+      // Rafraîchir les données des autres contrôleurs
+      _refreshRelatedControllers();
+
+      // Rediriger vers la page de détails de la zone
+      Get.until(
+          (route) => Get.currentRoute == '/dashboard/zones/${zoneId.value}');
+
+      // Afficher le message de succès après la redirection
       Get.snackbar(
         'Succès',
-        'Forfait "${ticketTypeData['name']}" créé avec succès',
+        successMessage,
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.green.shade100,
         colorText: Colors.green.shade800,
       );
-
-      // Actualiser les données dans le contrôleur parent
-      if (Get.isRegistered<ZoneDetailsController>()) {
-        Get.find<ZoneDetailsController>().fetchData();
-      }
-
-      // Retourner à la page précédente
-      Get.back();
-
     } catch (e, stackTrace) {
-      _logger.error('Erreur lors de la création du type de ticket',
-          error: e, stackTrace: stackTrace, category: 'ADD_TICKET_TYPE_CONTROLLER');
-      
+      final action = isEditMode.value ? 'mise à jour' : 'création';
+      _logger.error('Erreur lors de la $action du type de ticket',
+          error: e,
+          stackTrace: stackTrace,
+          category: 'ADD_TICKET_TYPE_CONTROLLER');
+
       Get.snackbar(
         'Erreur',
-        'Impossible de créer le forfait: ${e.toString()}',
+        'Impossible de ${isEditMode.value ? "modifier" : "créer"} le forfait: ${e.toString()}',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red.shade100,
         colorText: Colors.red.shade800,
@@ -131,48 +262,32 @@ class AddTicketTypeController extends GetxController {
     }
   }
 
-  // Mettre à jour l'affichage de la validité
-  void _updateValidityDisplay() {
-    final hours = validityHours.value;
-    String display;
-    
-    if (hours < 24) {
-      display = '${hours}h';
-    } else if (hours < 168) {
-      final days = (hours / 24).round();
-      display = '$days jour${days > 1 ? 's' : ''}';
-    } else if (hours < 720) {
-      final weeks = (hours / 168).round();
-      display = '$weeks semaine${weeks > 1 ? 's' : ''}';
-    } else {
-      final months = (hours / 720).round();
-      display = '$months mois';
+  // Rafraîchir les contrôleurs liés pour mettre à jour les données
+  void _refreshRelatedControllers() {
+    try {
+      // Rafraîchir les détails de la zone
+      if (Get.isRegistered<ZoneDetailsController>()) {
+        final detailsController = Get.find<ZoneDetailsController>();
+        if (detailsController.zoneId == zoneId.value) {
+          detailsController.refreshData();
+        }
+      }
+
+      // Rafraîchir la gestion des tickets si disponible
+      if (Get.isRegistered<TicketManagementController>()) {
+        final ticketManagementController =
+            Get.find<TicketManagementController>();
+        if (ticketManagementController.zoneId == zoneId.value) {
+          ticketManagementController.refreshData();
+        }
+      }
+    } catch (e) {
+      _logger.error('Erreur lors du rafraîchissement des contrôleurs',
+          error: e, category: 'ADD_TICKET_TYPE_CONTROLLER');
     }
-    
-    validityController.text = display;
   }
 
-  // Sélectionner un preset de validité
-  void selectValidityPreset(Map<String, dynamic> preset) {
-    validityHours.value = preset['hours'];
-    _logger.debug('Preset de validité sélectionné: ${preset['label']}',
-        category: 'ADD_TICKET_TYPE_CONTROLLER');
-  }
-
-  // Sélectionner un preset de prix
-  void selectPricePreset(String price) {
-    priceController.text = price;
-    _logger.debug('Preset de prix sélectionné: $price F',
-        category: 'ADD_TICKET_TYPE_CONTROLLER');
-  }
-
-  // Basculer le statut actif
-  void toggleIsActive(bool value) {
-    isActive.value = value;
-    _logger.debug('Statut actif changé: $value', category: 'ADD_TICKET_TYPE_CONTROLLER');
-  }
-
-  // Validation du nom
+  // Valider le nom du forfait
   String? validateName(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'Le nom du forfait est requis';
@@ -186,7 +301,7 @@ class AddTicketTypeController extends GetxController {
     return null;
   }
 
-  // Validation de la description
+  // Valider la description
   String? validateDescription(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'La description est requise';
@@ -200,75 +315,128 @@ class AddTicketTypeController extends GetxController {
     return null;
   }
 
-  // Validation du prix
+  // Valider le prix
   String? validatePrice(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'Le prix est requis';
     }
-    
-    final price = int.tryParse(value.trim());
-    if (price == null) {
-      return 'Le prix doit être un nombre entier';
+
+    try {
+      final price = double.parse(value);
+      if (price <= 0) {
+        return 'Le prix doit être supérieur à 0';
+      }
+    } catch (e) {
+      return 'Veuillez entrer un prix valide';
     }
-    if (price <= 0) {
-      return 'Le prix doit être supérieur à 0';
-    }
-    if (price > 100000) {
-      return 'Le prix ne peut pas dépasser 100,000 F';
-    }
+
     return null;
   }
 
-  // Validation de l'expiration
-  String? validateExpiration(String? value) {
+  // Valider la durée de validité
+  String? validateValidityDays(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'L\'expiration est requise';
+      return 'La durée de validité est requise';
     }
-    
-    final days = int.tryParse(value.trim());
-    if (days == null) {
-      return 'L\'expiration doit être un nombre de jours';
+
+    try {
+      final days = int.parse(value);
+      if (days <= 0) {
+        return 'La durée doit être supérieure à 0';
+      }
+      if (days > 1000) {
+        return 'La durée ne peut pas dépasser 1000 jours';
+      }
+    } catch (e) {
+      return 'Veuillez entrer une durée valide';
     }
-    if (days <= 0) {
-      return 'L\'expiration doit être supérieure à 0';
-    }
-    if (days > 365) {
-      return 'L\'expiration ne peut pas dépasser 365 jours';
-    }
+
     return null;
   }
 
-  // Validation du nombre max d'utilisations
-  String? validateMaxUsages(String? value) {
+  // Valider la limite de téléchargement
+  String? validateDownloadLimit(String? value) {
+    if (!hasDownloadLimit.value) return null;
+
     if (value == null || value.trim().isEmpty) {
-      return 'Le nombre max d\'utilisations est requis';
+      return 'La limite de téléchargement est requise';
     }
-    
-    final usages = int.tryParse(value.trim());
-    if (usages == null) {
-      return 'Doit être un nombre entier';
+
+    try {
+      final limit = int.parse(value);
+      if (limit <= 0) {
+        return 'La limite doit être supérieure à 0';
+      }
+    } catch (e) {
+      return 'Veuillez entrer une limite valide';
     }
-    if (usages <= 0) {
-      return 'Doit être supérieur à 0';
+
+    return null;
+  }
+
+  // Valider la limite d'upload
+  String? validateUploadLimit(String? value) {
+    if (!hasUploadLimit.value) return null;
+
+    if (value == null || value.trim().isEmpty) {
+      return 'La limite d\'envoi est requise';
     }
-    if (usages > 100) {
-      return 'Ne peut pas dépasser 100 utilisations';
+
+    try {
+      final limit = int.parse(value);
+      if (limit <= 0) {
+        return 'La limite doit être supérieure à 0';
+      }
+    } catch (e) {
+      return 'Veuillez entrer une limite valide';
     }
+
+    return null;
+  }
+
+  // Valider la limite de temps de session
+  String? validateSessionTimeLimit(String? value) {
+    if (!hasSessionTimeLimit.value) return null;
+
+    if (value == null || value.trim().isEmpty) {
+      return 'La limite de temps de session est requise';
+    }
+
+    try {
+      final limit = int.parse(value);
+      if (limit <= 0) {
+        return 'La limite doit être supérieure à 0';
+      }
+    } catch (e) {
+      return 'Veuillez entrer une limite valide';
+    }
+
     return null;
   }
 
   // Réinitialiser le formulaire
   void resetForm() {
-    nameController.clear();
-    descriptionController.clear();
-    priceController.clear();
-    validityController.clear();
-    expirationAfterCreationController.text = '30';
-    nbMaxUtilisationsController.text = '1';
-    isActive.value = true;
-    validityHours.value = 24;
-    selectedValidityType.value = 'hours';
-    _logger.debug('Formulaire réinitialisé', category: 'ADD_TICKET_TYPE_CONTROLLER');
+    if (isEditMode.value) {
+      // En mode édition, recharger les données originales
+      _loadTicketTypeData();
+    } else {
+      // En mode création, vider le formulaire
+      nameController.clear();
+      descriptionController.clear();
+      priceController.clear();
+      validityDaysController.text = '1'; // Valeur par défaut
+      downloadLimitController.clear();
+      uploadLimitController.clear();
+      sessionTimeController.clear();
+      notesController.clear();
+
+      // Réinitialiser les toggles
+      hasDownloadLimit.value = false;
+      hasUploadLimit.value = false;
+      hasSessionTimeLimit.value = false;
+    }
+    _logger.debug('Formulaire réinitialisé',
+        category: 'ADD_TICKET_TYPE_CONTROLLER');
   }
 
   @override
@@ -276,10 +444,13 @@ class AddTicketTypeController extends GetxController {
     nameController.dispose();
     descriptionController.dispose();
     priceController.dispose();
-    validityController.dispose();
-    expirationAfterCreationController.dispose();
-    nbMaxUtilisationsController.dispose();
-    _logger.debug('AddTicketTypeController fermé', category: 'ADD_TICKET_TYPE_CONTROLLER');
+    validityDaysController.dispose();
+    downloadLimitController.dispose();
+    uploadLimitController.dispose();
+    sessionTimeController.dispose();
+    notesController.dispose();
+    _logger.debug('AddTicketTypeController fermé',
+        category: 'ADD_TICKET_TYPE_CONTROLLER');
     super.onClose();
   }
 }

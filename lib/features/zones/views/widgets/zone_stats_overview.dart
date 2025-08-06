@@ -22,9 +22,9 @@ class ZoneStatsOverview extends StatelessWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Première ligne - Forfaits
             Row(
               children: [
@@ -54,9 +54,9 @@ class ZoneStatsOverview extends StatelessWidget {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Deuxième ligne - Tickets et Revenus
             Row(
               children: [
@@ -92,7 +92,8 @@ class ZoneStatsOverview extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+  Widget _buildStatItem(
+      String label, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

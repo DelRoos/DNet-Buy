@@ -31,7 +31,7 @@ class ZoneModel {
   // Créer depuis Firestore
   factory ZoneModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
+
     return ZoneModel(
       id: doc.id,
       merchantId: data['merchantId'] ?? '',
@@ -56,14 +56,16 @@ class ZoneModel {
       description: map['description'] ?? '',
       routerType: map['routerType'] ?? '',
       isActive: map['isActive'] ?? true,
-      createdAt: map['createdAt'] is Timestamp 
+      createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate()
-          : DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: map['updatedAt'] is Timestamp 
+          : DateTime.parse(
+              map['createdAt'] ?? DateTime.now().toIso8601String()),
+      updatedAt: map['updatedAt'] is Timestamp
           ? (map['updatedAt'] as Timestamp).toDate()
-          : DateTime.parse(map['updatedAt'] ?? DateTime.now().toIso8601String()),
-      deletedAt: map['deletedAt'] != null 
-          ? (map['deletedAt'] is Timestamp 
+          : DateTime.parse(
+              map['updatedAt'] ?? DateTime.now().toIso8601String()),
+      deletedAt: map['deletedAt'] != null
+          ? (map['deletedAt'] is Timestamp
               ? (map['deletedAt'] as Timestamp).toDate()
               : DateTime.parse(map['deletedAt']))
           : null,
@@ -120,7 +122,8 @@ class ZoneModel {
   // Getters utiles
   bool get isDeleted => deletedAt != null;
   String get statusText => isActive ? 'Actif' : 'Inactif';
-  String get formattedCreationDate => '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+  String get formattedCreationDate =>
+      '${createdAt.day}/${createdAt.month}/${createdAt.year}';
 
   @override
   String toString() {

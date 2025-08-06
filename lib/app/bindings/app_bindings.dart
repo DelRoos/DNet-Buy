@@ -25,6 +25,7 @@ class AppBindings extends Bindings {
     Get.put<AuthController>(AuthController(), permanent: true);
 
     // Log de l'initialisation
-    LoggerService.to.info('✅ Application bindings initialisés avec tous les services');
+    LoggerService.to
+        .info('✅ Application bindings initialisés avec tous les services');
   }
 }

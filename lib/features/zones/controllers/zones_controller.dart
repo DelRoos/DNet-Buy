@@ -61,13 +61,11 @@ class ZonesController extends GetxController {
       zones.assignAll(fetchedZones);
 
       _logger.info('✅ ${fetchedZones.length} zones chargées',
-          category: 'ZONES_CONTROLLER',
-          data: {'count': fetchedZones.length});
-
+          category: 'ZONES_CONTROLLER', data: {'count': fetchedZones.length});
     } catch (e, stackTrace) {
       _logger.error('Erreur lors du chargement des zones',
           error: e, stackTrace: stackTrace, category: 'ZONES_CONTROLLER');
-      
+
       Get.snackbar(
         'Erreur',
         'Impossible de charger les zones: ${e.toString()}',
@@ -82,13 +80,12 @@ class ZonesController extends GetxController {
   Future<void> fetchStats() async {
     try {
       _logger.debug('Récupération des statistiques des zones');
-      
+
       final fetchedStats = await _zoneService.getZoneStats();
       stats.assignAll(fetchedStats);
 
       _logger.info('✅ Statistiques des zones chargées',
           category: 'ZONES_CONTROLLER');
-
     } catch (e) {
       _logger.error('Erreur lors du chargement des statistiques',
           error: e, category: 'ZONES_CONTROLLER');
@@ -104,7 +101,8 @@ class ZonesController extends GetxController {
   // Navigation vers les détails d'une zone
   void goToZoneDetails(String zoneId) {
     _logger.logUserAction('view_zone_details', details: {'zoneId': zoneId});
-    _logger.logNavigation('/dashboard/zones/$zoneId', params: {'zoneId': zoneId});
+    _logger
+        .logNavigation('/dashboard/zones/$zoneId', params: {'zoneId': zoneId});
     Get.toNamed('/dashboard/zones/$zoneId');
   }
 
@@ -114,7 +112,7 @@ class ZonesController extends GetxController {
       _logger.debug('Changement du statut de la zone: $zoneId -> $newStatus');
 
       await _zoneService.toggleZoneStatus(zoneId, newStatus);
-      
+
       // Mettre à jour localement
       final zoneIndex = zones.indexWhere((z) => z.id == zoneId);
       if (zoneIndex != -1) {
@@ -132,11 +130,10 @@ class ZonesController extends GetxController {
 
       // Rafraîchir les statistiques
       fetchStats();
-
     } catch (e, stackTrace) {
       _logger.error('Erreur lors du changement de statut',
           error: e, stackTrace: stackTrace, category: 'ZONES_CONTROLLER');
-      
+
       Get.snackbar(
         'Erreur',
         'Impossible de modifier le statut: ${e.toString()}',
@@ -152,7 +149,8 @@ class ZonesController extends GetxController {
       final confirmed = await Get.dialog<bool>(
         AlertDialog(
           title: const Text('Confirmer la suppression'),
-          content: const Text('Êtes-vous sûr de vouloir supprimer cette zone ?'),
+          content:
+              const Text('Êtes-vous sûr de vouloir supprimer cette zone ?'),
           actions: [
             TextButton(
               onPressed: () => Get.back(result: false),
@@ -171,7 +169,7 @@ class ZonesController extends GetxController {
       _logger.debug('Suppression de la zone: $zoneId');
 
       await _zoneService.deleteZone(zoneId);
-      
+
       // Retirer de la liste locale
       zones.removeWhere((z) => z.id == zoneId);
 
@@ -183,11 +181,10 @@ class ZonesController extends GetxController {
 
       // Rafraîchir les statistiques
       fetchStats();
-
     } catch (e, stackTrace) {
       _logger.error('Erreur lors de la suppression',
           error: e, stackTrace: stackTrace, category: 'ZONES_CONTROLLER');
-      
+
       Get.snackbar(
         'Erreur',
         'Impossible de supprimer la zone: ${e.toString()}',
@@ -199,7 +196,8 @@ class ZonesController extends GetxController {
   // Recherche
   void updateSearchQuery(String query) {
     searchQuery.value = query;
-    _logger.debug('Recherche mise à jour: $query', category: 'ZONES_CONTROLLER');
+    _logger.debug('Recherche mise à jour: $query',
+        category: 'ZONES_CONTROLLER');
   }
 
   // Filtre
@@ -218,7 +216,7 @@ class ZonesController extends GetxController {
   // Écouter les changements en temps réel
   void startRealtimeListener() {
     _logger.debug('Démarrage du listener temps réel des zones');
-    
+
     _zoneService.watchZones().listen(
       (updatedZones) {
         zones.assignAll(updatedZones);

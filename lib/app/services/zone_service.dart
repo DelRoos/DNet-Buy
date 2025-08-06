@@ -12,7 +12,8 @@ class ZoneService extends GetxService {
 
   // Collection references
   CollectionReference get _zonesCollection => _firestore.collection('zones');
-  CollectionReference get _ticketTypesCollection => _firestore.collection('ticket_types');
+  CollectionReference get _ticketTypesCollection =>
+      _firestore.collection('ticket_types');
 
   String? get currentUserId => _auth.currentUser?.uid;
 
@@ -58,17 +59,17 @@ class ZoneService extends GetxService {
       _logger.debug('Récupération de la zone: $zoneId');
 
       final docSnapshot = await _zonesCollection.doc(zoneId).get();
-      
+
       if (!docSnapshot.exists) {
         _logger.warning('Zone non trouvée: $zoneId', category: 'ZONE_SERVICE');
         return null;
       }
 
       final zone = ZoneModel.fromFirestore(docSnapshot);
-      
+
       // Vérifier que la zone appartient au marchand actuel
       if (zone.merchantId != currentUserId) {
-        _logger.warning('Accès refusé à la zone: $zoneId', 
+        _logger.warning('Accès refusé à la zone: $zoneId',
             category: 'ZONE_SERVICE',
             data: {'zoneOwner': zone.merchantId, 'currentUser': currentUserId});
         throw Exception('Accès non autorisé à cette zone');
@@ -129,7 +130,8 @@ class ZoneService extends GetxService {
   }
 
   // Mettre à jour une zone
-  Future<void> updateZone(String zoneId, Map<String, dynamic> updateData) async {
+  Future<void> updateZone(
+      String zoneId, Map<String, dynamic> updateData) async {
     try {
       _logger.debug('Mise à jour de la zone: $zoneId');
 
@@ -154,7 +156,6 @@ class ZoneService extends GetxService {
       _logger.info('✅ Zone mise à jour: $zoneId',
           category: 'ZONE_SERVICE',
           data: {'zoneId': zoneId, 'updatedFields': updateData.keys.toList()});
-
     } catch (e, stackTrace) {
       _logger.error('Erreur lors de la mise à jour de la zone',
           error: e, stackTrace: stackTrace, category: 'ZONE_SERVICE');
@@ -173,7 +174,6 @@ class ZoneService extends GetxService {
         'zoneId': zoneId,
         'newStatus': isActive ? 'active' : 'inactive',
       });
-
     } catch (e, stackTrace) {
       _logger.error('Erreur lors du changement de statut de la zone',
           error: e, stackTrace: stackTrace, category: 'ZONE_SERVICE');
@@ -193,7 +193,8 @@ class ZoneService extends GetxService {
           .get();
 
       if (ticketTypesQuery.docs.isNotEmpty) {
-        throw Exception('Impossible de supprimer une zone avec des forfaits actifs');
+        throw Exception(
+            'Impossible de supprimer une zone avec des forfaits actifs');
       }
 
       // Suppression logique
@@ -210,7 +211,6 @@ class ZoneService extends GetxService {
       _logger.info('✅ Zone supprimée: $zoneId',
           category: 'ZONE_SERVICE',
           data: {'zoneId': zoneId, 'deletionType': 'soft_delete'});
-
     } catch (e, stackTrace) {
       _logger.error('Erreur lors de la suppression de la zone',
           error: e, stackTrace: stackTrace, category: 'ZONE_SERVICE');
@@ -255,8 +255,10 @@ class ZoneService extends GetxService {
           .where('merchantId', isEqualTo: currentUserId)
           .get();
 
-      final zones = querySnapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
-      
+      final zones = querySnapshot.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
+
       final stats = {
         'totalZones': zones.length,
         'activeZones': zones.where((z) => z['isActive'] == true).length,
@@ -266,8 +268,7 @@ class ZoneService extends GetxService {
       };
 
       _logger.info('✅ Statistiques des zones générées',
-          category: 'ZONE_SERVICE',
-          data: stats);
+          category: 'ZONE_SERVICE', data: stats);
 
       return stats;
     } catch (e, stackTrace) {
@@ -278,14 +279,15 @@ class ZoneService extends GetxService {
   }
 
   // Helper pour analyser la distribution des types de routeurs
-  Map<String, int> _getRouterTypesDistribution(List<Map<String, dynamic>> zones) {
+  Map<String, int> _getRouterTypesDistribution(
+      List<Map<String, dynamic>> zones) {
     final distribution = <String, int>{};
-    
+
     for (final zone in zones) {
       final routerType = zone['routerType'] as String? ?? 'Non spécifié';
       distribution[routerType] = (distribution[routerType] ?? 0) + 1;
     }
-    
+
     return distribution;
   }
 }

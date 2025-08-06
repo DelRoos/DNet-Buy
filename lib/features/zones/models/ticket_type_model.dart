@@ -43,7 +43,7 @@ class TicketTypeModel {
   // Créer depuis Firestore
   factory TicketTypeModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    
+
     return TicketTypeModel(
       id: doc.id,
       zoneId: data['zoneId'] ?? '',
@@ -81,14 +81,16 @@ class TicketTypeModel {
       totalTicketsGenerated: map['totalTicketsGenerated'] ?? 0,
       ticketsSold: map['ticketsSold'] ?? 0,
       ticketsAvailable: map['ticketsAvailable'] ?? 0,
-      createdAt: map['createdAt'] is Timestamp 
+      createdAt: map['createdAt'] is Timestamp
           ? (map['createdAt'] as Timestamp).toDate()
-          : DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: map['updatedAt'] is Timestamp 
+          : DateTime.parse(
+              map['createdAt'] ?? DateTime.now().toIso8601String()),
+      updatedAt: map['updatedAt'] is Timestamp
           ? (map['updatedAt'] as Timestamp).toDate()
-          : DateTime.parse(map['updatedAt'] ?? DateTime.now().toIso8601String()),
-      deletedAt: map['deletedAt'] != null 
-          ? (map['deletedAt'] is Timestamp 
+          : DateTime.parse(
+              map['updatedAt'] ?? DateTime.now().toIso8601String()),
+      deletedAt: map['deletedAt'] != null
+          ? (map['deletedAt'] is Timestamp
               ? (map['deletedAt'] as Timestamp).toDate()
               : DateTime.parse(map['deletedAt']))
           : null,
@@ -146,10 +148,12 @@ class TicketTypeModel {
       price: price ?? this.price,
       validity: validity ?? this.validity,
       validityHours: validityHours ?? this.validityHours,
-      expirationAfterCreation: expirationAfterCreation ?? this.expirationAfterCreation,
+      expirationAfterCreation:
+          expirationAfterCreation ?? this.expirationAfterCreation,
       nbMaxUtilisations: nbMaxUtilisations ?? this.nbMaxUtilisations,
       isActive: isActive ?? this.isActive,
-      totalTicketsGenerated: totalTicketsGenerated ?? this.totalTicketsGenerated,
+      totalTicketsGenerated:
+          totalTicketsGenerated ?? this.totalTicketsGenerated,
       ticketsSold: ticketsSold ?? this.ticketsSold,
       ticketsAvailable: ticketsAvailable ?? this.ticketsAvailable,
       createdAt: createdAt ?? this.createdAt,
@@ -163,8 +167,10 @@ class TicketTypeModel {
   bool get isDeleted => deletedAt != null;
   String get statusText => isActive ? 'Actif' : 'Inactif';
   String get formattedPrice => '${price.toString()} F';
-  String get formattedCreationDate => '${createdAt.day}/${createdAt.month}/${createdAt.year}';
-  double get conversionRate => ticketsSold > 0 ? (ticketsSold / totalTicketsGenerated * 100) : 0.0;
+  String get formattedCreationDate =>
+      '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+  double get conversionRate =>
+      ticketsSold > 0 ? (ticketsSold / totalTicketsGenerated * 100) : 0.0;
   bool get hasStock => ticketsAvailable > 0;
   String get stockStatus {
     if (ticketsAvailable == 0) return 'Stock épuisé';

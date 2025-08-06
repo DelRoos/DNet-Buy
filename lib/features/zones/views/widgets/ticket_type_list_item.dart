@@ -1,171 +1,52 @@
 // lib/features/zones/views/widgets/ticket_type_list_item.dart
+// Simplifier cette classe pour éviter les erreurs
+
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:dnet_buy/features/zones/models/ticket_type_model.dart';
+import 'package:dnet_buy/shared/utils/format_utils.dart';
 
 class TicketTypeListItem extends StatelessWidget {
   final TicketTypeModel ticketType;
-  final VoidCallback onTap;
-  final VoidCallback onCopyLink;
-  final Function(bool) onToggleStatus;
-  final VoidCallback onDelete;
+  final Function()? onTap;
+  final Function(bool)? onToggleStatus;
+  final Function()? onDelete;
+  final Function()? onEdit;
 
   const TicketTypeListItem({
     super.key,
     required this.ticketType,
-    required this.onTap,
-    required this.onCopyLink,
-    required this.onToggleStatus,
-    required this.onDelete,
+    this.onTap,
+    this.onToggleStatus,
+    this.onDelete,
+    this.onEdit,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: ticketType.isActive
+              ? Colors.green.withOpacity(0.3)
+              : Colors.orange.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // En-tête avec nom, prix et statut
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          ticketType.name,
-                          style: Get.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          ticketType.formattedPrice,
-                          style: Get.textTheme.titleMedium?.copyWith(
-                            color: Colors.green.shade700,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _buildStatusChip(),
-                  const SizedBox(width: 8),
-                  _buildStockChip(),
-                ],
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Description
-              Text(
-                ticketType.description,
-                style: Get.textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey.shade700,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              
-              const SizedBox(height: 12),
-              
-              // Informations détaillées
-              Row(
-                children: [
-                  _buildInfoChip(
-                    Icons.schedule,
-                    ticketType.validity,
-                    Colors.blue,
-                  ),
-                  const SizedBox(width: 8),
-                  _buildInfoChip(
-                    Icons.repeat,
-                    '${ticketType.nbMaxUtilisations}x',
-                    Colors.purple,
-                  ),
-                  const SizedBox(width: 8),
-                  _buildInfoChip(
-                    Icons.calendar_today,
-                    '${ticketType.expirationAfterCreation}j',
-                    Colors.orange,
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Statistiques rapides
-              Row(
-                children: [
-                  _buildStatChip('Générés', ticketType.totalTicketsGenerated),
-                  const SizedBox(width: 12),
-                  _buildStatChip('Vendus', ticketType.ticketsSold),
-                  const SizedBox(width: 12),
-                  _buildStatChip('Dispo', ticketType.ticketsAvailable),
-                  const Spacer(),
-                  Text(
-                    'Rev: ${(ticketType.ticketsSold * ticketType.price)} F',
-                    style: Get.textTheme.bodySmall?.copyWith(
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Actions
-              Row(
-                children: [
-                  // Bouton copier lien
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: onCopyLink,
-                      icon: const Icon(Icons.link, size: 16),
-                      label: const Text('Copier lien'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(width: 8),
-                  
-                  // Bouton toggle statut
-                  IconButton(
-                    icon: Icon(
-                      ticketType.isActive ? Icons.pause_circle : Icons.play_circle,
-                      color: ticketType.isActive ? Colors.orange : Colors.green,
-                    ),
-                    onPressed: () => onToggleStatus(!ticketType.isActive),
-                    tooltip: ticketType.isActive ? 'Désactiver' : 'Activer',
-                  ),
-                  
-                  // Bouton supprimer
-                  IconButton(
-                    icon: Icon(
-                      Icons.delete_outline,
-                      color: Colors.red.shade400,
-                    ),
-                    onPressed: onDelete,
-                    tooltip: 'Supprimer',
-                  ),
-                  
-                  // Bouton détails
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    size: 16,
-                    color: Colors.grey.shade400,
-                  ),
-                ],
-              ),
+              _buildHeader(),
+              const Divider(height: 24),
+              _buildDetails(),
+              const SizedBox(height: 8),
+              _buildActions(),
             ],
           ),
         ),
@@ -173,119 +54,119 @@ class TicketTypeListItem extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusChip() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: ticketType.isActive 
-            ? Colors.green.shade100 
-            : Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(10),
-     ),
-     child: Row(
-       mainAxisSize: MainAxisSize.min,
-       children: [
-         Container(
-           width: 6,
-           height: 6,
-           decoration: BoxDecoration(
-             color: ticketType.isActive 
-                 ? Colors.green.shade600 
-                 : Colors.grey.shade500,
-             shape: BoxShape.circle,
-           ),
-         ),
-         const SizedBox(width: 4),
-         Text(
-           ticketType.statusText,
-           style: TextStyle(
-             color: ticketType.isActive 
-                 ? Colors.green.shade800 
-                 : Colors.grey.shade700,
-             fontSize: 10,
-             fontWeight: FontWeight.bold,
-           ),
-         ),
-       ],
-     ),
-   );
- }
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                ticketType.name,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                ticketType.statusText,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: ticketType.isActive ? Colors.green : Colors.orange,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            FormatUtils.formatCurrency(ticketType.price.toDouble()),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
- Widget _buildStockChip() {
-   Color color;
-   String text;
-   
-   if (ticketType.ticketsAvailable == 0) {
-     color = Colors.red;
-     text = 'Épuisé';
-   } else if (ticketType.ticketsAvailable < 10) {
-     color = Colors.orange;
-     text = 'Faible';
-   } else {
-     color = Colors.green;
-     text = 'Stock OK';
-   }
+  Widget _buildDetails() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          ticketType.description,
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.grey.shade700,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 16,
+          runSpacing: 8,
+          children: [
+            _buildDetailItem(
+              Icons.calendar_today,
+              'Validité: ${ticketType.validityHours} ${ticketType.validityHours > 1 ? 'jours' : 'jour'}',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 
-   return Container(
-     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-     decoration: BoxDecoration(
-       color: color.withOpacity(0.1),
-       borderRadius: BorderRadius.circular(10),
-     ),
-     child: Text(
-       text,
-       style: TextStyle(
-         color: color.withOpacity(0.7),
-         fontSize: 10,
-         fontWeight: FontWeight.bold,
-       ),
-     ),
-   );
- }
+  Widget _buildDetailItem(IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: Colors.grey.shade600),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
 
- Widget _buildInfoChip(IconData icon, String text, Color color) {
-   return Container(
-     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-     decoration: BoxDecoration(
-       color: color.withOpacity(0.1),
-       borderRadius: BorderRadius.circular(8),
-     ),
-     child: Row(
-       mainAxisSize: MainAxisSize.min,
-       children: [
-         Icon(icon, size: 12, color: color),
-         const SizedBox(width: 4),
-         Text(
-           text,
-           style: TextStyle(
-             fontSize: 10,
-             color: color.withOpacity(0.7),
-             fontWeight: FontWeight.w500,
-           ),
-         ),
-       ],
-     ),
-   );
- }
-
- Widget _buildStatChip(String label, int value) {
-   return Column(
-     children: [
-       Text(
-         value.toString(),
-         style: Get.textTheme.bodySmall?.copyWith(
-           fontWeight: FontWeight.bold,
-           color: Colors.grey.shade800,
-         ),
-       ),
-       Text(
-         label,
-         style: Get.textTheme.bodySmall?.copyWith(
-           fontSize: 10,
-           color: Colors.grey.shade600,
-         ),
-       ),
-     ],
-   );
- }
+  Widget _buildActions() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        IconButton(
+          icon: Icon(
+            ticketType.isActive
+                ? Icons.pause_circle_outline
+                : Icons.play_circle_outline,
+            color: ticketType.isActive ? Colors.orange : Colors.green,
+          ),
+          onPressed: onToggleStatus != null
+              ? () => onToggleStatus!(!ticketType.isActive)
+              : null,
+          tooltip: ticketType.isActive ? 'Désactiver' : 'Activer',
+        ),
+        IconButton(
+          icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+          onPressed: onEdit,
+          tooltip: 'Modifier',
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          onPressed: onDelete,
+          tooltip: 'Supprimer',
+        ),
+      ],
+    );
+  }
 }

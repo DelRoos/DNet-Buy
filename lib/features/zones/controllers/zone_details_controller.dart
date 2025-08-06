@@ -37,12 +37,13 @@ class ZoneDetailsController extends GetxController {
   }
 
   bool get hasActiveTicketTypes => ticketTypes.any((tt) => tt.isActive);
-  int get totalRevenue => ticketTypes.fold(0, (sum, tt) => sum + (tt.ticketsSold * tt.price));
+  int get totalRevenue =>
+      ticketTypes.fold(0, (sum, tt) => sum + (tt.ticketsSold * tt.price));
 
   @override
   void onInit() {
     super.onInit();
-    _logger.info('🚀 ZoneDetailsController initialisé pour zone: $zoneId', 
+    _logger.info('🚀 ZoneDetailsController initialisé pour zone: $zoneId',
         category: 'CONTROLLER');
     fetchData();
   }
@@ -76,11 +77,12 @@ class ZoneDetailsController extends GetxController {
             'zoneName': zone.value?.name,
             'ticketTypesCount': ticketTypes.length
           });
-
     } catch (e, stackTrace) {
       _logger.error('Erreur lors du chargement des données de la zone',
-          error: e, stackTrace: stackTrace, category: 'ZONE_DETAILS_CONTROLLER');
-      
+          error: e,
+          stackTrace: stackTrace,
+          category: 'ZONE_DETAILS_CONTROLLER');
+
       Get.snackbar(
         'Erreur',
         'Impossible de charger les données: ${e.toString()}',
@@ -98,6 +100,42 @@ class ZoneDetailsController extends GetxController {
     isRefreshing.value = false;
   }
 
+// // Aller aux détails d'un type de ticket
+// void goToTicketTypeDetails(String ticketTypeId) {
+//   _logger.logUserAction('view_ticket_type_details', details: {
+//     'ticketTypeId': ticketTypeId,
+//     'zoneId': zoneId,
+//   });
+
+//   _logger.logNavigation('/dashboard/zones/$zoneId/tickets/$ticketTypeId',
+//       params: {'zoneId': zoneId, 'ticketTypeId': ticketTypeId});
+
+//   Get.toNamed('/dashboard/zones/$zoneId/tickets/$ticketTypeId');
+// }
+
+// Mettre à jour le filtre
+  void updateFilter(String filter) {
+    selectedFilter.value = filter;
+    _filterTicketTypes();
+    _logger.debug('Filtre mis à jour: $filter');
+  }
+
+// Filtrer les types de tickets
+  void _filterTicketTypes() {
+    switch (selectedFilter.value) {
+      case 'active':
+        filteredTicketTypes.assignAll(ticketTypes.where((t) => t.isActive));
+        break;
+      case 'inactive':
+        filteredTicketTypes.assignAll(ticketTypes.where((t) => !t.isActive));
+        break;
+      case 'all':
+      default:
+        filteredTicketTypes.assignAll(ticketTypes);
+        break;
+    }
+  }
+
   // Calculer les statistiques de la zone
   Future<void> _calculateZoneStats() async {
     try {
@@ -105,12 +143,17 @@ class ZoneDetailsController extends GetxController {
         'totalTicketTypes': ticketTypes.length,
         'activeTicketTypes': ticketTypes.where((tt) => tt.isActive).length,
         'inactiveTicketTypes': ticketTypes.where((tt) => !tt.isActive).length,
-        'totalTicketsGenerated': ticketTypes.fold(0, (sum, tt) => sum + tt.totalTicketsGenerated),
-        'totalTicketsSold': ticketTypes.fold(0, (sum, tt) => sum + tt.ticketsSold),
-        'totalTicketsAvailable': ticketTypes.fold(0, (sum, tt) => sum + tt.ticketsAvailable),
+        'totalTicketsGenerated':
+            ticketTypes.fold(0, (sum, tt) => sum + tt.totalTicketsGenerated),
+        'totalTicketsSold':
+            ticketTypes.fold(0, (sum, tt) => sum + tt.ticketsSold),
+        'totalTicketsAvailable':
+            ticketTypes.fold(0, (sum, tt) => sum + tt.ticketsAvailable),
         'totalRevenue': totalRevenue,
-        'averagePrice': ticketTypes.isNotEmpty 
-            ? (ticketTypes.fold(0, (sum, tt) => sum + tt.price) / ticketTypes.length).round()
+        'averagePrice': ticketTypes.isNotEmpty
+            ? (ticketTypes.fold(0, (sum, tt) => sum + tt.price) /
+                    ticketTypes.length)
+                .round()
             : 0,
         'lastUpdated': DateTime.now().toIso8601String(),
       };
@@ -118,28 +161,42 @@ class ZoneDetailsController extends GetxController {
       zoneStats.assignAll(stats);
 
       _logger.debug('Statistiques de la zone calculées',
-          category: 'ZONE_DETAILS_CONTROLLER',
-          data: stats);
-
+          category: 'ZONE_DETAILS_CONTROLLER', data: stats);
     } catch (e) {
       _logger.error('Erreur lors du calcul des statistiques',
           error: e, category: 'ZONE_DETAILS_CONTROLLER');
     }
   }
 
-  // Navigation vers l'ajout d'un type de ticket
+// lib/features/zones/controllers/zone_details_controller.dart
   void goToAddTicketType() {
-    _logger.logNavigation('/dashboard/zones/$zoneId/add-ticket');
-    Get.toNamed('/dashboard/zones/$zoneId/add-ticket');
+    _logger.logUserAction('add_ticket_type', details: {
+      'zoneId': zoneId,
+    });
+
+    _logger.logNavigation('/dashboard/zones/$zoneId/tickets/add', params: {});
+
+    // Utiliser la route définie dans AppPages
+    try {
+      Get.toNamed('/dashboard/zones/$zoneId/tickets/add', arguments: {
+        'zoneId': zoneId,
+      });
+    } catch (e) {
+      _logger.error('Erreur de navigation vers l\'ajout de ticket', error: e);
+      Get.snackbar(
+        'Erreur',
+        'Impossible d\'accéder à la page d\'ajout de forfait',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
   }
 
   // Navigation vers les détails d'un type de ticket
   void goToTicketTypeDetails(String ticketTypeId) {
-    _logger.logUserAction('view_ticket_type_details', details: {
-      'zoneId': zoneId,
-      'ticketTypeId': ticketTypeId
-    });
-    _logger.logNavigation('/dashboard/zones/$zoneId/ticket-types/$ticketTypeId');
+    _logger.logUserAction('view_ticket_type_details',
+        details: {'zoneId': zoneId, 'ticketTypeId': ticketTypeId});
+    _logger
+        .logNavigation('/dashboard/zones/$zoneId/ticket-types/$ticketTypeId');
     Get.toNamed('/dashboard/zones/$zoneId/ticket-types/$ticketTypeId');
   }
 
@@ -148,12 +205,9 @@ class ZoneDetailsController extends GetxController {
     try {
       // TODO: Récupérer l'ID marchand depuis les services
       const merchantId = 'simulated_merchant_id';
-      
+
       final paymentUrl = _ticketTypeService.generatePaymentLink(
-        zoneId, 
-        ticketTypeId, 
-        merchantId
-      );
+          zoneId, ticketTypeId, merchantId);
 
       Clipboard.setData(ClipboardData(text: paymentUrl));
 
@@ -168,11 +222,12 @@ class ZoneDetailsController extends GetxController {
         'zoneId': zoneId,
         'ticketTypeId': ticketTypeId,
       });
-
     } catch (e, stackTrace) {
       _logger.error('Erreur lors de la copie du lien de paiement',
-          error: e, stackTrace: stackTrace, category: 'ZONE_DETAILS_CONTROLLER');
-      
+          error: e,
+          stackTrace: stackTrace,
+          category: 'ZONE_DETAILS_CONTROLLER');
+
       Get.snackbar(
         'Erreur',
         'Impossible de copier le lien',
@@ -182,12 +237,14 @@ class ZoneDetailsController extends GetxController {
   }
 
   // Basculer le statut d'un type de ticket
-  Future<void> toggleTicketTypeStatus(String ticketTypeId, bool newStatus) async {
+  Future<void> toggleTicketTypeStatus(
+      String ticketTypeId, bool newStatus) async {
     try {
-      _logger.debug('Changement du statut du type de ticket: $ticketTypeId -> $newStatus');
+      _logger.debug(
+          'Changement du statut du type de ticket: $ticketTypeId -> $newStatus');
 
       await _ticketTypeService.toggleTicketTypeStatus(ticketTypeId, newStatus);
-      
+
       // Mettre à jour localement
       final index = ticketTypes.indexWhere((tt) => tt.id == ticketTypeId);
       if (index != -1) {
@@ -206,138 +263,180 @@ class ZoneDetailsController extends GetxController {
         snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 2),
       );
-} catch (e, stackTrace) {
-     _logger.error('Erreur lors du changement de statut du type de ticket',
-         error: e, stackTrace: stackTrace, category: 'ZONE_DETAILS_CONTROLLER');
-     
-     Get.snackbar(
-       'Erreur',
-       'Impossible de modifier le statut: ${e.toString()}',
-       snackPosition: SnackPosition.BOTTOM,
-     );
-   }
- }
+    } catch (e, stackTrace) {
+      _logger.error('Erreur lors du changement de statut du type de ticket',
+          error: e,
+          stackTrace: stackTrace,
+          category: 'ZONE_DETAILS_CONTROLLER');
 
- // Supprimer un type de ticket
- Future<void> deleteTicketType(String ticketTypeId) async {
-   try {
-     // Confirmation
-     final ticketType = ticketTypes.firstWhere((tt) => tt.id == ticketTypeId);
-     
-     final confirmed = await Get.dialog<bool>(
-       AlertDialog(
-         title: const Text('Confirmer la suppression'),
-         content: Text('Êtes-vous sûr de vouloir supprimer le forfait "${ticketType.name}" ?'),
-         actions: [
-           TextButton(
-             onPressed: () => Get.back(result: false),
-             child: const Text('Annuler'),
-           ),
-           TextButton(
-             onPressed: () => Get.back(result: true),
-             style: TextButton.styleFrom(foregroundColor: Colors.red),
-             child: const Text('Supprimer'),
-           ),
-         ],
-       ),
-     );
+      Get.snackbar(
+        'Erreur',
+        'Impossible de modifier le statut: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+// lib/features/zones/controllers/zone_details_controller.dart
 
-     if (confirmed != true) return;
+  void editTicketType(String ticketTypeId) {
+    // Vérifier que les IDs ne sont pas nuls
+    if (ticketTypeId.isEmpty || zoneId.isEmpty) {
+      _logger.error(
+          'Tentative de modification d\'un ticket avec des IDs invalides',
+          error: 'ticketTypeId: $ticketTypeId, zoneId: $zoneId');
 
-     _logger.debug('Suppression du type de ticket: $ticketTypeId');
+      Get.snackbar(
+        'Erreur',
+        'Impossible de modifier ce forfait, identifiants invalides',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade800,
+      );
+      return;
+    }
 
-     await _ticketTypeService.deleteTicketType(ticketTypeId);
-     
-     // Retirer de la liste locale
-     ticketTypes.removeWhere((tt) => tt.id == ticketTypeId);
+    _logger.logUserAction('edit_ticket_type', details: {
+      'ticketTypeId': ticketTypeId,
+      'zoneId': zoneId,
+    });
 
-     // Recalculer les statistiques
-     await _calculateZoneStats();
+    _logger.logNavigation('/dashboard/zones/$zoneId/tickets/$ticketTypeId/edit',
+        params: {'zoneId': zoneId, 'ticketTypeId': ticketTypeId});
 
-     Get.snackbar(
-       'Succès',
-       'Forfait supprimé avec succès',
-       snackPosition: SnackPosition.BOTTOM,
-     );
+    // Utiliser arguments plutôt que parameters pour plus de fiabilité
+    Get.toNamed(
+      '/dashboard/zones/$zoneId/tickets/$ticketTypeId/edit',
+      arguments: {
+        'zoneId': zoneId,
+        'ticketTypeId': ticketTypeId,
+      },
+    );
+  }
 
-   } catch (e, stackTrace) {
-     _logger.error('Erreur lors de la suppression du type de ticket',
-         error: e, stackTrace: stackTrace, category: 'ZONE_DETAILS_CONTROLLER');
-     
-     Get.snackbar(
-       'Erreur',
-       'Impossible de supprimer le forfait: ${e.toString()}',
-       snackPosition: SnackPosition.BOTTOM,
-     );
-   }
- }
+  // Supprimer un type de ticket
+  Future<void> deleteTicketType(String ticketTypeId) async {
+    try {
+      // Confirmation
+      final ticketType = ticketTypes.firstWhere((tt) => tt.id == ticketTypeId);
 
- // Mettre à jour le filtre
- void updateFilter(String filter) {
-   selectedFilter.value = filter;
-   _logger.debug('Filtre mis à jour: $filter', category: 'ZONE_DETAILS_CONTROLLER');
- }
+      final confirmed = await Get.dialog<bool>(
+        AlertDialog(
+          title: const Text('Confirmer la suppression'),
+          content: Text(
+              'Êtes-vous sûr de vouloir supprimer le forfait "${ticketType.name}" ?'),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(result: false),
+              child: const Text('Annuler'),
+            ),
+            TextButton(
+              onPressed: () => Get.back(result: true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Supprimer'),
+            ),
+          ],
+        ),
+      );
 
- // Basculer le statut de la zone
- Future<void> toggleZoneStatus(bool newStatus) async {
-   try {
-     _logger.debug('Changement du statut de la zone: $zoneId -> $newStatus');
+      if (confirmed != true) return;
 
-     await _zoneService.toggleZoneStatus(zoneId, newStatus);
-     
-     // Mettre à jour localement
-     if (zone.value != null) {
-       zone.value = zone.value!.copyWith(
-         isActive: newStatus,
-         updatedAt: DateTime.now(),
-       );
-     }
+      _logger.debug('Suppression du type de ticket: $ticketTypeId');
 
-     Get.snackbar(
-       'Succès',
-       'Statut de la zone ${newStatus ? 'activé' : 'désactivé'}',
-       snackPosition: SnackPosition.BOTTOM,
-     );
+      await _ticketTypeService.deleteTicketType(ticketTypeId);
 
-   } catch (e, stackTrace) {
-     _logger.error('Erreur lors du changement de statut de la zone',
-         error: e, stackTrace: stackTrace, category: 'ZONE_DETAILS_CONTROLLER');
-     
-     Get.snackbar(
-       'Erreur',
-       'Impossible de modifier le statut de la zone: ${e.toString()}',
-       snackPosition: SnackPosition.BOTTOM,
-     );
-   }
- }
+      // Retirer de la liste locale
+      ticketTypes.removeWhere((tt) => tt.id == ticketTypeId);
 
- // Modifier la zone
- void editZone() {
-   _logger.logNavigation('/dashboard/zones/$zoneId/edit');
-   Get.toNamed('/dashboard/zones/$zoneId/edit');
- }
+      // Recalculer les statistiques
+      await _calculateZoneStats();
 
- // Écouter les changements en temps réel
- void startRealtimeListener() {
-   _logger.debug('Démarrage du listener temps réel pour la zone: $zoneId');
-   
-   _ticketTypeService.watchTicketTypes(zoneId).listen(
-     (updatedTicketTypes) {
-       ticketTypes.assignAll(updatedTicketTypes);
-       _calculateZoneStats();
-       _logger.debug('Types de tickets mis à jour via stream: ${updatedTicketTypes.length}');
-     },
-     onError: (error) {
-       _logger.error('Erreur dans le stream des types de tickets',
-           error: error, category: 'ZONE_DETAILS_CONTROLLER');
-     },
-   );
- }
+      Get.snackbar(
+        'Succès',
+        'Forfait supprimé avec succès',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e, stackTrace) {
+      _logger.error('Erreur lors de la suppression du type de ticket',
+          error: e,
+          stackTrace: stackTrace,
+          category: 'ZONE_DETAILS_CONTROLLER');
 
- @override
- void onClose() {
-   _logger.debug('ZoneDetailsController fermé pour zone: $zoneId',
-       category: 'ZONE_DETAILS_CONTROLLER');
-   super.onClose();
- }
+      Get.snackbar(
+        'Erreur',
+        'Impossible de supprimer le forfait: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+//  // Mettre à jour le filtre
+//  void updateFilter(String filter) {
+//    selectedFilter.value = filter;
+//    _logger.debug('Filtre mis à jour: $filter', category: 'ZONE_DETAILS_CONTROLLER');
+//  }
+
+  // Basculer le statut de la zone
+  Future<void> toggleZoneStatus(bool newStatus) async {
+    try {
+      _logger.debug('Changement du statut de la zone: $zoneId -> $newStatus');
+
+      await _zoneService.toggleZoneStatus(zoneId, newStatus);
+
+      // Mettre à jour localement
+      if (zone.value != null) {
+        zone.value = zone.value!.copyWith(
+          isActive: newStatus,
+          updatedAt: DateTime.now(),
+        );
+      }
+
+      Get.snackbar(
+        'Succès',
+        'Statut de la zone ${newStatus ? 'activé' : 'désactivé'}',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    } catch (e, stackTrace) {
+      _logger.error('Erreur lors du changement de statut de la zone',
+          error: e,
+          stackTrace: stackTrace,
+          category: 'ZONE_DETAILS_CONTROLLER');
+
+      Get.snackbar(
+        'Erreur',
+        'Impossible de modifier le statut de la zone: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
+  }
+
+  // Modifier la zone
+  void editZone() {
+    _logger.logNavigation('/dashboard/zones/$zoneId/edit');
+    Get.toNamed('/dashboard/zones/$zoneId/edit');
+  }
+
+  // Écouter les changements en temps réel
+  void startRealtimeListener() {
+    _logger.debug('Démarrage du listener temps réel pour la zone: $zoneId');
+
+    _ticketTypeService.watchTicketTypes(zoneId).listen(
+      (updatedTicketTypes) {
+        ticketTypes.assignAll(updatedTicketTypes);
+        _calculateZoneStats();
+        _logger.debug(
+            'Types de tickets mis à jour via stream: ${updatedTicketTypes.length}');
+      },
+      onError: (error) {
+        _logger.error('Erreur dans le stream des types de tickets',
+            error: error, category: 'ZONE_DETAILS_CONTROLLER');
+      },
+    );
+  }
+
+  @override
+  void onClose() {
+    _logger.debug('ZoneDetailsController fermé pour zone: $zoneId',
+        category: 'ZONE_DETAILS_CONTROLLER');
+    super.onClose();
+  }
 }

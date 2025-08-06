@@ -11,9 +11,11 @@ class TicketTypeService extends GetxService {
   final LoggerService _logger = LoggerService.to;
 
   // Collections
-  CollectionReference get _ticketTypesCollection => _firestore.collection('ticket_types');
+  CollectionReference get _ticketTypesCollection =>
+      _firestore.collection('ticket_types');
   CollectionReference get _zonesCollection => _firestore.collection('zones');
-  CollectionReference get _ticketsCollection => _firestore.collection('tickets');
+  CollectionReference get _ticketsCollection =>
+      _firestore.collection('tickets');
 
   String? get currentUserId => _auth.currentUser?.uid;
 
@@ -58,15 +60,15 @@ class TicketTypeService extends GetxService {
       _logger.debug('Récupération du type de ticket: $ticketTypeId');
 
       final docSnapshot = await _ticketTypesCollection.doc(ticketTypeId).get();
-      
+
       if (!docSnapshot.exists) {
-        _logger.warning('Type de ticket non trouvé: $ticketTypeId', 
+        _logger.warning('Type de ticket non trouvé: $ticketTypeId',
             category: 'TICKET_TYPE_SERVICE');
         return null;
       }
 
       final ticketType = TicketTypeModel.fromFirestore(docSnapshot);
-      
+
       // Vérifier que la zone appartient au marchand
       await _verifyZoneOwnership(ticketType.zoneId);
 
@@ -127,31 +129,38 @@ class TicketTypeService extends GetxService {
   }
 
   // Mettre à jour un type de ticket
-  Future<void> updateTicketType(String ticketTypeId, Map<String, dynamic> updateData) async {
+  Future<void> updateTicketType(
+      String ticketTypeId, Map<String, dynamic> updateData) async {
     try {
       _logger.debug('Mise à jour du type de ticket: $ticketTypeId');
 
-      // Vérifier les permissions
+      // Vérifier que le ticket type existe et appartient au marchand
       final ticketType = await getTicketType(ticketTypeId);
       if (ticketType == null) {
         throw Exception('Type de ticket non trouvé');
       }
 
+      // Préparer les données de mise à jour
       final completeUpdateData = {
         ...updateData,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
+      // Mettre à jour le document
       await _ticketTypesCollection.doc(ticketTypeId).update(completeUpdateData);
 
       _logger.logUserAction('ticket_type_updated', details: {
         'ticketTypeId': ticketTypeId,
         'updatedFields': updateData.keys.toList(),
+        'zoneId': updateData['zoneId'] ?? ticketType.zoneId,
       });
 
       _logger.info('✅ Type de ticket mis à jour: $ticketTypeId',
-          category: 'TICKET_TYPE_SERVICE');
-
+          category: 'TICKET_TYPE_SERVICE',
+          data: {
+            'ticketTypeId': ticketTypeId,
+            'updatedFields': updateData.keys.toList()
+          });
     } catch (e, stackTrace) {
       _logger.error('Erreur lors de la mise à jour du type de ticket',
           error: e, stackTrace: stackTrace, category: 'TICKET_TYPE_SERVICE');
@@ -160,9 +169,11 @@ class TicketTypeService extends GetxService {
   }
 
   // Activer/Désactiver un type de ticket
-  Future<void> toggleTicketTypeStatus(String ticketTypeId, bool isActive) async {
+  Future<void> toggleTicketTypeStatus(
+      String ticketTypeId, bool isActive) async {
     try {
-      _logger.debug('Changement du statut du type de ticket: $ticketTypeId -> $isActive');
+      _logger.debug(
+          'Changement du statut du type de ticket: $ticketTypeId -> $isActive');
 
       await updateTicketType(ticketTypeId, {'isActive': isActive});
 
@@ -170,7 +181,6 @@ class TicketTypeService extends GetxService {
         'ticketTypeId': ticketTypeId,
         'newStatus': isActive ? 'active' : 'inactive',
       });
-
     } catch (e, stackTrace) {
       _logger.error('Erreur lors du changement de statut du type de ticket',
           error: e, stackTrace: stackTrace, category: 'TICKET_TYPE_SERVICE');
@@ -191,7 +201,8 @@ class TicketTypeService extends GetxService {
           .get();
 
       if (soldTicketsQuery.docs.isNotEmpty) {
-        throw Exception('Impossible de supprimer un type de ticket avec des ventes');
+        throw Exception(
+            'Impossible de supprimer un type de ticket avec des ventes');
       }
 
       // Suppression logique
@@ -204,7 +215,6 @@ class TicketTypeService extends GetxService {
         'ticketTypeId': ticketTypeId,
         'deletionType': 'soft_delete',
       });
-
     } catch (e, stackTrace) {
       _logger.error('Erreur lors de la suppression du type de ticket',
           error: e, stackTrace: stackTrace, category: 'TICKET_TYPE_SERVICE');
@@ -215,7 +225,8 @@ class TicketTypeService extends GetxService {
   // Générer des statistiques pour un type de ticket
   Future<Map<String, dynamic>> getTicketTypeStats(String ticketTypeId) async {
     try {
-      _logger.debug('Génération des statistiques pour le type de ticket: $ticketTypeId');
+      _logger.debug(
+          'Génération des statistiques pour le type de ticket: $ticketTypeId');
 
       final ticketType = await getTicketType(ticketTypeId);
       if (ticketType == null) {
@@ -227,15 +238,18 @@ class TicketTypeService extends GetxService {
           .where('ticketTypeId', isEqualTo: ticketTypeId)
           .get();
 
-      final tickets = ticketsQuery.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
-      
-      final availableCount = tickets.where((t) => t['status'] == 'available').length;
+      final tickets = ticketsQuery.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
+
+      final availableCount =
+          tickets.where((t) => t['status'] == 'available').length;
       final soldCount = tickets.where((t) => t['status'] == 'sold').length;
       final usedCount = tickets.where((t) => t['firstUsedAt'] != null).length;
-      
+
       // Calculer les revenus
       final totalRevenue = soldCount * ticketType.price;
-      
+
       // Statistiques de ventes par période
       final now = DateTime.now();
       final todayStart = DateTime(now.year, now.month, now.day);
@@ -268,13 +282,14 @@ class TicketTypeService extends GetxService {
         'todaySales': todaySales,
         'weekSales': weekSales,
         'monthSales': monthSales,
-        'conversionRate': tickets.isNotEmpty ? (usedCount / soldCount * 100).toStringAsFixed(1) : '0.0',
+        'conversionRate': tickets.isNotEmpty
+            ? (usedCount / soldCount * 100).toStringAsFixed(1)
+            : '0.0',
         'lastUpdated': DateTime.now().toIso8601String(),
       };
 
       _logger.info('✅ Statistiques générées pour le type de ticket',
-          category: 'TICKET_TYPE_SERVICE',
-          data: stats);
+          category: 'TICKET_TYPE_SERVICE', data: stats);
 
       return stats;
     } catch (e, stackTrace) {
@@ -285,10 +300,12 @@ class TicketTypeService extends GetxService {
   }
 
   // Générer le lien de paiement
-  String generatePaymentLink(String zoneId, String ticketTypeId, String merchantId) {
+  String generatePaymentLink(
+      String zoneId, String ticketTypeId, String merchantId) {
     const baseUrl = 'https://app.dnet.com';
-    final paymentUrl = '$baseUrl/buy?merchantId=$merchantId&zoneId=$zoneId&typeId=$ticketTypeId';
-    
+    final paymentUrl =
+        '$baseUrl/buy?merchantId=$merchantId&zoneId=$zoneId&typeId=$ticketTypeId';
+
     _logger.logUserAction('payment_link_generated', details: {
       'zoneId': zoneId,
       'ticketTypeId': ticketTypeId,
@@ -300,7 +317,8 @@ class TicketTypeService extends GetxService {
 
   // Stream pour écouter les changements
   Stream<List<TicketTypeModel>> watchTicketTypes(String zoneId) {
-    _logger.debug('Ouverture du stream des types de tickets pour zone: $zoneId');
+    _logger
+        .debug('Ouverture du stream des types de tickets pour zone: $zoneId');
 
     return _ticketTypesCollection
         .where('zoneId', isEqualTo: zoneId)

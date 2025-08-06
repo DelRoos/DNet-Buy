@@ -11,10 +11,16 @@ class AddTicketTypePage extends GetView<AddTicketTypeController> {
 
   @override
   Widget build(BuildContext context) {
-    // Le contrôleur est injecté via le routing avec le zoneId
+    // Le contrôleur est injecté via bindings ou Get.put
+    if (!Get.isRegistered<AddTicketTypeController>()) {
+      Get.put(AddTicketTypeController());
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nouveau Forfait WiFi'),
+        title: Obx(() => Text(controller.isEditMode.value
+            ? 'Modifier le Forfait'
+            : 'Ajouter un Forfait')),
         actions: [
           TextButton(
             onPressed: controller.resetForm,
@@ -22,55 +28,65 @@ class AddTicketTypePage extends GetView<AddTicketTypeController> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppConstants.defaultPadding),
-        child: Form(
-          key: controller.formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildHeader(),
-              const SizedBox(height: AppConstants.defaultPadding * 2),
-              _buildBasicInfoSection(),
-              const SizedBox(height: AppConstants.defaultPadding * 2),
-              _buildPricingSection(),
-              const SizedBox(height: AppConstants.defaultPadding * 2),
-              _buildValiditySection(),
-              const SizedBox(height: AppConstants.defaultPadding * 2),
-              _buildAdvancedSettingsSection(),
-              const SizedBox(height: AppConstants.defaultPadding * 3),
-              _buildSaveButton(),
-            ],
+      body: Obx(() {
+        if (controller.isLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(AppConstants.defaultPadding),
+          child: Form(
+            key: controller.formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(context),
+                const SizedBox(height: AppConstants.defaultPadding * 2),
+                _buildBasicInfoSection(),
+                const SizedBox(height: AppConstants.defaultPadding * 2),
+                _buildPricingSection(),
+                const SizedBox(height: AppConstants.defaultPadding * 2),
+                // _buildLimitsSection(),
+                // const SizedBox(height: AppConstants.defaultPadding * 2),
+                // _buildNotesSection(),
+                // const SizedBox(height: AppConstants.defaultPadding * 3),
+                _buildSaveButton(),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Column(
       children: [
         Icon(
-          Icons.receipt_long,
+          Icons.confirmation_number,
           size: 64,
-          color: Get.theme.primaryColor,
+          color: Theme.of(context).primaryColor,
         ),
         const SizedBox(height: 16),
-        Text(
-          'Nouveau Forfait',
-          style: Get.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-          textAlign: TextAlign.center,
-        ),
+        Obx(() => Text(
+              controller.isEditMode.value
+                  ? 'Modifier le Forfait'
+                  : 'Nouveau Forfait',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+              textAlign: TextAlign.center,
+            )),
         const SizedBox(height: 8),
-        Text(
-          'Configurez un nouveau type de ticket WiFi',
-          style: Get.textTheme.bodyMedium?.copyWith(
-            color: Colors.grey.shade600,
-          ),
-          textAlign: TextAlign.center,
-        ),
+        Obx(() => Text(
+              controller.isEditMode.value
+                  ? 'Mettez à jour les détails de ce forfait WiFi'
+                  : 'Configurez un nouveau type de ticket WiFi',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+              textAlign: TextAlign.center,
+            )),
       ],
     );
   }
@@ -125,172 +141,192 @@ class AddTicketTypePage extends GetView<AddTicketTypeController> {
               ),
             ),
             const SizedBox(height: AppConstants.defaultPadding),
+
+            // Prix
             CustomTextField(
               controller: controller.priceController,
-              labelText: 'Prix (F CFA) *',
-              hintText: '1000',
+              labelText: 'Prix (XAF) *',
+              hintText: 'ex: 500',
               prefixIcon: Icons.attach_money,
               keyboardType: TextInputType.number,
               validator: controller.validatePrice,
             ),
-            const SizedBox(height: AppConstants.defaultPadding),
-            Text(
-              'Prix suggérés',
-              style: Get.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 4.0,
-              children: controller.pricePresets.map((price) {
-                return ActionChip(
-                  label: Text('$price F'),
-                  onPressed: () => controller.selectPricePreset(price),
-                  backgroundColor: Get.theme.primaryColor.withOpacity(0.1),
-                );
-              }).toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildValiditySection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppConstants.defaultPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Durée de validité',
-              style: Get.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
             const SizedBox(height: AppConstants.defaultPadding),
-            
-            // Affichage de la validité actuelle
-            CustomTextField(
-              controller: controller.validityController,
-              labelText: 'Validité',
-              prefixIcon: Icons.schedule,
-              readOnly: true,
-            ),
-            
-            const SizedBox(height: AppConstants.defaultPadding),
-            
-            // Slider pour ajuster les heures
-            Obx(() => Column(
-              children: [
-                Text(
-                  'Durée: ${controller.validityHours.value} heure(s)',
-                  style: Get.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Slider(
-                  value: controller.validityHours.value.toDouble(),
-                  min: 1,
-                  max: 720, // 30 jours
-                  divisions: 100,
-                  label: '${controller.validityHours.value}h',
-                  onChanged: (value) {
-                    controller.validityHours.value = value.toInt();
-                  },
-                ),
-              ],
-            )),
-            
-            const SizedBox(height: AppConstants.defaultPadding),
-            
-            Text(
-              'Durées populaires',
-              style: Get.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8.0,
-              runSpacing: 4.0,
-              children: controller.validityPresets.map((preset) {
-                return Obx(() => FilterChip(
-                  label: Text(preset['label']),
-                  selected: controller.validityHours.value == preset['hours'],
-                  onSelected: (selected) {
-                    if (selected) {
-                      controller.selectValidityPreset(preset);
-                    }
-                  },
-                  selectedColor: Get.theme.primaryColor.withOpacity(0.2),
-                ));
-              }).toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildAdvancedSettingsSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppConstants.defaultPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Paramètres avancés',
-              style: Get.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: AppConstants.defaultPadding),
-            
+            // Durée de validité
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: CustomTextField(
-                    controller: controller.expirationAfterCreationController,
-                    labelText: 'Expiration après création (jours)',
-                    hintText: '30',
+                    controller: controller.validityDaysController,
+                    labelText: 'Validité (heures) *',
+                    hintText: 'ex: 10',
                     prefixIcon: Icons.calendar_today,
                     keyboardType: TextInputType.number,
-                    validator: controller.validateExpiration,
+                    validator: controller.validateValidityDays,
                   ),
                 ),
-                const SizedBox(width: AppConstants.defaultPadding),
-                Expanded(
-                  child: CustomTextField(
-                    controller: controller.nbMaxUtilisationsController,
-                    labelText: 'Utilisations max',
-                    hintText: '1',
-                    prefixIcon: Icons.repeat,
-                    keyboardType: TextInputType.number,
-                    validator: controller.validateMaxUsages,
+                const SizedBox(width: 16),
+                Container(
+                  margin: const EdgeInsets.only(top: 12),
+                  child: DropdownButton<int>(
+                    hint: const Text('Options'),
+                    onChanged: (value) {
+                      if (value != null) {
+                        controller.validityDaysController.text =
+                            value.toString();
+                      }
+                    },
+                    items: controller.validityOptions.map((days) {
+                      return DropdownMenuItem<int>(
+                        value: days,
+                        child: Text(days == 1 ? '$days jour' : '$days jours'),
+                      );
+                    }).toList(),
                   ),
                 ),
               ],
             ),
-            
-            const SizedBox(height: AppConstants.defaultPadding),
-            
-            // Switch pour activer/désactiver
-            Obx(() => SwitchListTile(
-              title: const Text('Forfait actif'),
-              subtitle: Text(
-                controller.isActive.value 
-                    ? 'Le forfait sera disponible à la vente'
-                    : 'Le forfait sera désactivé',
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLimitsSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppConstants.defaultPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Limites (optionnel)',
+              style: Get.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
               ),
-              value: controller.isActive.value,
-              onChanged: controller.toggleIsActive,
-              activeColor: Get.theme.primaryColor,
-            )),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Définissez des limites d\'utilisation pour ce forfait',
+              style: Get.textTheme.bodySmall?.copyWith(
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: AppConstants.defaultPadding),
+
+            // Limite de téléchargement
+            Row(
+              children: [
+                Obx(() => Switch(
+                      value: controller.hasDownloadLimit.value,
+                      onChanged: (value) =>
+                          controller.hasDownloadLimit.value = value,
+                      activeColor: Get.theme.primaryColor,
+                    )),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Obx(() => CustomTextField(
+                        controller: controller.downloadLimitController,
+                        labelText: 'Limite téléchargement (MB)',
+                        hintText: 'ex: 1000',
+                        prefixIcon: Icons.download,
+                        keyboardType: TextInputType.number,
+                        readOnly: controller.hasDownloadLimit.value,
+                        validator: controller.validateDownloadLimit,
+                      )),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: AppConstants.defaultPadding),
+
+            // Limite d'envoi
+            Row(
+              children: [
+                Obx(() => Switch(
+                      value: controller.hasUploadLimit.value,
+                      onChanged: (value) =>
+                          controller.hasUploadLimit.value = value,
+                      activeColor: Get.theme.primaryColor,
+                    )),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Obx(() => CustomTextField(
+                        controller: controller.uploadLimitController,
+                        labelText: 'Limite envoi (MB)',
+                        hintText: 'ex: 500',
+                        prefixIcon: Icons.upload,
+                        keyboardType: TextInputType.number,
+                        readOnly: controller.hasUploadLimit.value,
+                        validator: controller.validateUploadLimit,
+                      )),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: AppConstants.defaultPadding),
+
+            // Limite de temps de session
+            Row(
+              children: [
+                Obx(() => Switch(
+                      value: controller.hasSessionTimeLimit.value,
+                      onChanged: (value) =>
+                          controller.hasSessionTimeLimit.value = value,
+                      activeColor: Get.theme.primaryColor,
+                    )),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Obx(() => CustomTextField(
+                        controller: controller.sessionTimeController,
+                        labelText: 'Limite de session (minutes)',
+                        hintText: 'ex: 120',
+                        prefixIcon: Icons.timer,
+                        keyboardType: TextInputType.number,
+                        readOnly: controller.hasSessionTimeLimit.value,
+                        validator: controller.validateSessionTimeLimit,
+                      )),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotesSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppConstants.defaultPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Notes (optionnel)',
+              style: Get.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Ajoutez des notes internes sur ce forfait',
+              style: Get.textTheme.bodySmall?.copyWith(
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: AppConstants.defaultPadding),
+            TextField(
+              controller: controller.notesController,
+              decoration: const InputDecoration(
+                hintText: 'ex: Forfait promotionnel pour la saison touristique',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 4,
+            ),
           ],
         ),
       ),
@@ -298,13 +334,13 @@ class AddTicketTypePage extends GetView<AddTicketTypeController> {
   }
 
   Widget _buildSaveButton() {
-    return Obx(
-      () => CustomButton(
-        text: 'Créer le Forfait',
-        isLoading: controller.isLoading.value,
-        onPressed: controller.saveTicketType,
-        icon: Icons.save,
-      ),
-    );
+    return Obx(() => CustomButton(
+          onPressed: controller.saveTicketType,
+          isLoading: controller.isLoading.value,
+          text: controller.isEditMode.value
+              ? 'Mettre à jour le forfait'
+              : 'Créer le forfait',
+          icon: controller.isEditMode.value ? Icons.save : Icons.add,
+        ));
   }
 }

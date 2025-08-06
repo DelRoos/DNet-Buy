@@ -11,11 +11,18 @@ class AddZonePage extends GetView<AddZoneController> {
 
   @override
   Widget build(BuildContext context) {
-    Get.put(AddZoneController());
+    // Le contrôleur est injecté via bindings ou Get.put
+    // On s'assure qu'il est initialisé
+    if (!Get.isRegistered<AddZoneController>()) {
+      Get.put(AddZoneController());
+    }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ajouter une Zone WiFi'),
+        // Titre dynamique selon le mode
+        title: Obx(() => Text(controller.isEditMode.value
+            ? 'Modifier la Zone WiFi'
+            : 'Ajouter une Zone WiFi')),
         actions: [
           TextButton(
             onPressed: controller.resetForm,
@@ -23,26 +30,32 @@ class AddZonePage extends GetView<AddZoneController> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppConstants.defaultPadding),
-        child: Form(
-          key: controller.formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildHeader(context),
-              const SizedBox(height: AppConstants.defaultPadding * 2),
-              _buildBasicInfoSection(),
-              const SizedBox(height: AppConstants.defaultPadding * 2),
-              _buildRouterSection(),
-              const SizedBox(height: AppConstants.defaultPadding * 2),
-              _buildTagsSection(),
-              const SizedBox(height: AppConstants.defaultPadding * 3),
-              _buildSaveButton(),
-            ],
+      body: Obx(() {
+        if (controller.isLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(AppConstants.defaultPadding),
+          child: Form(
+            key: controller.formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(context),
+                const SizedBox(height: AppConstants.defaultPadding * 2),
+                _buildBasicInfoSection(),
+                const SizedBox(height: AppConstants.defaultPadding * 2),
+                _buildRouterSection(),
+                const SizedBox(height: AppConstants.defaultPadding * 2),
+                _buildTagsSection(context),
+                const SizedBox(height: AppConstants.defaultPadding * 3),
+                _buildSaveButton(),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
 
@@ -55,21 +68,25 @@ class AddZonePage extends GetView<AddZoneController> {
           color: Theme.of(context).primaryColor,
         ),
         const SizedBox(height: 16),
-        Text(
-          'Nouvelle Zone WiFi',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-          textAlign: TextAlign.center,
-        ),
+        Obx(() => Text(
+              controller.isEditMode.value
+                  ? 'Modifier la Zone WiFi'
+                  : 'Nouvelle Zone WiFi',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+              textAlign: TextAlign.center,
+            )),
         const SizedBox(height: 8),
-        Text(
-          'Configurez une nouvelle zone de couverture WiFi',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Colors.grey.shade600,
-          ),
-          textAlign: TextAlign.center,
-        ),
+        Obx(() => Text(
+              controller.isEditMode.value
+                  ? 'Mettez à jour les informations de la zone WiFi'
+                  : 'Configurez une nouvelle zone de couverture WiFi',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey.shade600,
+                  ),
+              textAlign: TextAlign.center,
+            )),
       ],
     );
   }
@@ -91,15 +108,15 @@ class AddZonePage extends GetView<AddZoneController> {
             CustomTextField(
               controller: controller.nameController,
               labelText: 'Nom de la zone *',
-              hintText: 'ex: Restaurant - Terrasse',
-              prefixIcon: Icons.location_on,
+              hintText: 'ex: Zone Cafétéria',
+              prefixIcon: Icons.label,
               validator: controller.validateName,
             ),
             const SizedBox(height: AppConstants.defaultPadding),
             CustomTextField(
               controller: controller.descriptionController,
               labelText: 'Description *',
-              hintText: 'ex: Couverture extérieure près de la fontaine',
+              hintText: 'ex: Zone WiFi pour les clients de la cafétéria',
               prefixIcon: Icons.description,
               maxLines: 3,
               validator: controller.validateDescription,
@@ -118,37 +135,44 @@ class AddZonePage extends GetView<AddZoneController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Configuration routeur',
+              'Équipement',
               style: Get.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: AppConstants.defaultPadding),
-            
-            // Sélection du type de routeur
-            Obx(() => DropdownButtonFormField<String>(
-              value: controller.selectedRouterType.value.isEmpty 
-                  ? null 
-                  : controller.selectedRouterType.value,
+
+            // Dropdown des types de routeurs prédéfinis
+            DropdownButtonFormField<String>(
               decoration: const InputDecoration(
-                labelText: 'Type de routeur',
+                labelText: 'Type de routeur *',
+                hintText: 'Sélectionnez un type de routeur',
                 prefixIcon: Icon(Icons.router),
                 border: OutlineInputBorder(),
               ),
-              hint: const Text('Sélectionnez un type'),
-              items: controller.routerTypes.map((type) {
-                return DropdownMenuItem(
-                  value: type,
-                  child: Text(type),
-                );
-              }).toList(),
+              value: controller.selectedRouterType.value.isNotEmpty
+                  ? controller.selectedRouterType.value
+                  : null,
+              items: controller.routerTypes
+                  .map((type) => DropdownMenuItem(
+                        value: type,
+                        child: Text(type),
+                      ))
+                  .toList(),
               onChanged: (value) {
-                controller.selectedRouterType.value = value ?? '';
+                if (value != null) {
+                  controller.selectedRouterType.value = value;
+                }
               },
-            )),
-            
+              validator: (value) {
+                return (value == null || value.isEmpty)
+                    ? 'Veuillez sélectionner un type de routeur'
+                    : null;
+              },
+            ),
+
             const SizedBox(height: AppConstants.defaultPadding),
-            
+
             // Champ personnalisé si "Autre" est sélectionné
             Obx(() => controller.selectedRouterType.value == 'Autre'
                 ? CustomTextField(
@@ -165,7 +189,9 @@ class AddZonePage extends GetView<AddZoneController> {
     );
   }
 
-  Widget _buildTagsSection() {
+// Dans la classe AddZonePage, modifiez la méthode _buildTagsSection()
+
+  Widget _buildTagsSection(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppConstants.defaultPadding),
@@ -186,48 +212,62 @@ class AddZonePage extends GetView<AddZoneController> {
               ),
             ),
             const SizedBox(height: AppConstants.defaultPadding),
-            
+
             // Champ d'ajout de tag
             Row(
               children: [
                 Expanded(
                   child: TextField(
+                    controller: controller.tagController,
                     decoration: const InputDecoration(
                       hintText: 'Ajouter un tag...',
                       prefixIcon: Icon(Icons.tag),
                       border: OutlineInputBorder(),
                     ),
                     onSubmitted: (value) {
-                      controller.addTag(value);
+                      if (value.isNotEmpty) {
+                        controller.addTag(value);
+                      }
                     },
                   ),
                 ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.add_circle),
+                  onPressed: () {
+                    if (controller.tagController.text.isNotEmpty) {
+                      controller.addTag(controller.tagController.text);
+                    }
+                  },
+                  color: Theme.of(context).primaryColor,
+                ),
               ],
             ),
-            
+
             const SizedBox(height: AppConstants.defaultPadding),
-            
+
             // Affichage des tags
             Obx(() => controller.tags.isEmpty
-                ? Text(
-                    'Aucun tag ajouté',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontStyle: FontStyle.italic,
+                ? Center(
+                    child: Text(
+                      'Aucun tag ajouté',
+                      style: Get.textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey.shade500,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   )
                 : Wrap(
-                    spacing: 8.0,
-                    runSpacing: 4.0,
-                    children: controller.tags.map((tag) {
-                      return Chip(
-                        label: Text(tag),
-                        deleteIcon: const Icon(Icons.close, size: 18),
-                        onDeleted: () => controller.removeTag(tag),
-                        backgroundColor: Get.theme.primaryColor.withOpacity(0.1),
-                        deleteIconColor: Get.theme.primaryColor,
-                      );
-                    }).toList(),
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: controller.tags
+                        .map((tag) => Chip(
+                              label: Text(tag),
+                              deleteIcon: const Icon(Icons.close, size: 18),
+                              onDeleted: () => controller.removeTag(tag),
+                              backgroundColor: Colors.grey.shade200,
+                            ))
+                        .toList(),
                   )),
           ],
         ),
@@ -236,13 +276,13 @@ class AddZonePage extends GetView<AddZoneController> {
   }
 
   Widget _buildSaveButton() {
-    return Obx(
-      () => CustomButton(
-        text: 'Créer la Zone WiFi',
-        isLoading: controller.isLoading.value,
-        onPressed: controller.saveZone,
-        icon: Icons.add_location,
-      ),
+    return CustomButton(
+      onPressed: controller.saveZone,
+      isLoading: controller.isLoading.value,
+      text: controller.isEditMode.value
+          ? 'Mettre à jour la zone'
+          : 'Créer la zone',
+      icon: controller.isEditMode.value ? Icons.save : Icons.add,
     );
   }
 }

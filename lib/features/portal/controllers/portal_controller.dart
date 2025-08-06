@@ -37,83 +37,84 @@ class PortalController extends GetxController {
       isPhoneNumberValid.value = isValid;
     }
   }
-Future<void> fetchTicketTypes() async {
-  isLoading.value = true;
-  await Future.delayed(const Duration(seconds: 1));
 
-  final now = DateTime.now();
+  Future<void> fetchTicketTypes() async {
+    isLoading.value = true;
+    await Future.delayed(const Duration(seconds: 1));
 
-  ticketTypes.assignAll([
-    TicketTypeModel(
-      id: 'daypass',
-      zoneId: 'zone_a',
-      name: 'Pass Journée',
-      description: 'Accès internet illimité pendant 24 heures.',
-      price: 1000,
-      validity: '24h',
-      validityHours: 24,
-      expirationAfterCreation: 30,
-      nbMaxUtilisations: 1,
-      isActive: true,
-      totalTicketsGenerated: 50,
-      ticketsSold: 30,
-      ticketsAvailable: 20,
-      createdAt: now.subtract(const Duration(days: 5)),
-      updatedAt: now,
-      metadata: {
-        'color': 'blue',
-        'speedLimit': '2Mbps',
-        'recommendedUse': 'travail',
-      },
-    ),
-    TicketTypeModel(
-      id: 'eveningplan',
-      zoneId: 'zone_a',
-      name: 'Forfait Soirée',
-      description: 'Accès de 18h à minuit, idéal pour le streaming.',
-      price: 500,
-      validity: '6h',
-      validityHours: 6,
-      expirationAfterCreation: 7,
-      nbMaxUtilisations: 1,
-      isActive: true,
-      totalTicketsGenerated: 100,
-      ticketsSold: 95,
-      ticketsAvailable: 5,
-      createdAt: now.subtract(const Duration(days: 3)),
-      updatedAt: now,
-      metadata: {
-        'color': 'purple',
-        'speedLimit': '1Mbps',
-        'recommendedUse': 'divertissement',
-      },
-    ),
-    TicketTypeModel(
-      id: 'boost1h',
-      zoneId: 'zone_b',
-      name: 'Boost 1 Heure',
-      description: 'Accès rapide pendant 1 heure.',
-      price: 200,
-      validity: '1h',
-      validityHours: 1,
-      expirationAfterCreation: 1,
-      nbMaxUtilisations: 1,
-      isActive: true,
-      totalTicketsGenerated: 25,
-      ticketsSold: 25,
-      ticketsAvailable: 0,
-      createdAt: now.subtract(const Duration(days: 1)),
-      updatedAt: now,
-      metadata: {
-        'color': 'orange',
-        'speedLimit': '3Mbps',
-        'recommendedUse': 'consultation rapide',
-      },
-    ),
-  ]);
+    final now = DateTime.now();
 
-  isLoading.value = false;
-}
+    ticketTypes.assignAll([
+      TicketTypeModel(
+        id: 'daypass',
+        zoneId: 'zone_a',
+        name: 'Pass Journée',
+        description: 'Accès internet illimité pendant 24 heures.',
+        price: 1000,
+        validity: '24h',
+        validityHours: 24,
+        expirationAfterCreation: 30,
+        nbMaxUtilisations: 1,
+        isActive: true,
+        totalTicketsGenerated: 50,
+        ticketsSold: 30,
+        ticketsAvailable: 20,
+        createdAt: now.subtract(const Duration(days: 5)),
+        updatedAt: now,
+        metadata: {
+          'color': 'blue',
+          'speedLimit': '2Mbps',
+          'recommendedUse': 'travail',
+        },
+      ),
+      TicketTypeModel(
+        id: 'eveningplan',
+        zoneId: 'zone_a',
+        name: 'Forfait Soirée',
+        description: 'Accès de 18h à minuit, idéal pour le streaming.',
+        price: 500,
+        validity: '6h',
+        validityHours: 6,
+        expirationAfterCreation: 7,
+        nbMaxUtilisations: 1,
+        isActive: true,
+        totalTicketsGenerated: 100,
+        ticketsSold: 95,
+        ticketsAvailable: 5,
+        createdAt: now.subtract(const Duration(days: 3)),
+        updatedAt: now,
+        metadata: {
+          'color': 'purple',
+          'speedLimit': '1Mbps',
+          'recommendedUse': 'divertissement',
+        },
+      ),
+      TicketTypeModel(
+        id: 'boost1h',
+        zoneId: 'zone_b',
+        name: 'Boost 1 Heure',
+        description: 'Accès rapide pendant 1 heure.',
+        price: 200,
+        validity: '1h',
+        validityHours: 1,
+        expirationAfterCreation: 1,
+        nbMaxUtilisations: 1,
+        isActive: true,
+        totalTicketsGenerated: 25,
+        ticketsSold: 25,
+        ticketsAvailable: 0,
+        createdAt: now.subtract(const Duration(days: 1)),
+        updatedAt: now,
+        metadata: {
+          'color': 'orange',
+          'speedLimit': '3Mbps',
+          'recommendedUse': 'consultation rapide',
+        },
+      ),
+    ]);
+
+    isLoading.value = false;
+  }
 
   // --- LOGIQUE DE PAIEMENT SIMULÉE ---
   Future<void> initiatePayment(TicketTypeModel selectedTicket) async {

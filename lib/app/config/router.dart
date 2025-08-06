@@ -1,4 +1,5 @@
 import 'package:dnet_buy/app/middleware/public_middleware.dart';
+import 'package:dnet_buy/features/zones/controllers/add_zone_controller.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/app/middleware/auth_middleware.dart';
 import 'package:dnet_buy/features/auth/views/login_page.dart';
@@ -83,6 +84,15 @@ class AppPages {
     ),
 
     GetPage(
+      name: '/dashboard/zones/:zoneId/edit',
+      page: () => const AddZonePage(),
+      binding: BindingsBuilder(() {
+        Get.lazyPut<AddZoneController>(() => AddZoneController());
+      }),
+      middlewares: [AuthMiddleware()],
+    ),
+
+    GetPage(
       name: AppRoutes.dashboard,
       page: () => const DashboardPage(),
       middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
@@ -120,28 +130,50 @@ class AppPages {
         );
       }),
     ),
+    // Route pour créer un nouveau type de ticket
     GetPage(
-      name: '/dashboard/zones/:zoneId/add-ticket',
+      name: '/dashboard/zones/:zoneId/tickets/add',
       page: () => const AddTicketTypePage(),
-      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
       binding: BindingsBuilder(() {
-        Get.lazyPut<AddTicketTypeController>(
-          () => AddTicketTypeController(zoneId: Get.parameters['zoneId']!),
-        );
+        Get.lazyPut<AddTicketTypeController>(() => AddTicketTypeController());
       }),
+      middlewares: [AuthMiddleware()],
     ),
+
+// Ajouter cette route pour l'édition des tickets
     GetPage(
-      name: '/dashboard/zones/:zoneId/ticket-types/:typeId',
+      name: '/dashboard/zones/:zoneId/tickets/:ticketTypeId/edit',
+      page: () => const AddTicketTypePage(),
+      binding: BindingsBuilder(() {
+        Get.lazyPut<AddTicketTypeController>(() => AddTicketTypeController());
+      }),
+      middlewares: [AuthMiddleware()],
+    ),
+
+    GetPage(
+      name: '/dashboard/zones/:zoneId/tickets/:typeId/manage',
       page: () => const TicketManagementPage(),
-      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
       binding: BindingsBuilder(() {
         Get.lazyPut<TicketManagementController>(
-          () => TicketManagementController(
-            zoneId: Get.parameters['zoneId']!,
-            ticketTypeId: Get.parameters['typeId']!,
-          ),
-        );
+            () => TicketManagementController(
+                  zoneId: Get.parameters['zoneId']!,
+                  ticketTypeId: Get.parameters['typeId'],
+                ));
       }),
+      middlewares: [AuthMiddleware()],
+    ),
+
+// Route pour la gestion de tous les tickets d'une zone
+    GetPage(
+      name: '/dashboard/zones/:zoneId/tickets/manage',
+      page: () => const TicketManagementPage(),
+      binding: BindingsBuilder(() {
+        Get.lazyPut<TicketManagementController>(
+            () => TicketManagementController(
+                  zoneId: Get.parameters['zoneId']!,
+                ));
+      }),
+      middlewares: [AuthMiddleware()],
     ),
 
     // Routes publiques (portail client)
