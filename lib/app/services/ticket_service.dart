@@ -7,7 +7,8 @@ class TicketService extends GetxService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final LoggerService _logger = LoggerService.to;
 
-  CollectionReference get _ticketsCollection => _firestore.collection('tickets');
+  CollectionReference get _ticketsCollection =>
+      _firestore.collection('tickets');
 
   @override
   void onInit() {

@@ -97,9 +97,9 @@ class TicketManagementPage extends GetView<TicketManagementController> {
             const Divider(),
             ListTile(
               title: const Text('Validité'),
-              subtitle: Text(FormatUtils.formatValidityHours(ticketType.validityHours)),
+              subtitle: Text(
+                  FormatUtils.formatValidityHours(ticketType.validityHours)),
             ),
-
             ListTile(
               title: const Text('Vitesse de téléchargement'),
               subtitle: ticketType.rateLimit != null
@@ -168,7 +168,6 @@ class TicketManagementPage extends GetView<TicketManagementController> {
     );
   }
 
-
   // Liste des tickets importés
   Widget _buildTicketsList() {
     return Column(
@@ -229,7 +228,6 @@ class TicketManagementPage extends GetView<TicketManagementController> {
       ],
     );
   }
-
 
   // Vue pour la liste des types de tickets
   Widget _buildTicketTypesListView() {
