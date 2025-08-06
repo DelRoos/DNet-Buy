@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:csv/csv.dart';
 import 'package:file_picker/file_picker.dart';
@@ -103,6 +104,51 @@ class TicketManagementController extends GetxController {
       isLoading.value = false;
     }
   }
+
+// Copier le lien de paiement public pour ce type de ticket
+void copyPublicTicketLink() {
+  try {
+    if (ticketTypeId == null) {
+      _logger.warning('Impossible de copier le lien: ticketTypeId est null');
+      Get.snackbar(
+        'Erreur',
+        'Impossible de générer le lien pour ce forfait',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    // Construire l'URL publique avec les paramètres
+    // Utiliser la version web du site (app.dnet.com ou l'URL appropriée)
+    final baseUrl = 'https://dnet-29b02.web.app';
+    final publicUrl = '$baseUrl/#/portal?zoneId=$zoneId&ticketTypeId=$ticketTypeId';
+
+    // Copier dans le presse-papiers
+    Clipboard.setData(ClipboardData(text: publicUrl));
+
+    _logger.logUserAction('public_ticket_link_copied', details: {
+      'zoneId': zoneId,
+      'ticketTypeId': ticketTypeId,
+      'url': publicUrl,
+    });
+
+    Get.snackbar(
+      'Lien Public Copié',
+      'Le lien public vers ce forfait a été copié dans le presse-papiers',
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 3),
+    );
+  } catch (e, stackTrace) {
+    _logger.error('Erreur lors de la copie du lien public',
+        error: e, stackTrace: stackTrace, category: 'TICKET_MANAGEMENT_CONTROLLER');
+
+    Get.snackbar(
+      'Erreur',
+      'Impossible de copier le lien',
+      snackPosition: SnackPosition.BOTTOM,
+    );
+  }
+}
 
   // Rafraîchir les données
   Future<void> refreshData() async {
