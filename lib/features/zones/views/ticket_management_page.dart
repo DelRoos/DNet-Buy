@@ -151,12 +151,12 @@ class TicketManagementPage extends GetView<TicketManagementController> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Uploadez ici le fichier CSV généré depuis votre serveur Mikhmon.',
+              'Uploadez ici un fichier CSV ou Excel (XLS/XLSX) contenant les tickets',
             ),
             const SizedBox(height: 16),
             Obx(
               () => CustomButton(
-                text: 'Choisir un fichier CSV',
+                text: 'Choisir un fichier (CSV, XLS, XLSX)',
                 icon: Icons.upload_file,
                 isLoading: controller.isUploading.value,
                 onPressed: controller.pickAndUploadCsv,

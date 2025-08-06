@@ -1,4 +1,5 @@
 // lib/features/zones/controllers/ticket_management_controller.dart
+import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -227,7 +228,6 @@ class TicketManagementController extends GetxController {
     }
   }
 
-
 void pickAndUploadCsv() async {
   try {
     isUploading.value = true;
@@ -240,44 +240,133 @@ void pickAndUploadCsv() async {
     // 1. Sélectionner le fichier
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['csv'],
+      allowedExtensions: ['csv', 'xls', 'xlsx'],
     );
 
     if (result == null || result.files.single.bytes == null) {
-      _logger.info('Aucun fichier sélectionné.', category: 'CSV_IMPORT');
+      _logger.info('Aucun fichier sélectionné.', category: 'FILE_IMPORT');
       return;
     }
 
     final fileBytes = result.files.single.bytes!;
-    final csvString = utf8.decode(fileBytes);
-
-final List<List<dynamic>> rows = const CsvToListConverter(
-  fieldDelimiter: ',',
-).convert(csvString);
-
-// Log pour inspection
-_logger.debug('Nombre de lignes CSV: ${rows.length}', category: 'CSV_IMPORT');
-_logger.debug('Contenu brut du CSV:\n$csvString', category: 'CSV_IMPORT');
-
+    final fileName = result.files.single.name.toLowerCase();
+    
+    // Déterminer le type de fichier et traiter en conséquence
+    List<List<dynamic>> rows = [];
+    
+    if (fileName.endsWith('.csv')) {
+      // Traitement CSV
+      try {
+        final csvString = utf8.decode(fileBytes);
+        
+        // Analyser le contenu pour déterminer le délimiteur probable
+        String delimiter = ','; // Délimiteur par défaut
+        
+        // Vérifier si le contenu contient des points-virgules, des tabulations ou des virgules
+        if (csvString.contains(';')) {
+          delimiter = ';';
+        } else if (csvString.contains('\t')) {
+          delimiter = '\t';
+        }
+        
+        // Tentative de parser avec le délimiteur détecté
+        rows = CsvToListConverter(
+          fieldDelimiter: delimiter,
+          eol: '\n', // Explicitement spécifier le délimiteur de fin de ligne
+          shouldParseNumbers: false, // Éviter la conversion automatique en nombres
+        ).convert(csvString);
+        
+        // Si toujours une seule ligne, essayer de traiter manuellement
+        if (rows.length <= 1 && csvString.contains('\n')) {
+          // Split par ligne et puis par délimiteur
+          final lines = csvString.split('\n');
+          rows = [];
+          for (var line in lines) {
+            if (line.trim().isNotEmpty) {
+              rows.add(line.split(delimiter).map((e) => e.trim()).toList());
+            }
+          }
+        }
+        
+        _logger.debug('Fichier CSV traité avec délimiteur: $delimiter', 
+            category: 'FILE_IMPORT');
+      } catch (e) {
+        // Essayer avec un autre encodage si UTF-8 échoue
+        try {
+          final csvString = latin1.decode(fileBytes);
+          
+          // Même logique que ci-dessus pour déterminer le délimiteur
+          String delimiter = ',';
+          
+          if (csvString.contains(';')) {
+            delimiter = ';';
+          } else if (csvString.contains('\t')) {
+            delimiter = '\t';
+          }
+          
+          rows = CsvToListConverter(
+            fieldDelimiter: delimiter,
+            eol: '\n',
+            shouldParseNumbers: false,
+          ).convert(csvString);
+          
+          // Traitement manuel si nécessaire
+          if (rows.length <= 1 && csvString.contains('\n')) {
+            final lines = csvString.split('\n');
+            rows = [];
+            for (var line in lines) {
+              if (line.trim().isNotEmpty) {
+                rows.add(line.split(delimiter).map((e) => e.trim()).toList());
+              }
+            }
+          }
+          
+          _logger.debug('Fichier CSV traité (encodage latin1) avec délimiteur: $delimiter', 
+              category: 'FILE_IMPORT');
+        } catch (e) {
+          _logger.error('Erreur lors du décodage du fichier CSV', 
+              error: e, category: 'FILE_IMPORT');
+          Get.snackbar(
+            'Erreur de format',
+            'Le fichier CSV n\'a pas pu être décodé. Vérifiez l\'encodage.',
+            snackPosition: SnackPosition.BOTTOM,
+          );
+          return;
+        }
+      }
+    } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
+      // Pour les fichiers Excel, ajoutez votre code ici en utilisant le package excel
+      // ...
+    } else {
+      _logger.warning('Format de fichier non supporté.', category: 'FILE_IMPORT');
+      Get.snackbar(
+        'Format non supporté',
+        'Formats supportés : CSV, XLS, XLSX',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    
+    // Log pour inspection
+    _logger.debug('Nombre de lignes: ${rows.length}', category: 'FILE_IMPORT');
 
     if (rows.isEmpty) {
-      _logger.warning('Fichier CSV vide.', category: 'CSV_IMPORT');
-      Get.snackbar('Erreur', 'Le fichier CSV est vide.');
+      _logger.warning('Fichier vide.', category: 'FILE_IMPORT');
+      Get.snackbar('Erreur', 'Le fichier est vide.');
       return;
     }
 
     // 🔍 Log des colonnes
-    final headers = rows.first.map((e) => e.toString()).toList();
-    _logger.debug('Colonnes détectées dans le CSV: $headers',
-        category: 'CSV_IMPORT');
+    final headers = rows.isNotEmpty ? rows.first.map((e) => e.toString()).toList() : [];
+    _logger.debug('Colonnes détectées: $headers', category: 'FILE_IMPORT');
 
     // 🔍 Log du contenu ligne par ligne
     for (int i = 1; i < rows.length; i++) {
-      _logger.debug('Ligne $i: ${rows[i]}', category: 'CSV_IMPORT');
+      _logger.debug('Ligne $i: ${rows[i]}', category: 'FILE_IMPORT');
     }
 
     if (rows.length < 2) {
-      Get.snackbar('Erreur', 'Le fichier CSV ne contient que l\'en-tête.');
+      Get.snackbar('Erreur', 'Le fichier ne contient que l\'en-tête.');
       return;
     }
 
@@ -289,7 +378,7 @@ _logger.debug('Contenu brut du CSV:\n$csvString', category: 'CSV_IMPORT');
     for (final row in rows.skip(1)) {
       if (row.length < 2) {
         _logger.warning('Ligne ignorée (colonnes insuffisantes): $row',
-            category: 'CSV_IMPORT');
+            category: 'FILE_IMPORT');
         errorCount++;
         continue;
       }
@@ -299,7 +388,7 @@ _logger.debug('Contenu brut du CSV:\n$csvString', category: 'CSV_IMPORT');
 
       if (username.isEmpty || password.isEmpty) {
         _logger.warning('Ligne ignorée (username ou password vide): $row',
-            category: 'CSV_IMPORT');
+            category: 'FILE_IMPORT');
         errorCount++;
         continue;
       }
@@ -309,7 +398,7 @@ _logger.debug('Contenu brut du CSV:\n$csvString', category: 'CSV_IMPORT');
         if (exists) {
           duplicateCount++;
           _logger.debug('Ticket déjà existant ignoré: $username',
-              category: 'CSV_IMPORT');
+              category: 'FILE_IMPORT');
         } else {
           await _ticketService.createTicket({
             'username': username,
@@ -318,20 +407,20 @@ _logger.debug('Contenu brut du CSV:\n$csvString', category: 'CSV_IMPORT');
             'ticketTypeId': ticketTypeId,
           });
           successCount++;
-          _logger.debug('Ticket créé pour $username', category: 'CSV_IMPORT');
+          _logger.debug('Ticket créé pour $username', category: 'FILE_IMPORT');
         }
       } catch (e) {
         errorCount++;
         _logger.error(
           'Erreur lors de la création du ticket pour $username',
           error: e,
-          category: 'CSV_IMPORT',
+          category: 'FILE_IMPORT',
         );
       }
     }
 
-    // 4. Résumé structuré
-    _logger.logEvent('csv_ticket_import', {
+    // 4. Enregistrer les statistiques et afficher le résultat
+    _logger.logEvent('file_import', {
       'zoneId': zoneId,
       'ticketTypeId': ticketTypeId,
       'columns': headers,
@@ -351,10 +440,10 @@ _logger.debug('Contenu brut du CSV:\n$csvString', category: 'CSV_IMPORT');
     await loadTickets();
   } catch (e, stackTrace) {
     _logger.error(
-      'Erreur lors de l\'importation du fichier CSV',
+      'Erreur lors de l\'importation du fichier',
       error: e,
       stackTrace: stackTrace,
-      category: 'CSV_IMPORT',
+      category: 'FILE_IMPORT',
     );
     Get.snackbar(
       'Erreur d\'importation',
@@ -365,5 +454,6 @@ _logger.debug('Contenu brut du CSV:\n$csvString', category: 'CSV_IMPORT');
     isUploading.value = false;
   }
 }
+
 
 }
