@@ -182,9 +182,8 @@ class ZoneDetailsController extends GetxController {
   void goToTicketTypeDetails(String ticketTypeId) {
     _logger.logUserAction('view_ticket_type_details',
         details: {'zoneId': zoneId, 'ticketTypeId': ticketTypeId});
-    _logger
-        .logNavigation('/dashboard/zones/$zoneId/ticket/$ticketTypeId');
-    Get.toNamed( '/dashboard/zones/$zoneId/tickets/$ticketTypeId/manage');
+    _logger.logNavigation('/dashboard/zones/$zoneId/ticket/$ticketTypeId');
+    Get.toNamed('/dashboard/zones/$zoneId/tickets/$ticketTypeId/manage');
   }
 
   // Copier le lien de paiement

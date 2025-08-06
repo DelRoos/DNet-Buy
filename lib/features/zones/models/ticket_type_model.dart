@@ -19,6 +19,7 @@ class TicketTypeModel {
   final DateTime updatedAt;
   final DateTime? deletedAt;
   final Map<String, dynamic>? metadata;
+  final String? rateLimit;
 
   TicketTypeModel({
     required this.id,
@@ -38,6 +39,7 @@ class TicketTypeModel {
     required this.updatedAt,
     this.deletedAt,
     this.metadata,
+    this.rateLimit,
   });
 
   // Créer depuis Firestore
@@ -62,6 +64,7 @@ class TicketTypeModel {
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       deletedAt: (data['deletedAt'] as Timestamp?)?.toDate(),
       metadata: data['metadata'] as Map<String, dynamic>?,
+      rateLimit: data['rateLimit'] as String?,
     );
   }
 
@@ -95,6 +98,7 @@ class TicketTypeModel {
               : DateTime.parse(map['deletedAt']))
           : null,
       metadata: map['metadata'] as Map<String, dynamic>?,
+      rateLimit: map['rateLimit'] as String?,
     );
   }
 
@@ -117,6 +121,7 @@ class TicketTypeModel {
       'updatedAt': Timestamp.fromDate(updatedAt),
       if (deletedAt != null) 'deletedAt': Timestamp.fromDate(deletedAt!),
       if (metadata != null) 'metadata': metadata,
+      if (rateLimit != null) 'rateLimit': rateLimit,
     };
   }
 
@@ -139,6 +144,7 @@ class TicketTypeModel {
     DateTime? updatedAt,
     DateTime? deletedAt,
     Map<String, dynamic>? metadata,
+    String? rateLimit,
   }) {
     return TicketTypeModel(
       id: id ?? this.id,
@@ -160,6 +166,7 @@ class TicketTypeModel {
       updatedAt: updatedAt ?? this.updatedAt,
       deletedAt: deletedAt ?? this.deletedAt,
       metadata: metadata ?? this.metadata,
+      rateLimit: rateLimit ?? this.rateLimit,
     );
   }
 

@@ -1,4 +1,5 @@
 // lib/features/zones/views/add_ticket_type_page.dart
+import 'package:dnet_buy/shared/utils/format_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/features/zones/controllers/add_ticket_type_controller.dart';
@@ -154,18 +155,27 @@ class AddTicketTypePage extends GetView<AddTicketTypeController> {
 
             const SizedBox(height: AppConstants.defaultPadding),
 
+            // Débit (Rate Limit)
+            CustomTextField(
+              controller: controller.rateLimitController,
+              labelText: 'Débit (upload/download)',
+              hintText: 'ex: 512k/2M',
+              prefixIcon: Icons.speed,
+              // Pas de validateur pour le moment, car optionnel
+            ),
+            const SizedBox(height: AppConstants.defaultPadding),
             // Durée de validité
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: CustomTextField(
-                    controller: controller.validityDaysController,
+                    controller: controller.validityHoursController,
                     labelText: 'Validité (heures) *',
                     hintText: 'ex: 10',
                     prefixIcon: Icons.calendar_today,
                     keyboardType: TextInputType.number,
-                    validator: controller.validateValidityDays,
+                    validator: controller.validateValidityHours,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -175,157 +185,19 @@ class AddTicketTypePage extends GetView<AddTicketTypeController> {
                     hint: const Text('Options'),
                     onChanged: (value) {
                       if (value != null) {
-                        controller.validityDaysController.text =
+                        controller.validityHoursController.text =
                             value.toString();
                       }
                     },
-                    items: controller.validityOptions.map((days) {
+                    items: controller.validityOptions.map((hours) {
                       return DropdownMenuItem<int>(
-                        value: days,
-                        child: Text(days == 1 ? '$days jour' : '$days jours'),
+                        value: hours,
+                        child: Text(FormatUtils.formatValidityHours(hours)),
                       );
                     }).toList(),
                   ),
                 ),
               ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLimitsSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppConstants.defaultPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Limites (optionnel)',
-              style: Get.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Définissez des limites d\'utilisation pour ce forfait',
-              style: Get.textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(height: AppConstants.defaultPadding),
-
-            // Limite de téléchargement
-            Row(
-              children: [
-                Obx(() => Switch(
-                      value: controller.hasDownloadLimit.value,
-                      onChanged: (value) =>
-                          controller.hasDownloadLimit.value = value,
-                      activeColor: Get.theme.primaryColor,
-                    )),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Obx(() => CustomTextField(
-                        controller: controller.downloadLimitController,
-                        labelText: 'Limite téléchargement (MB)',
-                        hintText: 'ex: 1000',
-                        prefixIcon: Icons.download,
-                        keyboardType: TextInputType.number,
-                        readOnly: controller.hasDownloadLimit.value,
-                        validator: controller.validateDownloadLimit,
-                      )),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: AppConstants.defaultPadding),
-
-            // Limite d'envoi
-            Row(
-              children: [
-                Obx(() => Switch(
-                      value: controller.hasUploadLimit.value,
-                      onChanged: (value) =>
-                          controller.hasUploadLimit.value = value,
-                      activeColor: Get.theme.primaryColor,
-                    )),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Obx(() => CustomTextField(
-                        controller: controller.uploadLimitController,
-                        labelText: 'Limite envoi (MB)',
-                        hintText: 'ex: 500',
-                        prefixIcon: Icons.upload,
-                        keyboardType: TextInputType.number,
-                        readOnly: controller.hasUploadLimit.value,
-                        validator: controller.validateUploadLimit,
-                      )),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: AppConstants.defaultPadding),
-
-            // Limite de temps de session
-            Row(
-              children: [
-                Obx(() => Switch(
-                      value: controller.hasSessionTimeLimit.value,
-                      onChanged: (value) =>
-                          controller.hasSessionTimeLimit.value = value,
-                      activeColor: Get.theme.primaryColor,
-                    )),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Obx(() => CustomTextField(
-                        controller: controller.sessionTimeController,
-                        labelText: 'Limite de session (minutes)',
-                        hintText: 'ex: 120',
-                        prefixIcon: Icons.timer,
-                        keyboardType: TextInputType.number,
-                        readOnly: controller.hasSessionTimeLimit.value,
-                        validator: controller.validateSessionTimeLimit,
-                      )),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNotesSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppConstants.defaultPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Notes (optionnel)',
-              style: Get.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Ajoutez des notes internes sur ce forfait',
-              style: Get.textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(height: AppConstants.defaultPadding),
-            TextField(
-              controller: controller.notesController,
-              decoration: const InputDecoration(
-                hintText: 'ex: Forfait promotionnel pour la saison touristique',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 4,
             ),
           ],
         ),

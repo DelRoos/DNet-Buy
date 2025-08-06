@@ -1,3 +1,4 @@
+import 'package:dnet_buy/shared/utils/format_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/features/dashboard/views/widgets/stat_card.dart';
@@ -96,7 +97,14 @@ class TicketManagementPage extends GetView<TicketManagementController> {
             const Divider(),
             ListTile(
               title: const Text('Validité'),
-              subtitle: Text('${ticketType.validityHours} jours'),
+              subtitle: Text(FormatUtils.formatValidityHours(ticketType.validityHours)),
+            ),
+
+            ListTile(
+              title: const Text('Vitesse de téléchargement'),
+              subtitle: ticketType.rateLimit != null
+                  ? Text(ticketType.rateLimit!)
+                  : const Text('Aucune limite définie'),
             ),
             const SizedBox(height: AppConstants.defaultPadding),
             Row(
@@ -356,7 +364,12 @@ class TicketManagementPage extends GetView<TicketManagementController> {
               const SizedBox(height: 8),
               Text('Prix: ${ticketType.price} XAF'),
               const SizedBox(height: 8),
-              Text('Validité: ${ticketType.validityDays} jours'),
+              Text(
+                  'Validité: ${FormatUtils.formatValidityHours(ticketType.validityHours)}'),
+              const SizedBox(height: 8),
+              if (ticketType.rateLimit != null &&
+                  ticketType.rateLimit!.isNotEmpty)
+                Text('Débit: ${ticketType.rateLimit}'),
               if (ticketType.downloadLimit != null &&
                   ticketType.downloadLimit! > 0)
                 Padding(

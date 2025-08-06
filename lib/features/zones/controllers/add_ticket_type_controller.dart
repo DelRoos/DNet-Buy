@@ -18,11 +18,12 @@ class AddTicketTypeController extends GetxController {
   final nameController = TextEditingController();
   final descriptionController = TextEditingController();
   final priceController = TextEditingController();
-  final validityDaysController = TextEditingController();
+  final validityHoursController = TextEditingController();
   final downloadLimitController = TextEditingController();
   final uploadLimitController = TextEditingController();
   final sessionTimeController = TextEditingController();
   final notesController = TextEditingController();
+  final rateLimitController = TextEditingController();
 
   // États réactifs
   var isLoading = false.obs;
@@ -34,9 +35,21 @@ class AddTicketTypeController extends GetxController {
   var zoneId = ''.obs;
   var ticketType = Rx<TicketTypeModel?>(null);
 
-  // Options de validité prédéfinies (en jours)
-  final List<int> validityOptions = [1, 3, 7, 14, 30, 60, 90, 180, 365];
-
+// Options de validité prédéfinies (en heures)
+  final List<int> validityOptions = [
+    1,
+    2,
+    6,
+    12,
+    24,
+    48,
+    72,
+    168,
+    336,
+    720,
+    2160,
+    8760
+  ]; // 1h, 2h, 6h, 12h, 1j, 2j, 3j, 1sem, 2sem, 1mois, 3mois, 1an
   @override
   void onInit() {
     super.onInit();
@@ -100,7 +113,9 @@ class AddTicketTypeController extends GetxController {
         nameController.text = loadedTicketType.name;
         descriptionController.text = loadedTicketType.description;
         priceController.text = loadedTicketType.price.toString();
-        validityDaysController.text = loadedTicketType.validityHours.toString();
+        validityHoursController.text =
+            loadedTicketType.validityHours.toString();
+        rateLimitController.text = loadedTicketType.rateLimit ?? '';
 
         _logger.debug('Données du ticket chargées pour édition',
             data: {
@@ -161,9 +176,13 @@ class AddTicketTypeController extends GetxController {
         'name': nameController.text.trim(),
         'description': descriptionController.text.trim(),
         'price': double.parse(priceController.text),
-        'validityDays': int.parse(validityDaysController.text),
+        'validityHours': int.parse(validityHoursController.text),
         'zoneId': zoneId.value,
       };
+
+      if (rateLimitController.text.isNotEmpty) {
+        ticketTypeData['rateLimit'] = rateLimitController.text.trim();
+      }
 
       // Ajouter les limites si activées
       if (hasDownloadLimit.value && downloadLimitController.text.isNotEmpty) {
@@ -333,19 +352,20 @@ class AddTicketTypeController extends GetxController {
     return null;
   }
 
-  // Valider la durée de validité
-  String? validateValidityDays(String? value) {
+// Valider la durée de validité (en heures maintenant)
+  String? validateValidityHours(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'La durée de validité est requise';
     }
 
     try {
-      final days = int.parse(value);
-      if (days <= 0) {
+      final hours = int.parse(value);
+      if (hours <= 0) {
         return 'La durée doit être supérieure à 0';
       }
-      if (days > 1000) {
-        return 'La durée ne peut pas dépasser 1000 jours';
+      if (hours > 24000) {
+        // environ 1000 jours en heures
+        return 'La durée ne peut pas dépasser 24000 heures';
       }
     } catch (e) {
       return 'Veuillez entrer une durée valide';
@@ -424,11 +444,12 @@ class AddTicketTypeController extends GetxController {
       nameController.clear();
       descriptionController.clear();
       priceController.clear();
-      validityDaysController.text = '1'; // Valeur par défaut
+      validityHoursController.text = '1'; // Valeur par défaut
       downloadLimitController.clear();
       uploadLimitController.clear();
       sessionTimeController.clear();
       notesController.clear();
+      rateLimitController.clear();
 
       // Réinitialiser les toggles
       hasDownloadLimit.value = false;
@@ -444,11 +465,12 @@ class AddTicketTypeController extends GetxController {
     nameController.dispose();
     descriptionController.dispose();
     priceController.dispose();
-    validityDaysController.dispose();
+    validityHoursController.dispose();
     downloadLimitController.dispose();
     uploadLimitController.dispose();
     sessionTimeController.dispose();
     notesController.dispose();
+    rateLimitController.dispose();
     _logger.debug('AddTicketTypeController fermé',
         category: 'ADD_TICKET_TYPE_CONTROLLER');
     super.onClose();

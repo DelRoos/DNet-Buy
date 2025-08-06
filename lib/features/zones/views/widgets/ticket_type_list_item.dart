@@ -115,8 +115,14 @@ class TicketTypeListItem extends StatelessWidget {
           children: [
             _buildDetailItem(
               Icons.calendar_today,
-              'Validité: ${ticketType.validityHours} ${ticketType.validityHours > 1 ? 'jours' : 'jour'}',
+              'Validité: ${FormatUtils.formatValidityHours(ticketType.validityHours)}',
             ),
+            if (ticketType.rateLimit != null &&
+                ticketType.rateLimit!.isNotEmpty)
+              _buildDetailItem(
+                Icons.speed,
+                'Débit: ${ticketType.rateLimit}',
+              ),
           ],
         ),
       ],
