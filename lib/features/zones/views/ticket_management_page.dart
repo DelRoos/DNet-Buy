@@ -111,11 +111,11 @@ class TicketManagementPage extends GetView<TicketManagementController> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 // Ajouter après les boutons existants
-TextButton.icon(
-  onPressed: controller.copyPublicTicketLink,
-  icon: const Icon(Icons.share, color: Colors.blue),
-  label: const Text('Copier Lien Public'),
-),
+                TextButton.icon(
+                  onPressed: controller.copyPublicTicketLink,
+                  icon: const Icon(Icons.share, color: Colors.blue),
+                  label: const Text('Copier Lien Public'),
+                ),
                 TextButton.icon(
                   onPressed: () => controller.editTicketType(ticketType.id),
                   icon: const Icon(Icons.edit),
@@ -416,11 +416,11 @@ TextButton.icon(
             child: const Text('Modifier'),
           ),
           // Ajouter après les boutons existants
-TextButton.icon(
-  onPressed: controller.copyPublicTicketLink,
-  icon: const Icon(Icons.share, color: Colors.blue),
-  label: const Text('Copier Lien Public'),
-),
+          TextButton.icon(
+            onPressed: controller.copyPublicTicketLink,
+            icon: const Icon(Icons.share, color: Colors.blue),
+            label: const Text('Copier Lien Public'),
+          ),
           TextButton(
             onPressed: () {
               Get.back();

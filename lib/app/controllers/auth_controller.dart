@@ -261,7 +261,7 @@ class AuthController extends GetxController {
       _logger.debug('Déconnexion de l\'utilisateur: $userEmail');
 
       await _authService.signOut();
-
+      Get.offAllNamed('/login');
       _logger.info('✅ Déconnexion réussie', category: 'AUTH', data: {
         'email': userEmail,
         'timestamp': DateTime.now().toIso8601String(),

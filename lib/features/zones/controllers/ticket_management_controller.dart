@@ -105,50 +105,73 @@ class TicketManagementController extends GetxController {
     }
   }
 
-// Copier le lien de paiement public pour ce type de ticket
-void copyPublicTicketLink() {
-  try {
-    if (ticketTypeId == null) {
-      _logger.warning('Impossible de copier le lien: ticketTypeId est null');
+  // Méthode pour générer et copier le lien public
+  void copyPublicTicketLink() {
+    try {
+      if (ticketTypeId == null) {
+        _logger.warning('Impossible de copier le lien: ticketTypeId est null');
+        Get.snackbar(
+          'Erreur',
+          'Impossible de générer le lien pour ce forfait',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+
+      // Construire l'URL publique avec les paramètres
+      final baseUrl = _getBaseUrl();
+
+      // Il y a différentes façons de construire l'URL selon le routage
+
+      // Option 1: Avec le chemin et les paramètres dans la query string (plus sûr pour le web)
+      final publicUrl =
+          '$baseUrl/#/portal?zoneId=$zoneId&ticketTypeId=$ticketTypeId';
+
+      // Option 2: Avec les paramètres intégrés à la route (selon votre configuration)
+      // final publicUrl = '$baseUrl/#/portal/$zoneId/$ticketTypeId';
+
+      // Copier dans le presse-papiers
+      Clipboard.setData(ClipboardData(text: publicUrl));
+
+      _logger.logUserAction('public_ticket_link_copied', details: {
+        'zoneId': zoneId,
+        'ticketTypeId': ticketTypeId,
+        'url': publicUrl,
+      });
+
+      Get.snackbar(
+        'Lien Public Copié',
+        'Le lien public vers ce forfait a été copié dans le presse-papiers',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 3),
+      );
+    } catch (e, stackTrace) {
+      _logger.error('Erreur lors de la copie du lien public',
+          error: e,
+          stackTrace: stackTrace,
+          category: 'TICKET_MANAGEMENT_CONTROLLER');
+
       Get.snackbar(
         'Erreur',
-        'Impossible de générer le lien pour ce forfait',
+        'Impossible de copier le lien',
         snackPosition: SnackPosition.BOTTOM,
       );
-      return;
     }
-
-    // Construire l'URL publique avec les paramètres
-    // Utiliser la version web du site (app.dnet.com ou l'URL appropriée)
-    final baseUrl = 'https://dnet-29b02.web.app';
-    final publicUrl = '$baseUrl/#/portal?zoneId=$zoneId&ticketTypeId=$ticketTypeId';
-
-    // Copier dans le presse-papiers
-    Clipboard.setData(ClipboardData(text: publicUrl));
-
-    _logger.logUserAction('public_ticket_link_copied', details: {
-      'zoneId': zoneId,
-      'ticketTypeId': ticketTypeId,
-      'url': publicUrl,
-    });
-
-    Get.snackbar(
-      'Lien Public Copié',
-      'Le lien public vers ce forfait a été copié dans le presse-papiers',
-      snackPosition: SnackPosition.BOTTOM,
-      duration: const Duration(seconds: 3),
-    );
-  } catch (e, stackTrace) {
-    _logger.error('Erreur lors de la copie du lien public',
-        error: e, stackTrace: stackTrace, category: 'TICKET_MANAGEMENT_CONTROLLER');
-
-    Get.snackbar(
-      'Erreur',
-      'Impossible de copier le lien',
-      snackPosition: SnackPosition.BOTTOM,
-    );
   }
-}
+
+// Obtenir l'URL de base en fonction de la plateforme
+  String _getBaseUrl() {
+    if (GetPlatform.isWeb) {
+      // En mode web, récupérer l'URL de base actuelle
+      final uri = Uri.parse(Uri.base.toString());
+      final baseUrl = '${uri.scheme}://${uri.host}' +
+          (uri.port != 80 && uri.port != 443 ? ':${uri.port}' : '');
+      return baseUrl;
+    } else {
+      // Pour les applications mobiles, utiliser l'URL de votre application web
+      return 'https://dnet-29b02.web.app'; // Remplacer par votre URL réelle
+    }
+  }
 
   // Rafraîchir les données
   Future<void> refreshData() async {

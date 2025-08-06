@@ -1,191 +1,173 @@
-import 'package:get/get.dart';
-import 'package:get_storage/get_storage.dart';
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+import 'package:dnet_buy/app/services/logger_service.dart';
+import 'package:dnet_buy/app/services/portal_service.dart';
 import 'package:dnet_buy/features/portal/models/purchased_ticket_model.dart';
 import 'package:dnet_buy/features/zones/models/ticket_type_model.dart';
-import 'package:dnet_buy/shared/utils/validators.dart';
 
-enum PaymentStatus { idle, pending, success, failed }
+enum PaymentStatus { idle, pending, verifying, success, failed }
+
+enum ConnectionStatus { online, offline }
+
+enum PaymentPageStatus {
+  loading, // Chargement initial des détails du forfait
+  idle, // Affichage du formulaire de paiement
+  checking, // Appel à la fonction pour initier le paiement
+  outOfStock, // Forfait épuisé
+  pending, // En attente de la validation de l'utilisateur
+  success, // Paiement réussi
+  failed, // Paiement échoué
+}
 
 class PortalController extends GetxController {
-  final box = GetStorage();
+  final PortalService _portalService = Get.find<PortalService>();
+  final LoggerService _logger = LoggerService.to;
+  final FirebaseFunctions _functions =
+      FirebaseFunctions.instanceFor(region: 'us-central1');
 
-  var isLoading = true.obs;
-  var ticketTypes = <TicketTypeModel>[].obs;
-  var purchasedTickets = <PurchasedTicketModel>[].obs;
-
-  var paymentStatus = PaymentStatus.idle.obs;
-  var paymentMessage = ''.obs;
+  late TextEditingController phoneController;
+  var ticketTypeDetails = Rx<TicketTypeModel?>(null);
   var finalTicket = Rx<PurchasedTicketModel?>(null);
-
-  final phoneController = TextEditingController();
   var isPhoneNumberValid = false.obs;
+  var pageStatus = PaymentPageStatus.loading.obs;
+  var errorMessage = ''.obs;
+
+  StreamSubscription<DocumentSnapshot>? _transactionSubscription;
+  Timer? _timeoutTimer;
 
   @override
   void onInit() {
     super.onInit();
-    phoneController.addListener(_validatePhoneNumber);
-    loadPurchasedTickets();
-    fetchTicketTypes();
-  }
+    phoneController = TextEditingController();
+    phoneController.addListener(_validatePhone);
 
-  void _validatePhoneNumber() {
-    final isValid =
-        Validators.validateCameroonianPhoneNumber(phoneController.text) == null;
-
-    if (isValid != isPhoneNumberValid.value) {
-      isPhoneNumberValid.value = isValid;
-    }
-  }
-
-  Future<void> fetchTicketTypes() async {
-    isLoading.value = true;
-    await Future.delayed(const Duration(seconds: 1));
-
-    final now = DateTime.now();
-
-    ticketTypes.assignAll([
-      TicketTypeModel(
-        id: 'daypass',
-        zoneId: 'zone_a',
-        name: 'Pass Journée',
-        description: 'Accès internet illimité pendant 24 heures.',
-        price: 1000,
-        validity: '24h',
-        validityHours: 24,
-        expirationAfterCreation: 30,
-        nbMaxUtilisations: 1,
-        isActive: true,
-        totalTicketsGenerated: 50,
-        ticketsSold: 30,
-        ticketsAvailable: 20,
-        createdAt: now.subtract(const Duration(days: 5)),
-        updatedAt: now,
-        metadata: {
-          'color': 'blue',
-          'speedLimit': '2Mbps',
-          'recommendedUse': 'travail',
-        },
-      ),
-      TicketTypeModel(
-        id: 'eveningplan',
-        zoneId: 'zone_a',
-        name: 'Forfait Soirée',
-        description: 'Accès de 18h à minuit, idéal pour le streaming.',
-        price: 500,
-        validity: '6h',
-        validityHours: 6,
-        expirationAfterCreation: 7,
-        nbMaxUtilisations: 1,
-        isActive: true,
-        totalTicketsGenerated: 100,
-        ticketsSold: 95,
-        ticketsAvailable: 5,
-        createdAt: now.subtract(const Duration(days: 3)),
-        updatedAt: now,
-        metadata: {
-          'color': 'purple',
-          'speedLimit': '1Mbps',
-          'recommendedUse': 'divertissement',
-        },
-      ),
-      TicketTypeModel(
-        id: 'boost1h',
-        zoneId: 'zone_b',
-        name: 'Boost 1 Heure',
-        description: 'Accès rapide pendant 1 heure.',
-        price: 200,
-        validity: '1h',
-        validityHours: 1,
-        expirationAfterCreation: 1,
-        nbMaxUtilisations: 1,
-        isActive: true,
-        totalTicketsGenerated: 25,
-        ticketsSold: 25,
-        ticketsAvailable: 0,
-        createdAt: now.subtract(const Duration(days: 1)),
-        updatedAt: now,
-        metadata: {
-          'color': 'orange',
-          'speedLimit': '3Mbps',
-          'recommendedUse': 'consultation rapide',
-        },
-      ),
-    ]);
-
-    isLoading.value = false;
-  }
-
-  // --- LOGIQUE DE PAIEMENT SIMULÉE ---
-  Future<void> initiatePayment(TicketTypeModel selectedTicket) async {
-    if (!isPhoneNumberValid.value) {
-      paymentMessage.value = "Veuillez entrer un numéro valide.";
+    final ticketTypeId = Get.parameters['ticketTypeId'];
+    if (ticketTypeId == null) {
+      _handleError("Le lien est invalide ou incomplet.");
       return;
     }
 
-    paymentStatus.value = PaymentStatus.pending;
-    paymentMessage.value =
-        "Paiement en cours... Veuillez valider sur votre téléphone.";
+    loadTicketTypeDetails(ticketTypeId);
+  }
 
-    await Future.delayed(
-      const Duration(seconds: 5),
-    );
+  void _validatePhone() {
+    final text = phoneController.text.trim();
+    isPhoneNumberValid.value = RegExp(r'^6\d{8}$').hasMatch(text);
+  }
 
-    bool isSuccess = (DateTime.now().second % 2 == 0);
-
-    if (isSuccess) {
-      paymentStatus.value = PaymentStatus.success;
-      paymentMessage.value = "Paiement réussi ! Voici votre ticket.";
-
-      final purchased = PurchasedTicketModel(
-        transactionId: 'trans_${DateTime.now().millisecondsSinceEpoch}',
-        ticketTypeName: selectedTicket.name,
-        price: selectedTicket.price,
-        username: 'user-${DateTime.now().second}',
-        password: 'pwd-${DateTime.now().minute}',
-        purchaseDate: DateTime.now(),
-      );
-      finalTicket.value = purchased;
-      saveTicket(purchased);
-    } else {
-      paymentStatus.value = PaymentStatus.failed;
-      paymentMessage.value = "Le paiement a échoué. Veuillez réessayer.";
+  Future<void> loadTicketTypeDetails(String ticketTypeId) async {
+    try {
+      pageStatus.value = PaymentPageStatus.loading;
+      final details = await _portalService.getTicketType(ticketTypeId);
+      if (details == null || !details.isActive) {
+        throw Exception("Forfait inactif ou introuvable.");
+      }
+      ticketTypeDetails.value = details;
+      pageStatus.value = PaymentPageStatus.idle;
+    } catch (e) {
+      _handleError("Ce forfait n'est pas accessible.", e);
     }
   }
 
-  void resetPayment() {
-    paymentStatus.value = PaymentStatus.idle;
-    phoneController.clear();
-    paymentMessage.value = '';
+  Future<void> initiatePaymentProcess() async {
+    if (!isPhoneNumberValid.value || ticketTypeDetails.value == null) return;
+
+    pageStatus.value = PaymentPageStatus.checking;
+    try {
+      final callable = _functions.httpsCallable('initiatePublicPayment');
+      final response = await callable.call<Map<String, dynamic>>({
+        'ticketTypeId': ticketTypeDetails.value!.id,
+        'phoneNumber': phoneController.text,
+      });
+
+      final transactionId = response.data['transactionId'];
+      if (transactionId == null) throw Exception("transactionId manquant");
+
+      pageStatus.value = PaymentPageStatus.pending;
+      _listenForTransactionUpdates(transactionId);
+
+      // Timeout sécurité
+      _timeoutTimer?.cancel();
+      _timeoutTimer = Timer(const Duration(minutes: 3), () {
+        if (pageStatus.value == PaymentPageStatus.pending) {
+          _handleError("Aucune réponse. Veuillez réessayer plus tard.");
+        }
+      });
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'out-of-range') {
+        pageStatus.value = PaymentPageStatus.outOfStock;
+      } else {
+        _handleError(e.message ?? "Erreur de paiement", e);
+      }
+    } catch (e) {
+      _handleError("Erreur réseau ou serveur.", e);
+    }
+  }
+
+  void _listenForTransactionUpdates(String transactionId) {
+    _transactionSubscription?.cancel();
+    _transactionSubscription =
+        _portalService.listenToTransaction(transactionId).listen(
+      (snapshot) async {
+        if (!snapshot.exists) return;
+        final data = snapshot.data() as Map<String, dynamic>?;
+
+        if (data == null) return;
+        final status = data['status'];
+        final ticketId = data['ticketId'];
+        final failureReason = data['failureReason'];
+
+        if (status == 'completed') {
+          pageStatus.value = PaymentPageStatus.success;
+          if (ticketId != null) {
+            final ticket = await _portalService.getPurchasedTicket(ticketId);
+            finalTicket.value = ticket;
+          }
+          _clearListeners();
+        } else if (status == 'failed') {
+          _handleError(failureReason ?? "Le paiement a échoué.");
+        }
+      },
+      onError: (error) => _handleError("Erreur réseau ou Firestore.", error),
+    );
+  }
+
+  void retryPayment() {
+    pageStatus.value = PaymentPageStatus.idle;
+    errorMessage.value = '';
     finalTicket.value = null;
-    phoneController.clear();
-    Get.back();
+  }
+
+  void copyCredentials() {
+    if (finalTicket.value == null) return;
+    final ticket = finalTicket.value!;
+    final creds =
+        'Utilisateur: ${ticket.username}\nMot de passe: ${ticket.password}';
+    Clipboard.setData(ClipboardData(text: creds));
+    Get.snackbar('Copié', 'Identifiants copiés dans le presse-papiers.',
+        snackPosition: SnackPosition.BOTTOM);
+  }
+
+  void _handleError(String message, [dynamic error]) {
+    _logger.error("Erreur : $message", error: error);
+    pageStatus.value = PaymentPageStatus.failed;
+    errorMessage.value = message;
+    _clearListeners();
+  }
+
+  void _clearListeners() {
+    _transactionSubscription?.cancel();
+    _timeoutTimer?.cancel();
   }
 
   @override
   void onClose() {
-    phoneController.removeListener(_validatePhoneNumber);
+    _clearListeners();
     phoneController.dispose();
     super.onClose();
-  }
-
-  void saveTicket(PurchasedTicketModel ticket) {
-    List<dynamic> storedTickets = box.read<List>('purchasedTickets') ?? [];
-    storedTickets.add(ticket.toJson());
-    box.write('purchasedTickets', storedTickets);
-    loadPurchasedTickets();
-  }
-
-  void loadPurchasedTickets() {
-    List<dynamic>? storedTickets = box.read<List>('purchasedTickets');
-    if (storedTickets != null) {
-      purchasedTickets.value = storedTickets
-          .map(
-            (e) => PurchasedTicketModel.fromJson(e as Map<String, dynamic>),
-          )
-          .toList()
-          .reversed
-          .toList();
-    }
   }
 }

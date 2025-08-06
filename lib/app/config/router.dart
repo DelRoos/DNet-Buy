@@ -1,4 +1,6 @@
 import 'package:dnet_buy/app/middleware/public_middleware.dart';
+import 'package:dnet_buy/app/services/portal_service.dart';
+import 'package:dnet_buy/features/portal/controllers/portal_controller.dart';
 import 'package:dnet_buy/features/zones/controllers/add_zone_controller.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/app/middleware/auth_middleware.dart';
@@ -27,98 +29,107 @@ class AppRoutes {
   static const String login = '/login';
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
-  static const String buy = '/buy';
+  static const String portal = '/portal'; // La page de paiement publique
   static const String retrieveTicket = '/retrieve-ticket';
 
   // Routes d'authentification
   static const String emailVerification = '/email-verification';
 
-  // Routes protégées
+  // Routes protégées (Dashboard)
   static const String dashboard = '/dashboard';
   static const String dashboardZones = '/dashboard/zones';
   static const String dashboardTransactions = '/dashboard/transactions';
   static const String dashboardSettings = '/dashboard/settings';
   static const String addZone = '/dashboard/zones/add';
 
-  // Routes dynamiques
-  static String addTicketType(String zoneId) =>
-      '/dashboard/zones/$zoneId/add-ticket';
-  static String ticketManagement(String zoneId, String typeId) =>
-      '/dashboard/zones/$zoneId/ticket-types/$typeId';
+  // Routes dynamiques protégées (utilisent des paramètres)
   static String zoneDetails(String zoneId) => '/dashboard/zones/$zoneId';
-
-  // Routes portail client
-  static const String portal = '/portal';
+  static String editZone(String zoneId) => '/dashboard/zones/$zoneId/edit';
+  static String addTicketType(String zoneId) =>
+      '/dashboard/zones/$zoneId/tickets/add';
+  static String editTicketType(String zoneId, String ticketTypeId) =>
+      '/dashboard/zones/$zoneId/tickets/$ticketTypeId/edit';
+  static String manageTicketType(String zoneId, String typeId) =>
+      '/dashboard/zones/$zoneId/tickets/$typeId/manage';
+  static String manageAllTickets(String zoneId) =>
+      '/dashboard/zones/$zoneId/tickets/manage';
 }
 
 class AppPages {
   static final routes = [
-    // Route de démarrage
+    // --- ROUTES PUBLIQUES ---
+    GetPage(name: AppRoutes.splash, page: () => const SplashScreen()),
     GetPage(
-      name: AppRoutes.splash,
-      page: () => const SplashScreen(),
+        name: AppRoutes.login,
+        page: () => const LoginPage(),
+        middlewares: [GuestOnlyMiddleware()]),
+    GetPage(
+        name: AppRoutes.register,
+        page: () => const RegisterPage(),
+        middlewares: [GuestOnlyMiddleware()]),
+    GetPage(
+        name: AppRoutes.forgotPassword,
+        page: () => const ForgotPasswordPage(),
+        middlewares: [GuestOnlyMiddleware()]),
+
+    // Page de paiement publique
+    GetPage(
+      name: AppRoutes.portal,
+      page: () => const PortalPage(),
+      binding: BindingsBuilder(() {
+        Get.lazyPut<PortalService>(() => PortalService());
+        Get.lazyPut<PortalController>(() => PortalController());
+      }),
+      middlewares: [PublicMiddleware()],
     ),
 
-    // Routes publiques (guest only)
+    // Page de récupération de ticket
     GetPage(
-      name: AppRoutes.login,
-      page: () => const LoginPage(),
-      middlewares: [GuestOnlyMiddleware()],
-    ),
-    GetPage(
-      name: AppRoutes.register,
-      page: () => const RegisterPage(),
-      middlewares: [GuestOnlyMiddleware()],
-    ),
-    GetPage(
-      name: AppRoutes.forgotPassword,
-      page: () => const ForgotPasswordPage(),
-      middlewares: [GuestOnlyMiddleware()],
+      name: AppRoutes.retrieveTicket,
+      page: () => const TicketRetrievalPage(),
+      middlewares: [PublicMiddleware()],
     ),
 
-    // Routes d'authentification
+    // --- ROUTES D'AUTHENTIFICATION ---
     GetPage(
-      name: AppRoutes.emailVerification,
-      page: () => const EmailVerificationPage(),
-      middlewares: [AuthMiddleware()],
-    ),
+        name: AppRoutes.emailVerification,
+        page: () => const EmailVerificationPage(),
+        middlewares: [AuthMiddleware()]),
 
+    // --- ROUTES PROTÉGÉES (DASHBOARD) ---
+    GetPage(
+        name: AppRoutes.dashboard,
+        page: () => const DashboardPage(),
+        middlewares: [AuthMiddleware(requireVerifiedEmail: true)]),
+    GetPage(
+        name: AppRoutes.dashboardZones,
+        page: () => const ZonesPage(),
+        middlewares: [AuthMiddleware(requireVerifiedEmail: true)]),
+    GetPage(
+        name: AppRoutes.dashboardTransactions,
+        page: () => const TransactionHistoryPage(),
+        middlewares: [AuthMiddleware(requireVerifiedEmail: true)]),
+    GetPage(
+        name: AppRoutes.dashboardSettings,
+        page: () => const SettingsPage(),
+        middlewares: [AuthMiddleware(requireVerifiedEmail: true)]),
+
+    // Ajout/Édition de Zone
+    GetPage(
+        name: AppRoutes.addZone,
+        page: () => const AddZonePage(),
+        binding: BindingsBuilder(
+            () => Get.lazyPut<AddZoneController>(() => AddZoneController())),
+        middlewares: [AuthMiddleware(requireVerifiedEmail: true)]),
     GetPage(
       name: '/dashboard/zones/:zoneId/edit',
       page: () => const AddZonePage(),
-      binding: BindingsBuilder(() {
-        Get.lazyPut<AddZoneController>(() => AddZoneController());
-      }),
-      middlewares: [AuthMiddleware()],
-    ),
-
-    GetPage(
-      name: AppRoutes.dashboard,
-      page: () => const DashboardPage(),
-      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
-    ),
-    GetPage(
-      name: AppRoutes.dashboardZones,
-      page: () => const ZonesPage(),
-      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
-    ),
-    GetPage(
-      name: AppRoutes.addZone,
-      page: () => const AddZonePage(),
-      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
-    ),
-    GetPage(
-      name: AppRoutes.dashboardTransactions,
-      page: () => const TransactionHistoryPage(),
-      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
-    ),
-    GetPage(
-      name: AppRoutes.dashboardSettings,
-      page: () => const SettingsPage(),
+      binding: BindingsBuilder(
+          () => Get.lazyPut<AddZoneController>(() => AddZoneController())),
       middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
     ),
 
-    // Routes dynamiques protégées
+    // Détails de Zone
     GetPage(
       name: '/dashboard/zones/:zoneId',
       page: () => const ZoneDetailsPage(),
@@ -126,66 +137,44 @@ class AppPages {
       binding: BindingsBuilder(() {
         final zoneId = Get.parameters['zoneId']!;
         Get.lazyPut<ZoneDetailsController>(
-          () => ZoneDetailsController(zoneId: zoneId),
-        );
+            () => ZoneDetailsController(zoneId: zoneId));
       }),
     ),
-    // Route pour créer un nouveau type de ticket
+
+    // Ajout/Édition de Type de Ticket
     GetPage(
       name: '/dashboard/zones/:zoneId/tickets/add',
       page: () => const AddTicketTypePage(),
-      binding: BindingsBuilder(() {
-        Get.lazyPut<AddTicketTypeController>(() => AddTicketTypeController());
-      }),
-      middlewares: [AuthMiddleware()],
+      binding: BindingsBuilder(() => Get.lazyPut<AddTicketTypeController>(
+          () => AddTicketTypeController())),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
     ),
-
-// Ajouter cette route pour l'édition des tickets
     GetPage(
       name: '/dashboard/zones/:zoneId/tickets/:ticketTypeId/edit',
       page: () => const AddTicketTypePage(),
-      binding: BindingsBuilder(() {
-        Get.lazyPut<AddTicketTypeController>(() => AddTicketTypeController());
-      }),
-      middlewares: [AuthMiddleware()],
+      binding: BindingsBuilder(() => Get.lazyPut<AddTicketTypeController>(
+          () => AddTicketTypeController())),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
     ),
 
+    // Gestion des Tickets
     GetPage(
-      name: '/dashboard/zones/:zoneId/tickets/:typeId/manage',
+      name:
+          '/dashboard/zones/:zoneId/tickets/manage', // Tous les tickets d'une zone
       page: () => const TicketManagementPage(),
-      binding: BindingsBuilder(() {
-        Get.lazyPut<TicketManagementController>(
-            () => TicketManagementController(
-                  zoneId: Get.parameters['zoneId']!,
-                  ticketTypeId: Get.parameters['typeId'],
-                ));
-      }),
-      middlewares: [AuthMiddleware()],
+      binding: BindingsBuilder(() => Get.lazyPut<TicketManagementController>(
+          () => TicketManagementController(zoneId: Get.parameters['zoneId']!))),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
     ),
-
-// Route pour la gestion de tous les tickets d'une zone
     GetPage(
-      name: '/dashboard/zones/:zoneId/tickets/manage',
+      name:
+          '/dashboard/zones/:zoneId/tickets/:typeId/manage', // Tickets d'un type spécifique
       page: () => const TicketManagementPage(),
-      binding: BindingsBuilder(() {
-        Get.lazyPut<TicketManagementController>(
-            () => TicketManagementController(
-                  zoneId: Get.parameters['zoneId']!,
-                ));
-      }),
-      middlewares: [AuthMiddleware()],
-    ),
-
-    // Routes publiques (portail client)
-    GetPage(
-      name: AppRoutes.portal,
-      page: () => const PortalPage(),
-      middlewares: [PublicMiddleware()],
-    ),
-    GetPage(
-      name: AppRoutes.retrieveTicket,
-      page: () => const TicketRetrievalPage(),
-      middlewares: [PublicMiddleware()],
+      binding: BindingsBuilder(() => Get.lazyPut<TicketManagementController>(
+          () => TicketManagementController(
+              zoneId: Get.parameters['zoneId']!,
+              ticketTypeId: Get.parameters['typeId']))),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
     ),
   ];
 }
