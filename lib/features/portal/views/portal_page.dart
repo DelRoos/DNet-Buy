@@ -21,24 +21,26 @@ class PortalPage extends GetView<PortalController> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Obx(() {
-                // Utiliser un switch pour afficher le widget correspondant à l'état
-                switch (controller.pageStatus.value) {
-                  case PaymentPageStatus.loading:
-                    return const Center(child: CircularProgressIndicator());
-                  case PaymentPageStatus.idle:
-                    return _buildInitialView();
-                  case PaymentPageStatus.checking:
-                    return _buildPendingView("Vérification...");
-                  case PaymentPageStatus.pending:
-                    return _buildPendingView(
-                        "Paiement en attente. Veuillez valider sur votre téléphone.");
-                  case PaymentPageStatus.outOfStock:
-                    return _buildOutOfStockView();
-                  case PaymentPageStatus.success:
-                    return _buildSuccessView();
-                  case PaymentPageStatus.failed:
-                    return _buildFailedView();
-                }
+                
+  switch (controller.pageStatus.value) {
+    case PaymentPageStatus.loading:
+      return const Center(child: CircularProgressIndicator());
+    case PaymentPageStatus.idle:
+      return _buildInitialView();
+    case PaymentPageStatus.checking:
+      return _buildPendingView("Vérification...");
+    case PaymentPageStatus.pending:
+      return _buildPendingView(
+          "Paiement en attente. Veuillez valider sur votre téléphone.");
+    case PaymentPageStatus.fetchingCredentials:
+      return _buildPendingView("Récupération de vos identifiants..."); // ✅ NOUVEAU CAS
+    case PaymentPageStatus.outOfStock:
+      return _buildOutOfStockView();
+    case PaymentPageStatus.success:
+      return _buildSuccessView();
+    case PaymentPageStatus.failed:
+      return _buildFailedView();
+  }
               }),
             ),
           ),
@@ -120,49 +122,60 @@ class PortalPage extends GetView<PortalController> {
       ],
     );
   }
-
-  // Vue en cas de succès
-  Widget _buildSuccessView() {
-    final ticket = controller.finalTicket.value!;
+// Vue en cas de succès
+Widget _buildSuccessView() {
+  final ticket = controller.finalTicket.value;
+  
+  // ✅ VÉRIFIER SI LE TICKET EST DISPONIBLE
+  if (ticket == null) {
     return Column(
       children: [
-        const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
-        const SizedBox(height: 16),
-        Text("Paiement Réussi !",
-            style: Get.textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.bold)),
+        const CircularProgressIndicator(),
         const SizedBox(height: 24),
-        Card(
-            child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text("Vos identifiants de connexion :",
-                  style: Get.textTheme.titleMedium),
-              const SizedBox(height: 16),
-              _credentialRow("Utilisateur", ticket.username),
-              const SizedBox(height: 8),
-              _credentialRow("Mot de passe", ticket.password),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: controller.copyCredentials,
-                icon: const Icon(Icons.copy),
-                label: const Text("Copier les identifiants"),
-              )
-            ],
-          ),
-        )),
-        const SizedBox(height: 16),
-        Text("En cas d'oubli, retrouvez vos identifiants à tout moment.",
-            textAlign: TextAlign.center),
-        TextButton(
-            onPressed: () => Get.toNamed('/retrieve-ticket'),
-            child: const Text("Récupérer mon ticket")),
+        Text("Récupération de vos identifiants...",
+            style: Get.textTheme.titleLarge, textAlign: TextAlign.center),
       ],
     );
   }
-
+  
+  return Column(
+    children: [
+      const Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
+      const SizedBox(height: 16),
+      Text("Paiement Réussi !",
+          style: Get.textTheme.headlineSmall
+              ?.copyWith(fontWeight: FontWeight.bold)),
+      const SizedBox(height: 24),
+      Card(
+          child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text("Vos identifiants de connexion :",
+                style: Get.textTheme.titleMedium),
+            const SizedBox(height: 16),
+            _credentialRow("Utilisateur", ticket.username),
+            const SizedBox(height: 8),
+            _credentialRow("Mot de passe", ticket.password),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: controller.copyCredentials,
+              icon: const Icon(Icons.copy),
+              label: const Text("Copier les identifiants"),
+            )
+          ],
+        ),
+      )),
+      const SizedBox(height: 16),
+      Text("En cas d'oubli, retrouvez vos identifiants à tout moment.",
+          textAlign: TextAlign.center),
+      TextButton(
+          onPressed: () => Get.toNamed('/retrieve-ticket'),
+          child: const Text("Récupérer mon ticket")),
+    ],
+  );
+}
   // Vue en cas d'échec
   Widget _buildFailedView() {
     return Column(

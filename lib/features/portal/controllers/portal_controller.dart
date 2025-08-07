@@ -18,6 +18,7 @@ enum PaymentPageStatus {
   idle, // Affichage du formulaire de paiement
   checking, // Appel à la fonction pour initier le paiement
   outOfStock, // Forfait épuisé
+  fetchingCredentials, // ✅ NOUVEAU STATUT
   pending, // En attente de la validation de l'utilisateur
   success, // Paiement réussi
   failed, // Paiement échoué
@@ -73,68 +74,88 @@ class PortalController extends GetxController {
     }
   }
 
-  Future<void> initiatePaymentProcess() async {
-    if (!isPhoneNumberValid.value || ticketTypeDetails.value == null) return;
+Future<void> initiatePaymentProcess() async {
+  if (!isPhoneNumberValid.value || ticketTypeDetails.value == null) return;
 
-    pageStatus.value = PaymentPageStatus.checking;
-    try {
-      final callable = _functions.httpsCallable('initiatePublicPayment');
-      final response = await callable.call<Map<String, dynamic>>({
-        'ticketTypeId': ticketTypeDetails.value!.id,
-        'phoneNumber': phoneController.text,
-      });
+  pageStatus.value = PaymentPageStatus.checking;
+  try {
+    final callable = _functions.httpsCallable('initiatePublicPayment');
+    final response = await callable.call<Map<String, dynamic>>({
+      'ticketTypeId': ticketTypeDetails.value!.id,
+      'phoneNumber': phoneController.text,
+    });
 
-      final transactionId = response.data['transactionId'];
-      if (transactionId == null) throw Exception("transactionId manquant");
+    final transactionId = response.data['transactionId'];
+    if (transactionId == null) throw Exception("transactionId manquant");
 
-      pageStatus.value = PaymentPageStatus.pending;
-      _listenForTransactionUpdates(transactionId);
+    pageStatus.value = PaymentPageStatus.pending;
+    
+    // ✅ AJOUTER UN DÉLAI AVANT L'ÉCOUTE
+    await Future.delayed(const Duration(milliseconds: 500));
+    _listenForTransactionUpdates(transactionId);
 
-      // Timeout sécurité
-      _timeoutTimer?.cancel();
-      _timeoutTimer = Timer(const Duration(minutes: 3), () {
-        if (pageStatus.value == PaymentPageStatus.pending) {
-          _handleError("Aucune réponse. Veuillez réessayer plus tard.");
-        }
-      });
-    } on FirebaseFunctionsException catch (e) {
-      if (e.code == 'out-of-range') {
-        pageStatus.value = PaymentPageStatus.outOfStock;
-      } else {
-        _handleError(e.message ?? "Erreur de paiement", e);
+    // Timeout sécurité
+    _timeoutTimer?.cancel();
+    _timeoutTimer = Timer(const Duration(minutes: 3), () {
+      if (pageStatus.value == PaymentPageStatus.pending) {
+        _handleError("Délai d'attente dépassé. Veuillez réessayer.");
       }
-    } catch (e) {
-      _handleError("Erreur réseau ou serveur.", e);
+    });
+
+  } on FirebaseFunctionsException catch (e) {
+    if (e.code == 'out-of-range') {
+      pageStatus.value = PaymentPageStatus.outOfStock;
+    } else {
+      _handleError(e.message ?? "Erreur de paiement", e);
     }
+  } catch (e) {
+    _handleError("Erreur réseau ou serveur.", e);
   }
+}
 
-  void _listenForTransactionUpdates(String transactionId) {
-    _transactionSubscription?.cancel();
-    _transactionSubscription =
-        _portalService.listenToTransaction(transactionId).listen(
-      (snapshot) async {
-        if (!snapshot.exists) return;
-        final data = snapshot.data() as Map<String, dynamic>?;
+void _listenForTransactionUpdates(String transactionId) {
+  _transactionSubscription?.cancel();
+  
+  _transactionSubscription = _portalService.listenToTransaction(transactionId).listen(
+    (snapshot) async {
+      if (!snapshot.exists) {
+        // ✅ ATTENDRE QUE LA TRANSACTION SOIT CRÉÉE
+        _logger.debug("Transaction pas encore créée, attente...");
+        return;
+      }
+      
+      final data = snapshot.data() as Map<String, dynamic>?;
+      if (data == null) return;
+      
+      final status = data['status'];
+      final ticketId = data['ticketId'];
+      final failureReason = data['failureReason'];
 
-        if (data == null) return;
-        final status = data['status'];
-        final ticketId = data['ticketId'];
-        final failureReason = data['failureReason'];
+      _logger.info("État transaction: $status");
 
-        if (status == 'completed') {
-          pageStatus.value = PaymentPageStatus.success;
-          if (ticketId != null) {
+      if (status == 'completed') {
+        pageStatus.value = PaymentPageStatus.success;
+        if (ticketId != null) {
+          try {
             final ticket = await _portalService.getPurchasedTicket(ticketId);
             finalTicket.value = ticket;
+          } catch (e) {
+            _logger.error("Erreur récupération ticket", error: e);
           }
-          _clearListeners();
-        } else if (status == 'failed') {
-          _handleError(failureReason ?? "Le paiement a échoué.");
         }
-      },
-      onError: (error) => _handleError("Erreur réseau ou Firestore.", error),
-    );
-  }
+        _clearListeners();
+      } else if (status == 'failed') {
+        _handleError(failureReason ?? "Le paiement a échoué.");
+      }
+      // ✅ GARDER LE STATUT PENDING POUR LES AUTRES CAS
+    },
+    onError: (error) {
+      _logger.error("Erreur écoute transaction", error: error);
+      // ✅ NE PAS ÉCHOUER IMMÉDIATEMENT, RETRY
+      _handleError("Erreur de connexion. Vérification en cours...");
+    },
+  );
+}
 
   void retryPayment() {
     pageStatus.value = PaymentPageStatus.idle;
