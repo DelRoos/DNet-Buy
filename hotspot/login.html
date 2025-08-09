@@ -9,6 +9,7 @@
   <link rel="icon" href="img/favicon.ico" type="image/x-icon">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/payment-modal.css">
   
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
@@ -18,16 +19,17 @@
   <!-- MD5 pour l'authentification hotspot -->
   <script src="scripts/md5.js"></script>
     
+  <!-- MikroTik CHAP authentication script -->
+  $(if chap-id)
   <script>
-    $(if chap-id)
     function doLogin() {
       document.sendin.username.value = document.login.username.value;
       document.sendin.password.value = hexMD5('$(chap-id)' + document.login.password.value + '$(chap-challenge)');
       document.sendin.submit();
       return false;
     }
-    $(endif)
   </script>
+  $(endif)
 
   <!-- Scripts de l'application -->
   <script src="scripts/config.js"></script>
@@ -166,7 +168,7 @@
   </div>
 
     <!-- Modal de paiement (refonte) -->
-    <div id="payment-modal" class="modal" aria-hidden="true">
+    <div id="payment-modal" class="modal">
     <div class="modal-content payment">
         <div class="modal-header">
         <h3 id="modal-plan-title">Paiement du forfait</h3>
@@ -245,7 +247,7 @@
     </div>
 
     <!-- Modal Mes tickets -->
-    <div id="tickets-modal" class="modal" aria-hidden="true">
+    <div id="tickets-modal" class="modal">
     <div class="modal-content tickets">
         <div class="modal-header">
         <h3>Mes tickets</h3>
@@ -270,5 +272,23 @@
 </body>
 
 <script src="scripts/ticket.js"></script>
+
+<script>
+// Initialize modals as hidden for accessibility
+document.addEventListener('DOMContentLoaded', () => {
+  const paymentModal = document.getElementById('payment-modal');
+  const ticketsModal = document.getElementById('tickets-modal');
+  
+  if (paymentModal) {
+    paymentModal.style.display = 'none';
+    paymentModal.setAttribute('aria-hidden', 'true');
+  }
+  
+  if (ticketsModal) {
+    ticketsModal.style.display = 'none';
+    ticketsModal.setAttribute('aria-hidden', 'true');
+  }
+});
+</script>
 
 </html>

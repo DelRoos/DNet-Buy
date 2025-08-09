@@ -152,13 +152,20 @@ class UIHandlers {
     if (title) title.textContent = `${plan.name} - ${plan.formattedPrice}`;
     if (loader) loader.style.display = 'flex';
     if (content) content.style.display = 'none';
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+      modal.style.display = 'flex';
+      modal.removeAttribute('aria-hidden');
+    }
 
     const loaderText = loader ? loader.querySelector('p') : null;
     if (loaderText) loaderText.textContent = `Initialisation du paiement pour ${phoneNumber}...`;
   }
 
-  // Feedback "paiement initié"
+  /**
+   * Affiche l'état initial du paiement avec informations détaillées
+   * 
+   * @param {Object} result - Résultat de l'initiation de paiement
+   */
   showPaymentSuccess(result) {
     const loader = document.getElementById('payment-loader');
     const content = document.getElementById('payment-content');
@@ -169,21 +176,44 @@ class UIHandlers {
       content.innerHTML = `
         <div class="payment-success">
           <div class="success-icon">✅</div>
-          <h4>Paiement initié avec succès !</h4>
-          <p>Référence: <strong>${result.freemopayReference || '—'}</strong></p>
-          <p>Montant: <strong>${Number(result.amount).toLocaleString()} F</strong></p>
+          <h4>Ticket réservé avec succès !</h4>
+          <p>Transaction: <strong>${result.transactionId}</strong></p>
+          <p>Montant: <strong>${Number(result.amount).toLocaleString()} F CFA</strong></p>
+          
           <div class="payment-instructions">
-            <p>📱 <strong>Vérifiez votre téléphone</strong></p>
-            <p>Confirmez le paiement pour recevoir vos identifiants WiFi.</p>
+            <div class="instruction-step">
+              <span class="step-icon">📱</span>
+              <div class="step-content">
+                <strong>Vérifiez votre téléphone maintenant</strong>
+                <p>Confirmez le paiement Mobile Money pour finaliser votre achat</p>
+              </div>
+            </div>
           </div>
+          
+          <div class="payment-timing">
+            <div class="timing-info">
+              <span class="clock-icon">⏱️</span>
+              <div class="timing-text">
+                <strong>Délai maximum: 2 minutes</strong>
+                <p>Le paiement sera automatiquement annulé si non confirmé</p>
+              </div>
+            </div>
+          </div>
+
           <div class="transaction-status">
             <div class="status-indicator">
               <div class="spinner-small"></div>
-              <span>En attente de confirmation...</span>
+              <span id="status-text">En attente de votre confirmation...</span>
+            </div>
+            <div class="status-timer">
+              <span id="countdown-timer">2:00</span>
             </div>
           </div>
         </div>
       `;
+      
+      // Démarrer le compte à rebours
+      this.startPaymentCountdown();
     }
   }
 
@@ -250,6 +280,11 @@ startTransactionMonitoring(transactionId) {
       if (transactionData.status === 'pending' || transactionData.status === 'processing') {
         this.updateTransactionStatus(transactionData);
       }
+      
+      // Gérer le statut "created" - en attente d'initiation Mobile Money
+      if (transactionData.status === 'created') {
+        this.updateStatusMessage("Initiation du paiement Mobile Money...");
+      }
 
     } catch (error) {
       console.error('❌ Erreur lors du traitement de la mise à jour:', error);
@@ -298,6 +333,11 @@ stopTransactionMonitoring() {
   if (this.transactionMonitorInterval) {
     clearTimeout(this.transactionMonitorInterval);
     this.transactionMonitorInterval = null;
+  }
+
+  if (this.countdownInterval) {
+    clearInterval(this.countdownInterval);
+    this.countdownInterval = null;
   }
 
   this.currentTransaction = null;
@@ -399,6 +439,128 @@ getStatusDisplayText(status) {
   return statusMap[status] || status;
 }
 
+/**
+ * Démarre le compte à rebours de 2 minutes pour le paiement
+ * Met à jour l'interface en temps réel et gère l'expiration
+ */
+startPaymentCountdown() {
+  const PAYMENT_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+  const startTime = Date.now();
+  
+  const updateCountdown = () => {
+    const elapsed = Date.now() - startTime;
+    const remaining = Math.max(0, PAYMENT_TIMEOUT_MS - elapsed);
+    
+    if (remaining <= 0) {
+      this.handlePaymentTimeout();
+      return;
+    }
+    
+    const minutes = Math.floor(remaining / 60000);
+    const seconds = Math.floor((remaining % 60000) / 1000);
+    const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    const timerElement = document.getElementById('countdown-timer');
+    const statusElement = document.getElementById('status-text');
+    
+    if (timerElement) {
+      timerElement.textContent = timeString;
+      // Changer la couleur quand il reste moins de 30 secondes
+      if (remaining <= 30000) {
+        timerElement.style.color = '#ff4444';
+        timerElement.style.fontWeight = 'bold';
+      }
+    }
+    
+    // Messages progressifs selon le temps restant
+    if (statusElement) {
+      if (remaining > 90000) { // Plus de 1m30
+        statusElement.textContent = "En attente de votre confirmation...";
+      } else if (remaining > 30000) { // Plus de 30s
+        statusElement.textContent = "Veuillez confirmer rapidement sur votre téléphone";
+      } else { // Moins de 30s
+        statusElement.textContent = "⚠️ Attention: Temps limite bientôt écoulé !";
+        statusElement.style.color = '#ff4444';
+      }
+    }
+  };
+  
+  // Mise à jour immédiate puis chaque seconde
+  updateCountdown();
+  this.countdownInterval = setInterval(updateCountdown, 1000);
+}
+
+/**
+ * Gère l'expiration du délai de paiement (2 minutes écoulées)
+ */
+handlePaymentTimeout() {
+  if (this.countdownInterval) {
+    clearInterval(this.countdownInterval);
+    this.countdownInterval = null;
+  }
+  
+  console.warn('⏰ Timeout de paiement atteint (2 minutes)');
+  
+  const content = document.getElementById('payment-content');
+  if (content) {
+    content.innerHTML = `
+      <div class="payment-timeout">
+        <div class="timeout-icon">⏰</div>
+        <h4>Délai de paiement écoulé</h4>
+        <div class="timeout-explanation">
+          <p><strong>Le délai de 2 minutes est écoulé.</strong></p>
+          <p>Votre ticket a été automatiquement libéré et le paiement annulé pour éviter tout prélèvement.</p>
+        </div>
+        
+        <div class="next-steps">
+          <h5>Que faire maintenant ?</h5>
+          <div class="step-list">
+            <div class="step-item">
+              <span class="step-number">1</span>
+              <span>Réessayez avec un nouveau paiement</span>
+            </div>
+            <div class="step-item">  
+              <span class="step-number">2</span>
+              <span>Vérifiez que votre Mobile Money est actif</span>
+            </div>
+            <div class="step-item">
+              <span class="step-number">3</span>
+              <span>Contactez le support si le problème persiste</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="support-info">
+          <p><strong>Support technique:</strong></p>
+          <p>📞 +237 6 94 22 15 06</p>
+          <p>💬 WhatsApp: <a href="https://wa.me/237694221506" target="_blank">Cliquez ici</a></p>
+        </div>
+        
+        <div class="timeout-actions">
+          <button onclick="closePaymentModal()" class="retry-button">Fermer</button>
+          <button onclick="location.reload()" class="primary-button">Réessayer</button>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Arrêter toute surveillance en cours
+  this.stopTransactionMonitoring();
+}
+
+/**
+ * Met à jour le message de statut sans changer le reste de l'interface
+ * 
+ * @param {string} message - Nouveau message à afficher
+ */
+updateStatusMessage(message) {
+  const statusElement = document.getElementById('status-text');
+  if (statusElement && !message.includes('Attention')) {
+    statusElement.textContent = message;
+    statusElement.style.color = ''; // Reset color
+  }
+}
+
   stopTransactionMonitoring() {
     if (this.transactionMonitorInterval) {
       clearTimeout(this.transactionMonitorInterval);
@@ -411,6 +573,12 @@ getStatusDisplayText(status) {
   // États finaux UI
   // ============================
   showTransactionCompleted(transaction) {
+    // Arrêter le compte à rebours s'il est actif
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+
     const content = document.getElementById('payment-content');
     if (!content) return;
 
@@ -421,29 +589,56 @@ getStatusDisplayText(status) {
     content.innerHTML = `
       <div class="payment-completed">
         <div class="success-icon">🎉</div>
-        <h4>Paiement réussi !</h4>
-        <p>Voici vos identifiants WiFi :</p>
+        <h4>Paiement confirmé avec succès !</h4>
+        <div class="success-message">
+          <p><strong>Félicitations ! Votre paiement a été validé.</strong></p>
+          <p>Voici vos identifiants WiFi pour vous connecter :</p>
+        </div>
+        
         <div class="credentials">
           <div class="credential-item">
-            <label>Nom d'utilisateur:</label>
-            <span class="credential-value">${username}</span>
+            <label>👤 Nom d'utilisateur:</label>
+            <span class="credential-value" onclick="copyToClipboard('${username}')">${username}</span>
+            <button class="copy-btn" onclick="copyToClipboard('${username}')">📋</button>
           </div>
           <div class="credential-item">
-            <label>Mot de passe:</label>
-            <span class="credential-value">${password}</span>
+            <label>🔑 Mot de passe:</label>
+            <span class="credential-value" onclick="copyToClipboard('${password}')">${password}</span>
+            <button class="copy-btn" onclick="copyToClipboard('${password}')">📋</button>
           </div>
         </div>
+        
         <div class="usage-instructions">
-          <p>✅ Utilisez ces identifiants dans le formulaire de connexion ci-dessus</p>
-          <p>⏰ Forfait: ${ticketTypeName}</p>
+          <div class="instruction-box">
+            <h5>🚀 Comment vous connecter :</h5>
+            <ol>
+              <li>Copiez les identifiants ci-dessus</li>
+              <li>Collez-les dans le formulaire de connexion en haut de la page</li>
+              <li>Cliquez sur "Se connecter"</li>
+              <li>Profitez de votre connexion Internet !</li>
+            </ol>
+          </div>
+          <p class="forfait-info">📦 <strong>Forfait:</strong> ${ticketTypeName}</p>
         </div>
-        <button onclick="closePaymentModal()" class="close-button">Fermer</button>
+        
+        <div class="completion-actions">
+          <button onclick="closePaymentModal(); fillLoginForm('${username}', '${password}')" class="primary-button">
+            Se connecter maintenant
+          </button>
+          <button onclick="closePaymentModal()" class="secondary-button">Fermer</button>
+        </div>
       </div>
     `;
   }
 
   // Accepte soit un string (message), soit un objet transaction
   showTransactionFailed(messageOrTx) {
+    // Arrêter le compte à rebours s'il est actif
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+
     const content = document.getElementById('payment-content');
     if (!content) return;
 
@@ -454,10 +649,39 @@ getStatusDisplayText(status) {
     content.innerHTML = `
       <div class="payment-failed">
         <div class="error-icon">❌</div>
-        <h4>Paiement échoué</h4>
-        <p>${msg}</p>
-        <p>Veuillez réessayer ou contacter le support.</p>
-        <button onclick="closePaymentModal()" class="retry-button">Fermer</button>
+        <h4>Paiement non confirmé</h4>
+        <div class="error-explanation">
+          <p><strong>Le paiement n'a pas pu être finalisé.</strong></p>
+          <p class="error-message">${msg}</p>
+        </div>
+        
+        <div class="failure-reasons">
+          <h5>Causes possibles :</h5>
+          <ul>
+            <li>Paiement refusé sur votre téléphone</li>
+            <li>Solde insuffisant sur votre compte Mobile Money</li>
+            <li>Problème technique temporaire</li>
+            <li>Délai de confirmation dépassé (2 minutes)</li>
+          </ul>
+        </div>
+        
+        <div class="failure-actions">
+          <h5>Solutions :</h5>
+          <div class="action-buttons">
+            <button onclick="location.reload()" class="retry-button primary">
+              🔄 Réessayer le paiement
+            </button>
+            <button onclick="closePaymentModal()" class="secondary-button">
+              Fermer
+            </button>
+          </div>
+        </div>
+        
+        <div class="support-contact">
+          <p><strong>Besoin d'aide ?</strong></p>
+          <p>📞 Support: +237 6 94 22 15 06</p>
+          <p>💬 <a href="https://wa.me/237694221506" target="_blank">WhatsApp</a></p>
+        </div>
       </div>
     `;
   }
@@ -512,10 +736,79 @@ function togglePassword() {
   }
 }
 
+/**
+ * Copie un texte dans le presse-papiers
+ * 
+ * @param {string} text - Texte à copier
+ */
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      // Visual feedback
+      const notification = document.createElement('div');
+      notification.className = 'copy-notification';
+      notification.textContent = '✅ Copié !';
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #4CAF50;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 5px;
+        z-index: 10000;
+        animation: fadeInOut 2s ease-in-out;
+      `;
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 2000);
+    });
+  } else {
+    // Fallback pour navigateurs plus anciens
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    alert('Identifiant copié !');
+  }
+}
+
+/**
+ * Remplit automatiquement le formulaire de connexion
+ * 
+ * @param {string} username - Nom d'utilisateur
+ * @param {string} password - Mot de passe
+ */
+function fillLoginForm(username, password) {
+  const usernameField = document.getElementById('code-input') || document.querySelector('input[name="username"]');
+  const passwordField = document.getElementById('password-input') || document.querySelector('input[name="password"]');
+  
+  if (usernameField) {
+    usernameField.value = username;
+    usernameField.focus();
+  }
+  
+  if (passwordField) {
+    passwordField.value = password;
+  }
+  
+  // Visual feedback
+  if (usernameField) {
+    usernameField.style.backgroundColor = '#e8f5e8';
+    setTimeout(() => {
+      usernameField.style.backgroundColor = '';
+    }, 2000);
+  }
+}
+
 // Fermer le modal de paiement
 function closePaymentModal() {
   const modal = document.getElementById('payment-modal');
-  if (modal) modal.style.display = 'none';
+  if (modal) {
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+  }
   // Stop le monitoring si en cours
   uiHandlers.stopTransactionMonitoring();
 }
