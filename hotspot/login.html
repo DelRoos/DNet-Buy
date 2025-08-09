@@ -8,7 +8,21 @@
   <title>Connexion Wi-Fi Dnet</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script src="/md5.js"></script>
+  <link rel="stylesheet" href="styles/main.css">
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-functions-compat.js"></script>
+  
+  <!-- MD5 pour l'authentification hotspot -->
+  <script src="md5.js"></script>
+  
+  <!-- Scripts de l'application -->
+  <script src="scripts/config.js"></script>
+  <script src="scripts/firebase-integration.js"></script>
+  <script src="scripts/ui-handlers.js"></script>
+  <script src="scripts/main.js"></script>
+  
   <script>
     $(if chap-id)
     function doLogin() {
@@ -18,838 +32,136 @@
       return false;
     }
     $(endif)
-    
-    </script>
-      <style>
-        :root {
-            --brand-color: #19c394;
-            --brand-dark: #13a57d;
-            --bg-gradient-start: #e6f9f4;
-            --bg-gradient-end: #f0f4f8;
-            --card-bg: #ffffff;
-            --text-dark: #212529;
-            --text-light: #6c757d;
-            --border-color: #dee2e6;
-            --shadow: 0 15px 40px rgba(0, 0, 0, 0.08);
-            --radius: 20px;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: linear-gradient(45deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-            color: var(--text-dark);
-        }
-
-        .main-container {
-            width: 100%;
-            max-width: 1100px;
-            background: var(--card-bg);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            display: flex;
-            overflow: hidden;
-            position: relative;
-        }
-
-        /* --- PANNEAU DE GAUCHE (ACCUEIL) --- */
-        .welcome-panel {
-            flex-basis: 45%;
-            background: var(--brand-color);
-            color: white;
-            padding: 60px 40px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-        }
-
-        .welcome-panel .logo {
-            max-width: 180px;
-            margin-bottom: 25px;
-            filter: brightness(0) invert(1); /* Rend le logo blanc */
-        }
-
-        .welcome-panel h1 {
-            font-size: 2.2rem;
-            font-weight: 700;
-            line-height: 1.3;
-            margin-bottom: 15px;
-        }
-
-        .welcome-panel p {
-            font-size: 1rem;
-            opacity: 0.9;
-            max-width: 300px;
-        }
-        
-        /* --- PANNEAU DE DROITE (CONNEXION) --- */
-        .login-panel {
-            flex-basis: 55%;
-            padding: 50px 60px;
-            max-height: 100vh;
-            overflow-y: auto;
-        }
-
-        .login-panel h2 {
-            font-weight: 600;
-            font-size: 1.8rem;
-            margin-bottom: 10px;
-        }
-
-        .login-panel .subtitle {
-            color: var(--text-light);
-            margin-bottom: 30px;
-        }
-        
-        /* Formulaire de connexion */
-        .input-group {
-            position: relative;
-            margin-bottom: 20px;
-        }
-
-        .input-group .icon {
-            position: absolute;
-            left: 18px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-light);
-            width: 20px;
-            height: 20px;
-        }
-
-        /* Icône œil pour le mot de passe */
-        .input-group .eye-icon {
-            position: absolute;
-            right: 18px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-light);
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-            transition: color 0.3s ease;
-        }
-
-        .input-group .eye-icon:hover {
-            color: var(--brand-color);
-        }
-        
-        #code-input, #password-input {
-            width: 100%;
-            padding: 18px 18px 18px 50px;
-            font-size: 1rem;
-            font-family: 'Poppins', sans-serif;
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            transition: all 0.3s ease;
-        }
-
-        #password-input {
-            padding-right: 50px; /* Espace pour l'icône œil */
-        }
-
-        #code-input::placeholder, #password-input::placeholder { color: #adb5bd; }
-        #code-input:focus, #password-input:focus {
-            outline: none;
-            border-color: var(--brand-color);
-            box-shadow: 0 0 0 4px rgba(25, 195, 148, 0.2);
-        }
-        
-        .submit-button {
-            width: 100%;
-            padding: 18px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: white;
-            background-color: var(--brand-color);
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .submit-button:hover {
-            background-color: var(--brand-dark);
-            transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(25, 195, 148, 0.3);
-        }
-
-        .submit-button .icon { width: 22px; height: 22px; }
-
-        /* Badge Contact Flottant avec 2 options */
-        .floating-contact-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            display: flex;
-            gap: 10px;
-        }
-
-        .floating-contact-btn {
-            padding: 12px 18px;
-            border-radius: 25px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            color: white;
-        }
-
-        .floating-contact-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .floating-contact-btn.whatsapp {
-            background: #25D366;
-        }
-
-        .floating-contact-btn.whatsapp:hover {
-            background: #1da851;
-        }
-
-        .floating-contact-btn.phone {
-            background: var(--brand-color);
-        }
-
-        .floating-contact-btn.phone:hover {
-            background: var(--brand-dark);
-        }
-
-        .floating-contact-btn .icon {
-            width: 18px;
-            height: 18px;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.6; }
-            100% { opacity: 1; }
-        }
-
-        /* Section des forfaits */
-        .plans-info { margin-top: 30px; }
-
-        .plans-info h3 {
-            text-align: center;
-            font-weight: 500;
-            font-size: 1.1rem;
-            color: var(--text-light);
-            margin-bottom: 15px;
-        }
-
-        .plans-cta {
-            text-align: center;
-            background: linear-gradient(135deg, #e6f9f4 0%, #f0f8ff 100%);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 0px;
-            border-left: 4px solid var(--brand-color);
-        }
-
-        .plans-cta p {
-            font-size: 0.95rem;
-            color: var(--text-dark);
-            font-weight: 500;
-        }
-
-        .plans-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
-            margin-bottom: 15px;
-        }
-
-        .plan-card {
-            background-color: #f8f9fa;
-            border: 1px solid var(--border-color);
-            padding: 20px;
-            border-radius: 12px;
-            text-align: center;
-            position: relative;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .plan-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            border-color: var(--brand-color);
-        }
-
-        .plan-card.popular {
-            border-color: var(--brand-color);
-            background: linear-gradient(135deg, #f8fffc 0%, #e6f9f4 100%);
-        }
-
-        .plan-card.popular::before {
-            content: "POPULAIRE";
-            position: absolute;
-            top: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--brand-color);
-            color: white;
-            padding: 5px 15px;
-            border-radius: 15px;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-
-        .plan-card .duration {
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: var(--brand-dark);
-            margin-bottom: 10px;
-        }
-
-        .plan-price {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .plan-card .price-old {
-            font-size: 0.9rem;
-            color: var(--text-light);
-            text-decoration: line-through;
-            margin-bottom: 2px;
-        }
-
-        .plan-card .price {
-            font-size: 1.4rem;
-            font-weight: 600;
-            color: var(--brand-color);
-        }
-
-        .plan-disclaimer {
-            text-align: center;
-            font-size: 0.8rem;
-            color: var(--text-light);
-            font-style: italic;
-            margin-top: 10px;
-        }
-
-        /* Styles pour le popup modal avec iframe */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 2000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(5px);
-            justify-content: center;
-            align-items: center;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 20px;
-            max-width: 90%;
-            max-height: 90%;
-            width: 800px;
-            height: 600px;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
-            transform: scale(0.8);
-            opacity: 0;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .modal[style*="flex"] .modal-content {
-            transform: scale(1);
-            opacity: 1;
-        }
-
-        .modal-header {
-            background: linear-gradient(135deg, var(--brand-color), var(--brand-dark));
-            color: white;
-            padding: 20px;
-            position: relative;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 24px;
-            cursor: pointer;
-            padding: 5px;
-            border-radius: 50%;
-            transition: background-color 0.3s ease;
-        }
-
-        .modal-close:hover {
-            background-color: rgba(255, 255, 255, 0.2);
-        }
-
-        .modal-iframe-container {
-            width: 100%;
-            height: calc(100% - 80px);
-            position: relative;
-        }
-
-        .modal-loading {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100%;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .loading-spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid var(--brand-color);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .modal-payment-frame {
-            width: 100%;
-            height: 100%;
-            border: none;
-            display: none;
-        }
-
-        /* Section Contact */
-        .contact-section {
-            margin-top: 20px;
-            padding: 25px;
-            background: linear-gradient(135deg, #f8fffc 0%, #e6f9f4 100%);
-            border-radius: 15px;
-            border: 1px solid rgba(25, 195, 148, 0.2);
-        }
-
-        .contact-section h3 {
-            font-weight: 600;
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            color: var(--text-dark);
-            text-align: center;
-        }
-
-        .contact-methods {
-            display: grid;
-            gap: 15px;
-        }
-
-        .contact-method {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px;
-            background: white;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            color: inherit;
-            cursor: pointer;
-        }
-
-        .contact-method:hover {
-            transform: translateX(5px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            background: #f8f9fa;
-        }
-
-        .contact-method .icon {
-            width: 24px;
-            height: 24px;
-            color: var(--brand-color);
-        }
-
-        .contact-method .details {
-            flex: 1;
-        }
-
-        .contact-method .label {
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: var(--text-dark);
-        }
-
-        .contact-method .value {
-            font-size: 0.85rem;
-            color: var(--text-light);
-        }
-
-        .footer {
-            margin-top: 40px;
-            text-align: center;
-            font-size: 0.85rem;
-            color: #adb5bd;
-        }
-
-        /* --- RESPONSIVE DESIGN --- */
-        @media (max-width: 992px) {
-            .main-container { flex-direction: column; }
-            .welcome-panel { display: none; }
-            .login-panel { 
-                padding: 40px 30px; 
-                max-height: none;
-                overflow-y: visible;
-            }
-            .login-panel h2 { font-size: 1.6rem; }
-            .plans-grid { grid-template-columns: repeat(2, 1fr); }
-            .contact-methods { grid-template-columns: 1fr; }
-            .floating-contact-container {
-                top: 15px;
-                right: 15px;
-                flex-direction: column;
-                gap: 8px;
-            }
-            .floating-contact-btn {
-                padding: 10px 16px;
-                font-size: 0.85rem;
-            }
-            .modal-content {
-                width: 95%;
-                height: 80%;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .plans-grid { grid-template-columns: 1fr; }
-            .floating-contact-container {
-                top: 10px;
-                right: 10px;
-            }
-            .floating-contact-btn {
-                padding: 8px 14px;
-                font-size: 0.8rem;
-            }
-            .floating-contact-btn .icon {
-                width: 16px;
-                height: 16px;
-            }
-            .modal-content {
-                width: 98%;
-                height: 85%;
-            }
-            .modal-header {
-                padding: 15px;
-            }
-        }
-
-    </style>
+  </script>
 </head>
 <body>
-
-    <div class="floating-contact-container">
-        <a href="https://wa.me/237123456789" class="floating-contact-btn whatsapp" target="_blank">
-            <span class="icon">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.531 3.542"></path></svg>
-            </span>
-            WhatsApp
-        </a>
-        <a href="tel:+237123456789" class="floating-contact-btn phone">
-            <span class="icon">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-            </span>
-            Appeler
-        </a>
+  <div class="main-container">
+    <!-- Panneau de gauche (Accueil) -->
+    <div class="welcome-panel">
+      <img src="logo-dnet.png" alt="Dnet Logo" class="logo">
+      <h1>Bienvenue sur<br>Dnet WiFi</h1>
+      <p>Connectez-vous à Internet haute vitesse en quelques clics seulement.</p>
     </div>
 
-  <!-- Popup Modal avec iframe pour le paiement -->
-  <div id="planModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 id="modalPlanTitle">Paiement du forfait</h3>
-        <button class="modal-close" onclick="closePlanModal()">&times;</button>
-      </div>
-      
-      <div class="modal-iframe-container">
-        <!-- Loading pendant le chargement -->
-        <div id="modalLoading" class="modal-loading">
-          <div class="loading-spinner"></div>
-          <p>Chargement du site de paiement...</p>
+    <!-- Panneau de droite (Connexion) -->
+    <div class="login-panel">
+      <h2>Connexion Wi-Fi</h2>
+      <p class="subtitle">Entrez vos identifiants ou choisissez un forfait</p>
+
+      <!-- Formulaire de connexion existant -->
+      <form name="login" onSubmit="return doLogin()" method="post">
+        <div class="input-group">
+          <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </span>
+          <input type="text" id="code-input" name="username" placeholder="Nom d'utilisateur" required>
+        </div>
+
+        <div class="input-group">
+          <span class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </span>
+          <input type="password" id="password-input" name="password" placeholder="Mot de passe" required>
+          <span class="eye-icon" id="eye-icon" onclick="togglePassword()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </span>
+        </div>
+
+        <button type="submit" class="submit-button">Se connecter</button>
+      </form>
+
+      <!-- Section des forfaits (sera remplie dynamiquement) -->
+      <section class="plans-info">
+        <h3>Nos Forfaits Internet Haut Débit</h3>
+        
+        <!-- Loader pour les forfaits -->
+        <div id="plans-loader" class="plans-loader">
+          <div class="plans-skeleton">
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+          <p>Chargement des forfaits disponibles...</p>
         </div>
         
-        <!-- Iframe pour charger le site de paiement -->
-        <iframe id="modalPaymentFrame" class="modal-payment-frame" src=""></iframe>
-      </div>
-    </div>
-  </div>
+        <!-- Grille des forfaits -->
+        <div id="plans-grid" class="plans-grid" style="display: none;">
+          <!-- Les forfaits seront insérés ici par JavaScript -->
+        </div>
 
-  <!-- Formulaire CHAP caché (obligatoire pour MikroTik si activé) -->
-  $(if chap-id)
-  <form name="sendin" action="$(link-login-only)" method="post" style="display:none;">
-    <input type="hidden" name="username" />
-    <input type="hidden" name="password" />
-    <input type="hidden" name="dst" value="$(link-orig)" />
-    <input type="hidden" name="popup" value="true" />
-  </form>
-  $(endif)
+        <div class="plans-cta">
+          <p>💬 <strong>Cliquez sur un forfait</strong> pour accéder au paiement et recevoir votre code d'accès</p>
+        </div>
+      </section>
 
-  <div class="main-container">
-    <!-- Colonne gauche visuelle -->
-    <div class="welcome-panel">
-      <img src="logo-dnet.png" alt="Logo Dnet" class="logo" />
-      <h1>L'Internet Haut Débit, Simplement.</h1>
-      <p>Connectez-vous en quelques secondes et profitez d'une navigation fluide et rapide.</p>
-    </div>
-
-    <!-- Colonne droite : formulaire -->
-    <div class="login-panel">
-      <header>
-        <h2>Bienvenue sur le Wi-Fi Dnet</h2>
-        <p class="subtitle">Entrez votre identifiant et mot de passe pour vous connecter.</p>
-      </header>
-
-      <main>
-        <!-- Message d'erreur -->
-        $(if error)
-          <p style="color: red; margin-bottom: 20px; font-weight: 600;">$(error)</p>
-        $(endif)
-
-        <!-- Formulaire -->
-        <form name="login" action="$(link-login-only)" method="post" $(if chap-id) onsubmit="return doLogin()" $(endif)>
-          <input type="hidden" name="dst" value="$(link-orig)" />
-          <input type="hidden" name="popup" value="true" />
-
-          <div class="input-group">
+      <!-- Section Contact -->
+      <section class="contact-section">
+        <h3>📞 Comment Nous Contacter</h3>
+        <div class="contact-methods">
+          <a href="tel:+237694221506" class="contact-method">
             <span class="icon">
-                <!-- Icône Ticket SVG -->
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8"></path><path d="M4 17a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4H4v4z"></path><path d="M9 15l-1-1"></path><path d="M16 15l-1-1"></path></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
             </span>
-            <input type="text" id="code-input" name="username" placeholder="Code sur le ticket" required value="$(username)">
-          </div>
-
-          <div class="input-group">
+            <div class="details">
+              <div class="label">Téléphone</div>
+              <div class="value">+237 6 94 22 15 06</div>
+            </div>
+          </a>
+          <a href="https://wa.me/237694221506" class="contact-method" target="_blank">
             <span class="icon">
-                <!-- Icône mot de passe (cadenas) -->
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.67-.51-.173-.008-.371-.01-.568-.01-.197 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.893 3.488"/>
+              </svg>
             </span>
+            <div class="details">
+              <div class="label">WhatsApp</div>
+              <div class="value">+237 6 94 22 15 06</div>
+            </div>
+          </a>
+        </div>
+      </section>
 
-            <input type="password" id="password-input" name="password" placeholder="Mot de passe" required>
-            
-            <!-- Icône œil pour basculer la visibilité -->
-            <span class="eye-icon" id="eye-icon" onclick="togglePassword()">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                </svg>
-            </span>
-          </div>
-
-          <button type="submit" class="submit-button">
-            Se connecter
-          </button>
-        </form>
-
-                <section class="plans-info">
-                    <h3>Nos Forfaits Internet Haut Débit</h3>
-                    <div class="plans-grid">
-                        <div class="plan-card" onclick="openPlanModal('1jour', '1 Jour Illimité', '500 F')">
-                            <div class="duration">1 Jour Illimité</div>
-                            <div class="plan-price">
-                                <!-- <div class="price-old">600 F</div> -->
-                                <div class="price">500 F</div>
-                            </div>
-                        </div>
-                        <div class="plan-card popular" onclick="openPlanModal('3jours', '3 Jours Illimité', '1,000 F', '1,500 F')">
-                            <div class="duration">3 Jours Illimité</div>
-                            <div class="plan-price">
-                                <div class="price-old">1,500 F</div>
-                                <div class="price">1,000 F</div>
-                            </div>
-                        </div>
-                        <div class="plan-card" onclick="openPlanModal('1semaine', '1 Semaine Illimité', '2,000 F', '3,500 F')">
-                            <div class="duration">1 Semaine Illimité</div>
-                            <div class="plan-price">
-                                <div class="price-old">3,500 F</div>
-                                <div class="price">2,000 F</div>
-                            </div>
-                        </div>
-                        <div class="plan-card" onclick="openPlanModal('1mois', '1 Mois Illimité', '5,000 F', '10 000 F')">
-                            <div class="duration">1 Mois Illimité</div>
-                            <div class="plan-price">
-                                <div class="price-old">10 000 F</div>
-                                <div class="price">5,000 F</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="plans-cta">
-                        <p>💬 <strong>Cliquez sur un forfait</strong> pour accéder au paiement et recevoir votre code d'accès</p>
-                    </div>
-                </section>
-
-                <!-- Section Contact -->
-                <section class="contact-section">
-                    <h3>📞 Comment Nous Contacter</h3>
-                    <div class="contact-methods">
-                        <a href="tel:+237694221506" class="contact-method">
-                            <span class="icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                            </span>
-                            <div class="details">
-                                <div class="label">Téléphone</div>
-                                <div class="value">+237 6 94 22 15 06</div>
-                            </div>
-                        </a>
-                        <a href="https://wa.me/237694221506" class="contact-method" target="_blank">
-                            <span class="icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.531 3.542"/></svg>
-                            </span>
-                            <div class="details">
-                                <div class="label">WhatsApp</div>
-                                <div class="value">+237 6 94 22 15 06</div>
-                            </div>
-                        </a>
-                        <div class="contact-method">
-                            <span class="icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                            </span>
-                            <div class="details">
-                                <div class="label">Adresse</div>
-                                <div class="value">Cameroun, Yaoundé</div>
-                            </div>
-                        </div>
-                        <div class="contact-method">
-                            <span class="icon">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                            </span>
-                            <div class="details">
-                                <div class="label">Horaires</div>
-                                <div class="value">Lun-Dim : 24h/24h</div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-      </main>
-
-      <footer class="footer">
+      <footer>
         © 2024 Dnet. Tous droits réservés.
       </footer>
     </div>
   </div>
 
-  <script>
+  <!-- Modal de paiement -->
+  <div id="payment-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-plan-title">Forfait Sélectionné</h3>
+        <span class="modal-close" onclick="closePaymentModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div id="payment-loader" class="payment-loader">
+          <div class="spinner"></div>
+          <p>Initialisation du paiement...</p>
+        </div>
+        <div id="payment-content" style="display: none;">
+          <!-- Contenu du paiement -->
+        </div>
+      </div>
+    </div>
+  </div>
 
-
-
-    // Fonction pour basculer la visibilité du mot de passe
-    function togglePassword() {
-      const passwordInput = document.getElementById('password-input');
-      const eyeIcon = document.getElementById('eye-icon');
-      
-      if (passwordInput.type === 'password') {
-        passwordInput.type = 'text';
-        eyeIcon.innerHTML = `
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-            <line x1="1" y1="1" x2="23" y2="23"/>
-          </svg>
-        `;
-      } else {
-        passwordInput.type = 'password';
-        eyeIcon.innerHTML = `
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-        `;
-      }
-    }
-
-    // Configuration des liens de paiement pour chaque forfait
-    const paymentLinks = {
-      '1jour': 'https://dnet-29b02.web.app/#/portal?zoneId=S78uMjeYRf11EvMIW2x3&ticketTypeId=wV0E9cKkveRmVJ32bZex',  // Remplacez par votre lien
-      '3jours': 'https://dnet-29b02.web.app/#/portal?zoneId=S78uMjeYRf11EvMIW2x3&ticketTypeId=R61GfZAS5xPk0LiULFca', // Remplacez par votre lien
-      '1semaine': 'https://dnet-29b02.web.app/#/portal?zoneId=S78uMjeYRf11EvMIW2x3&ticketTypeId=uUtkSNcpON1WSGSikWQW', // Remplacez par votre lien
-      '1mois': 'https://dnet-29b02.web.app/#/portal?zoneId=S78uMjeYRf11EvMIW2x3&ticketTypeId=Y8DbVJFavIYjHDm8UKFY' // Remplacez par votre lien
-    };
-
-
-    // Fonction pour ouvrir le popup de forfait avec iframe
-    function openPlanModal(planType, planName, planPrice, planOldPrice = null) {
-      const modal = document.getElementById('planModal');
-      const modalTitle = document.getElementById('modalPlanTitle');
-      const modalIframe = document.getElementById('modalPaymentFrame');
-      const loadingDiv = document.getElementById('modalLoading');
-
-      modalTitle.textContent = planName + ' - ' + planPrice;
-      
-      // Afficher le loading
-      loadingDiv.style.display = 'flex';
-      modalIframe.style.display = 'none';
-
-      // Charger l'URL de paiement dans l'iframe
-      if (paymentLinks[planType]) {
-        modalIframe.src = paymentLinks[planType];
-        
-        // Masquer le loading une fois l'iframe chargée
-        modalIframe.onload = function() {
-          loadingDiv.style.display = 'none';
-          modalIframe.style.display = 'block';
-        };
-      } else {
-        loadingDiv.innerHTML = '<p style="color: red;">Lien de paiement non configuré pour ce forfait.</p>';
-      }
-
-      modal.style.display = 'flex';
-    }
-
-    // Fonction pour fermer le popup
-    function closePlanModal() {
-      const modal = document.getElementById('planModal');
-      const modalIframe = document.getElementById('modalPaymentFrame');
-      const loadingDiv = document.getElementById('modalLoading');
-      
-      modal.style.display = 'none';
-      modalIframe.src = ''; // Arrêter le chargement de l'iframe
-      loadingDiv.style.display = 'flex';
-      modalIframe.style.display = 'none';
-    }
-
-    // Fermer le popup en cliquant à l'extérieur
-    window.onclick = function(event) {
-      const modal = document.getElementById('planModal');
-      if (event.target === modal) {
-        closePlanModal();
-      }
-    }
-  
-  </script>
+  <!-- Formulaire caché pour l'authentification -->
+  <form name="sendin" method="post" style="display: none;">
+    <input name="username" type="hidden">
+    <input name="password" type="hidden">
+  </form>
 </body>
 </html>

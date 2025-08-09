@@ -224,3 +224,57 @@ h1 {
     font-size: 0.85rem;
     color: var(--text-light);
 }
+
+
+/* Optimisations de performance */
+.view {
+    will-change: auto; /* Éviter les couches inutiles */
+}
+
+.status-icon {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 16px;
+    display: block;
+}
+/* 
+.price-chip {
+    display: inline-block;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    margin-bottom: 16px;
+} */
+
+.credentials-card {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 16px 0;
+}
+
+.credential-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.credential-row:last-child {
+    border-bottom: none;
+}
+
+/* Optimisations mobile */
+@media (max-width: 768px) {
+    .view {
+        padding: 16px;
+    }
+    
+    .credentials-card {
+        font-size: 14px;
+    }
+}
