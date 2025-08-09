@@ -66,20 +66,28 @@ class UIHandlers {
     this.showPlansLoader(false);
   }
 
-  // Créer une carte de forfait
-  createPlanCard(plan, isPopular = false) {
-    const planCard = document.createElement('div');
-    planCard.className = `plan-card ${isPopular ? 'popular' : ''}`;
-    
-    if (!plan.isAvailable) {
-      planCard.classList.add('disabled');
-    }
-    
-    planCard.onclick = plan.isAvailable ? 
-      () => this.handlePlanClick(plan) : 
-      () => this.showUnavailableMessage(plan);
-    
-    planCard.innerHTML = `
+  // Créer une carte de forfait (version optimisée avec débit)
+createPlanCard(plan, isPopular = false) {
+  const planCard = document.createElement('div');
+  planCard.className = `plan-card ${isPopular ? 'popular' : ''}`;
+  
+  if (!plan.isAvailable) {
+    planCard.classList.add('disabled');
+  }
+  
+  planCard.onclick = plan.isAvailable
+  ? () => PaymentFlow.open(plan)    // <-- plus de prompt ici
+  : () => uiHandlers.showUnavailableMessage(plan);
+  
+  // Formater les débits pour l'affichage
+  const formatSpeed = (limitInKbps) => {
+    if (!limitInKbps || limitInKbps === 0) return 'Illimité';
+    if (limitInKbps >= 1000) return `${(limitInKbps/1000).toFixed(0)}`;
+    return `${limitInKbps}`;
+  };
+
+  planCard.innerHTML = `
+    <div class="plan-header">
       <div class="duration">${plan.name}</div>
       <div class="plan-price">
         ${plan.hasPromotion ? 
@@ -88,14 +96,27 @@ class UIHandlers {
         }
         <div class="price">${plan.formattedPrice}</div>
       </div>
-      <div class="plan-details">
-        <small>Validité: ${plan.validityText}</small>
-        ${!plan.isAvailable ? '<small class="text-danger">Temporairement épuisé</small>' : ''}
+    </div>
+    <div class="plan-details">
+      <div class="detail-row">
+        <span class="detail-icon">📶</span>
+        <span class="detail-text">
+          ↑ ${formatSpeed(plan.rateLimit)}
+        </span>
       </div>
-    `;
-    
-    return planCard;
-  }
+      <div class="detail-row">
+        <span class="detail-icon">⏱️</span>
+        <span class="detail-text">${plan.validityText}</span>
+      </div>
+      ${!plan.isAvailable ? 
+        '<div class="unavailable-notice">Temporairement épuisé</div>' : 
+        ''
+      }
+    </div>
+  `;
+  
+  return planCard;
+}
 
   // Gérer le clic sur un forfait
   async handlePlanClick(plan) {

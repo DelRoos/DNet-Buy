@@ -88,66 +88,65 @@ class FirebaseIntegration {
     }
   }
 
-  // Initier un paiement
-  async initiatePayment(ticketTypeId, phoneNumber) {
-    try {
-      if (!this.initialized) {
-        const initSuccess = await this.init();
-        if (!initSuccess) {
-          throw new Error('Firebase non disponible');
-        }
-      }
+  // Initier un paiement (HTTP onRequest)
+async initiatePayment(ticketTypeId, phoneNumber) {
+  // ensure init() was called if you need firebase for other things, but not required for HTTP
+  const url = `${CONFIG.api.cloudFunctionsUrl}/initiatePayment`;
+  const body = {
+    planId: ticketTypeId,          // <-- CF attend planId
+    phoneNumber: phoneNumber,
+    externalId: undefined          // ou fournissez un ID pour l’idempotence
+  };
 
-      console.log('💳 Initiation du paiement...', { ticketTypeId, phoneNumber: '***masked***' });
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'Accept':'application/json' },
+    body: JSON.stringify(body)
+  });
 
-      const initiatePayment = this.functions.httpsCallable(CONFIG.api.endpoints.initiatePayment);
-
-      const result = await initiatePayment({
-        ticketTypeId: ticketTypeId,
-        phoneNumber: phoneNumber,
-        zoneId: CONFIG.zone.id
-      });
-
-      console.log('✅ Paiement initié:', result.data);
-      return result.data;
-    } catch (error) {
-      console.error('❌ Erreur de paiement:', error);
-      
-      // Améliorer le message d'erreur pour l'utilisateur
-      let userMessage = 'Erreur lors de l\'initiation du paiement';
-      
-      if (error.code === 'functions/unauthenticated') {
-        userMessage = 'Service temporairement indisponible';
-      } else if (error.code === 'functions/not-found') {
-        userMessage = 'Service de paiement non disponible';
-      } else if (error.message) {
-        userMessage = error.message;
-      }
-      
-      throw new Error(userMessage);
-    }
+  if (!resp.ok) {
+    let msg = `HTTP ${resp.status}`;
+    try { const err = await resp.json(); msg = err.error || msg; } catch {}
+    throw new Error(msg);
   }
+  const data = await resp.json();
+  // attendu: { success:true, transactionId, freemopayReference, amount }
+  return data;
+}
 
-  // Vérifier le statut d'une transaction
-  async checkTransactionStatus(transactionId) {
-    try {
-      if (!this.initialized) {
-        const initSuccess = await this.init();
-        if (!initSuccess) {
-          throw new Error('Firebase non disponible');
-        }
-      }
-
-      const checkTransaction = this.functions.httpsCallable(CONFIG.api.endpoints.checkTransaction);
-
-      const result = await checkTransaction({ transactionId });
-
-      return result.data;
-    } catch (error) {
-      console.error('❌ Erreur lors de la vérification:', error);
-      throw error;
-    }
+// Vérifier le statut (HTTP onRequest)
+async checkTransactionStatus(transactionId) {
+  const url = `${CONFIG.api.cloudFunctionsUrl}/checkTransactionStatus?transactionId=${encodeURIComponent(transactionId)}`;
+  const resp = await fetch(url, { method: 'GET', headers: { 'Accept':'application/json' }});
+  if (!resp.ok) {
+    let msg = `HTTP ${resp.status}`;
+    try { const err = await resp.json(); msg = err.error || msg; } catch {}
+    throw new Error(msg);
   }
+  return await resp.json(); // { success:true, transaction:{...} }
+}
+
+
+  // // Vérifier le statut d'une transaction
+  // async checkTransactionStatus(transactionId) {
+  //   try {
+  //     if (!this.initialized) {
+  //       const initSuccess = await this.init();
+  //       if (!initSuccess) {
+  //         throw new Error('Firebase non disponible');
+  //       }
+  //     }
+
+  //     const checkTransaction = this.functions.httpsCallable(CONFIG.api.endpoints.checkTransaction);
+
+  //     const result = await checkTransaction({ transactionId });
+
+  //     return result.data;
+  //   } catch (error) {
+  //     console.error('❌ Erreur lors de la vérification:', error);
+  //     throw error;
+  //   }
+  // }
 
   // Méthode de test pour vérifier la connectivité
   async testConnection() {

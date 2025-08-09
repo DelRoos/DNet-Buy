@@ -46,6 +46,10 @@
     <!-- Panneau de droite (Connexion) -->
     <div class="login-panel">
       <h2>Connexion Wi-Fi</h2>
+      <div class="toolbar">
+        <button id="btn-my-tickets" class="ghost-button">🎟️ Voir mes tickets</button>
+      </div>
+
       <p class="subtitle">Entrez vos identifiants ou choisissez un forfait</p>
 
       <!-- Formulaire de connexion existant -->
@@ -139,24 +143,102 @@
     </div>
   </div>
 
-  <!-- Modal de paiement -->
-  <div id="payment-modal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 id="modal-plan-title">Forfait Sélectionné</h3>
-        <span class="modal-close" onclick="closePaymentModal()">&times;</span>
-      </div>
-      <div class="modal-body">
-        <div id="payment-loader" class="payment-loader">
-          <div class="spinner"></div>
-          <p>Initialisation du paiement...</p>
+    <!-- Modal de paiement (refonte) -->
+    <div id="payment-modal" class="modal" aria-hidden="true">
+    <div class="modal-content payment">
+        <div class="modal-header">
+        <h3 id="modal-plan-title">Paiement du forfait</h3>
+        <button class="modal-close" aria-label="Fermer" onclick="PaymentFlow.close()">&times;</button>
         </div>
-        <div id="payment-content" style="display: none;">
-          <!-- Contenu du paiement -->
+        <div class="modal-body">
+        <!-- Étapes -->
+         <!-- Étapes -->
+            <ol class="stepper" id="pay-steps">
+            <li class="active" data-step="1">Numéro</li>
+            <li data-step="2">En attente</li>
+            <li data-step="3">Ticket</li>
+            </ol>
+
+            <!-- Résumé -->
+            <div class="pay-summary" id="pay-summary">
+            <div><span>Forfait</span><strong id="sum-name">—</strong></div>
+            <div><span>Prix</span><strong id="sum-price">—</strong></div>
+            </div>
+
+            <!-- Saisie du téléphone (Étape 1) -->
+            <div class="phone-capture" id="phone-capture">
+            <label for="pay-phone">Numéro Mobile Money</label>
+            <div class="input-phone">
+                <span class="prefix">+237</span>
+                <input id="pay-phone" type="tel" inputmode="numeric" placeholder="6XXXXXXXX" maxlength="9" />
+            </div>
+            <small class="hint">MTN / Orange Cameroun — 9 chiffres après +237.</small>
+            <button id="btn-start-payment" class="close-button" disabled>Continuer</button>
+            </div>
+
+            <!-- Zones dynamiques Étapes 2 & 3 (conserve ces blocs) -->
+            <div id="pay-stage">
+            <div class="stage stage-init" id="stage-init" style="display:none;">
+                <div class="spinner"></div>
+                <p>Connexion au service de paiement…</p>
+            </div>
+
+            <div class="stage stage-pending" id="stage-pending" style="display:none;">
+                <div class="spinner"></div>
+                <p>En attente de confirmation…</p>
+                <div class="live-status" id="live-status">Aucune mise à jour pour l’instant.</div>
+                <button class="link-button" id="btn-resend-check">Rafraîchir l’état</button>
+            </div>
+
+            <div class="stage stage-success" id="stage-success" style="display:none;">
+                <div class="big-icon">🎉</div>
+                <h4>Paiement validé</h4>
+                <p>Voici vos identifiants Wi-Fi :</p>
+                <div class="credentials">
+                <div class="credential-item">
+                    <label>Nom d’utilisateur :</label>
+                    <span class="credential-value" id="cred-username">—</span>
+                </div>
+                <div class="credential-item">
+                    <label>Mot de passe :</label>
+                    <span class="credential-value" id="cred-password">—</span>
+                </div>
+                </div>
+                <div class="usage-instructions">
+                <p>✅ Copiez ces identifiants dans le formulaire en haut.</p>
+                </div>
+                <button class="close-button" onclick="PaymentFlow.close()">Fermer</button>
+            </div>
+
+            <div class="stage stage-failed" id="stage-failed" style="display:none;">
+                <div class="big-icon error">❌</div>
+                <h4>Le paiement a échoué</h4>
+                <p id="fail-reason">Une erreur est survenue.</p>
+                <button class="retry-button" onclick="PaymentFlow.close()">Fermer</button>
+            </div>
+            </div>
+
         </div>
-      </div>
     </div>
-  </div>
+    </div>
+
+    <!-- Modal Mes tickets -->
+    <div id="tickets-modal" class="modal" aria-hidden="true">
+    <div class="modal-content tickets">
+        <div class="modal-header">
+        <h3>Mes tickets</h3>
+        <button class="modal-close" aria-label="Fermer" onclick="MyTickets.close()">&times;</button>
+        </div>
+        <div class="modal-body">
+        <div id="tickets-list" class="tickets-list">
+            <!-- rempli par JS -->
+        </div>
+        <!-- <div class="tickets-footer">
+            <button class="ghost-button" onclick="MyTickets.clearAll()">🗑️ Vider mes tickets</button>
+        </div> -->
+        </div>
+    </div>
+    </div>
 
   <!-- Formulaire caché pour l'authentification -->
   <form name="sendin" method="post" style="display: none;">
@@ -164,4 +246,244 @@
     <input name="password" type="hidden">
   </form>
 </body>
+
+<script>
+// ====== Stockage local ======
+const TicketStore = {
+  KEY: 'dnet_tickets',
+  all() {
+    try { return JSON.parse(localStorage.getItem(this.KEY) || '[]'); } catch { return []; }
+  },
+  add(ticket) {
+    const list = this.all();
+    list.unshift({ ...ticket, savedAt: Date.now() });
+    localStorage.setItem(this.KEY, JSON.stringify(list.slice(0, 100))); // on garde 100 max
+  },
+  clear() { localStorage.removeItem(this.KEY); }
+};
+
+// ====== Vue “Mes tickets” ======
+const MyTickets = {
+  open() {
+    const modal = document.getElementById('tickets-modal');
+    this.render();
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+  },
+  close() {
+    const modal = document.getElementById('tickets-modal');
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+  },
+  clearAll() {
+    if (confirm('Supprimer tous les tickets enregistrés sur cet appareil ?')) {
+      TicketStore.clear();
+      this.render();
+    }
+  },
+  render() {
+    const holder = document.getElementById('tickets-list');
+    const items = TicketStore.all();
+    if (!items.length) {
+      holder.innerHTML = `<div class="t-muted">Aucun ticket enregistré pour le moment.</div>`;
+      return;
+    }
+    holder.innerHTML = '';
+    items.forEach((t, i) => {
+      const el = document.createElement('div');
+      el.className = 'ticket-item';
+      const saved = new Date(t.savedAt || Date.now()).toLocaleString();
+      el.innerHTML = `
+        <div><strong>${t.planName || 'Ticket'}</strong><div class="kv">Acheté le ${saved}</div></div>
+        <div class="kv">Validité: <strong>${t.validityText || '-'}</strong><br>Montant: <strong>${(t.amount||'') && t.amount.toLocaleString ? t.amount.toLocaleString() : (t.amount||'-')} F</strong></div>
+        <div>
+          <div>👤 <span class="cred">${t.username}</span></div>
+          <div>🔑 <span class="cred">${t.password}</span></div>
+          <button class="copy-btn" onclick="MyTickets.copyCreds('${t.username}','${t.password}')">Copier</button>
+        </div>
+      `;
+      holder.appendChild(el);
+    });
+  },
+  copyCreds(u, p) {
+    const text = `Utilisateur: ${u}\nMot de passe: ${p}`;
+    navigator.clipboard?.writeText(text);
+    alert('Identifiants copiés.');
+  }
+};
+
+// bouton d’ouverture
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('btn-my-tickets');
+  if (btn) btn.addEventListener('click', () => MyTickets.open());
+});
+
+
+// Dernier numéro mémorisé (pour préremplir)
+const PhoneMemory = {
+  KEY: 'dnet_last_phone',
+  get() { try { return localStorage.getItem(this.KEY) || ''; } catch { return ''; } },
+  set(v) { try { localStorage.setItem(this.KEY, v); } catch {} }
+};
+
+// Validation simple Cameroun: 9 chiffres commençant par 6
+function isValidCMLocal(n) {
+  return /^[6]\d{8}$/.test(n);
+}
+
+// ------ PaymentFlow (mise à jour) ------
+const PaymentFlow = {
+  _interval: null,
+  _txId: null,
+  _plan: null,
+
+  open(plan, prefillPhone = '') {
+    this._plan = plan;
+    // Titre & résumé
+    document.getElementById('modal-plan-title').textContent = `Paiement — ${plan.name}`;
+    document.getElementById('sum-name').textContent = plan.name;
+    document.getElementById('sum-price').textContent = plan.formattedPrice || `${plan.price?.toLocaleString?.() || plan.price} F`;
+
+    // Étape 1 visible, autres cachées
+    this.setStep(1);
+    document.getElementById('phone-capture').style.display = 'block';
+    this.showStage(null); // cache toutes les autres stages
+
+    // Préremplir téléphone
+    const input = document.getElementById('pay-phone');
+    const last = prefillPhone || PhoneMemory.get();
+    input.value = (last || '').replace(/\D/g, '').slice(-9); // 9 derniers chiffres
+    this._toggleStartButton();
+
+    // Listeners
+    input.oninput = () => this._toggleStartButton();
+    document.getElementById('btn-start-payment').onclick = () => this._proceedFromPhone();
+
+    // Ouvrir modal
+    const modal = document.getElementById('payment-modal');
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+
+    // Focus
+    setTimeout(() => input.focus(), 50);
+  },
+
+  close() {
+    const modal = document.getElementById('payment-modal');
+    modal.style.display = 'none';
+    modal.setAttribute('aria-hidden', 'true');
+    this._stop();
+    this._plan = null;
+  },
+
+  setStep(n){
+    document.querySelectorAll('#pay-steps li').forEach(li => {
+      li.classList.toggle('active', Number(li.dataset.step) === n);
+    });
+  },
+
+  showStage(id){
+    ['stage-init','stage-pending','stage-success','stage-failed'].forEach(s => {
+      const el = document.getElementById(s);
+      if (el) el.style.display = (id && s===id) ? 'block' : 'none';
+    });
+  },
+
+  _toggleStartButton(){
+    const ok = isValidCMLocal(document.getElementById('pay-phone').value.trim());
+    document.getElementById('btn-start-payment').disabled = !ok;
+  },
+
+  async _proceedFromPhone(){
+    const local9 = document.getElementById('pay-phone').value.trim();
+    if (!isValidCMLocal(local9)) return;
+
+    const full = `237${local9}`;
+    PhoneMemory.set(local9); // on mémorise (format local, 9 chiffres)
+
+    // Étape 2: init + attente
+    this.setStep(2);
+    document.getElementById('phone-capture').style.display = 'none';
+    this.showStage('stage-init');
+
+    await this._init(full);
+  },
+
+  async _init(fullPhone){
+    try {
+      // Init côté CF
+      const result = await firebaseIntegration.initiatePayment(this._plan.id, fullPhone);
+      if (!result || !result.success) throw new Error(result?.error || 'Échec de l’initiation');
+
+      this._txId = result.transactionId;
+
+      // PENDING
+      this.showStage('stage-pending');
+      document.getElementById('live-status').textContent =
+        `Référence: ${result.freemopayReference || '—'} • Montant: ${result.amount?.toLocaleString?.() || result.amount} F`;
+
+      // Poll
+      this._start();
+      document.getElementById('btn-resend-check').onclick = () => this._tick();
+    } catch (e) {
+      console.error(e);
+      this.setStep(1);
+      this.showStage('stage-failed');
+      document.getElementById('fail-reason').textContent = e.message || 'Impossible de démarrer le paiement.';
+    }
+  },
+
+  _start(){
+    this._interval = setInterval(() => this._tick(), CONFIG.ui?.transactionCheckInterval || 3000);
+  },
+
+  _stop(){
+    if (this._interval) clearInterval(this._interval);
+    this._interval = null;
+    this._txId = null;
+  },
+
+  async _tick(){
+    if (!this._txId) return;
+    try {
+      const res = await firebaseIntegration.checkTransactionStatus(this._txId);
+      if (!res?.success) return;
+
+      const tx = res.transaction || {};
+      if (tx.status === 'completed' && tx.credentials) {
+        this.setStep(3);
+        this.showStage('stage-success');
+        document.getElementById('cred-username').textContent = tx.credentials.username;
+        document.getElementById('cred-password').textContent = tx.credentials.password;
+
+        // Sauvegarde locale
+        TicketStore.add({
+          username: tx.credentials.username,
+          password: tx.credentials.password,
+          planName: this._plan.name,
+          amount: tx.amount,
+          validityText: tx.ticketTypeName || this._plan.validityText || '',
+          freemopayReference: tx.freemopayReference || null
+        });
+
+        this._stop();
+      } else if (tx.status === 'failed' || tx.status === 'expired') {
+        this.showStage('stage-failed');
+        document.getElementById('fail-reason').textContent =
+          'Le paiement a été annulé ou a échoué. Veuillez réessayer.';
+        this._stop();
+      } else {
+        const live = document.getElementById('live-status');
+        live.textContent = `Statut: ${tx.status || 'pending'} • Dernière mise à jour: ${tx.updatedAt || '—'}`;
+      }
+    } catch (e) {
+      console.warn('tick error', e.message);
+    }
+  }
+};
+
+
+</script>
+
+
 </html>

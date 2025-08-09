@@ -168,6 +168,8 @@ exports.getPublicTicketTypes = onRequest(async (req, res) => {
           sessionTimeLimit: data.sessionTimeLimit,
           isAvailable: isAvailable,
           ticketsAvailable: data.ticketsAvailable || 0,
+          rateLimit: data.rateLimit || null,
+          isActive: data.isActive,
           // Pour l'affichage des promotions
           originalPrice: data.originalPrice || null,
           hasPromotion: !!(data.originalPrice && data.originalPrice > data.price),
@@ -238,550 +240,376 @@ function validateFreemopayConfig() {
     throw new Error("Configuration Freemopay: Secret Key manquante");
   }
 }
+// ====== UTILS FREEMOPAY ======
+function getBasicAuthHeader() {
+  const token = Buffer.from(`${FREEMOPAY_CONFIG.appKey}:${FREEMOPAY_CONFIG.secretKey}`).toString('base64');
+  return `Basic ${token}`;
+}
 
-// ===== FONCTION 1: INITIATION DU PAIEMENT =====
+async function callFreemopay(endpoint, payload, timeoutMs = FREEMOPAY_CONFIG.timeout) {
+  const url = `${FREEMOPAY_CONFIG.baseUrl}${endpoint}`;
+  const headers = {
+    'Authorization': getBasicAuthHeader(),
+    'Content-Type': 'application/json',
+  };
+  logger.info('➡️ Appel Freemopay', { url, payload: { ...payload, secretKey: undefined } });
+  const resp = await axios.post(url, payload, { headers, timeout: timeoutMs });
+  logger.info('⬅️ Réponse Freemopay', { status: resp.status, data: resp.data });
+  return resp.data;
+}
 
-exports.initiatePublicPayment = onCall(async (request) => {
-  logger.info("🚀 Démarrage de initiatePublicPayment", { 
-    data: { 
-      ticketTypeId: request.data?.ticketTypeId, 
-      phoneNumber: request.data?.phoneNumber ? "***masked***" : null 
-    } 
+// Petite aide pour l’horodatage
+const now = () => admin.firestore.Timestamp.now();
+
+function addMinutes(ts, minutes) {
+  return admin.firestore.Timestamp.fromMillis(ts.toMillis() + minutes * 60 * 1000);
+}
+
+// ====== RÉSERVATION TICKET ======
+async function reserveOneTicketOrThrow(ticketTypeId, transactionId) {
+  // On prend un ticket "available" au hasard (ou 1er)
+  const snap = await db.collection('tickets')
+    .where('ticketTypeId', '==', ticketTypeId)
+    .where('status', '==', 'available')
+    .limit(1)
+    .get();
+
+  if (snap.empty) {
+    throw new HttpsError('failed-precondition', 'Aucun ticket disponible pour ce forfait.');
+  }
+  const doc = snap.docs[0];
+  const expiresAt = addMinutes(now(), 10); // réservation 10 min
+
+  await doc.ref.update({
+    status: 'reserved',
+    reservedBy: transactionId,
+    reservedAt: now(),
+    reservationExpiresAt: expiresAt,
   });
 
-  // Validation des entrées
-  const { ticketTypeId, phoneNumber } = request.data || {};
-  
-  if (!ticketTypeId || !phoneNumber) {
-    logger.error("❌ Données manquantes", { 
-      hasTicketTypeId: !!ticketTypeId, 
-      hasPhoneNumber: !!phoneNumber 
-    });
-    throw new HttpsError(
-      "invalid-argument", 
-      "Le type de ticket et le numéro de téléphone sont requis."
-    );
+  return { id: doc.id, ...doc.data() };
+}
+
+async function releaseReservedTicket(transactionId) {
+  const snap = await db.collection('tickets')
+    .where('reservedBy', '==', transactionId)
+    .where('status', '==', 'reserved')
+    .limit(1)
+    .get();
+  if (snap.empty) return false;
+
+  const doc = snap.docs[0];
+  await doc.ref.update({
+    status: 'available',
+    reservedBy: admin.firestore.FieldValue.delete(),
+    reservedAt: admin.firestore.FieldValue.delete(),
+    reservationExpiresAt: admin.firestore.FieldValue.delete(),
+  });
+  return true;
+}
+
+async function deliverReservedTicket(transactionId) {
+  const snap = await db.collection('tickets')
+    .where('reservedBy', '==', transactionId)
+    .where('status', '==', 'reserved')
+    .limit(1)
+    .get();
+
+  if (snap.empty) {
+    // En dernier recours, essaye d’en prendre un dispo
+    logger.warn('⚠️ Aucun ticket réservé trouvé, tentative de délivrance depuis "available"', { transactionId });
+    return null;
   }
 
-  // Validation de la configuration
-  try {
-    validateFreemopayConfig();
-  } catch (configError) {
-    logger.error("❌ Configuration Freemopay invalide", { error: configError.message });
-    throw new HttpsError("failed-precondition", "Service de paiement non configuré");
-  }
+  const doc = snap.docs[0];
+  await doc.ref.update({
+    status: 'sold',
+    soldAt: now(),
+  });
+  return { id: doc.id, ...doc.data() };
+}
 
-  let formattedPhone;
-  try {
-    formattedPhone = formatCameroonPhone(phoneNumber);
-    logger.debug("✅ Numéro formaté avec succès");
-  } catch (phoneError) {
-    logger.error("❌ Numéro de téléphone invalide", { error: phoneError.message });
-    throw new HttpsError("invalid-argument", phoneError.message);
-  }
-
-  let transactionRef;
-
-  try {
-    // === ÉTAPE 1: CRÉER LA TRANSACTION ET VÉRIFIER LA DISPONIBILITÉ ===
-    transactionRef = await db.runTransaction(async (t) => {
-      logger.debug(`🔍 Recherche d'un ticket disponible pour le type: ${ticketTypeId}`);
-      
-      // Vérifier le type de ticket existe
-      const ticketTypeRef = db.collection("ticket_types").doc(ticketTypeId);
-      const ticketTypeDoc = await t.get(ticketTypeRef);
-      
-      if (!ticketTypeDoc.exists) {
-        logger.error(`❌ Type de ticket non trouvé: ${ticketTypeId}`);
-        throw new HttpsError("not-found", "Le type de ticket n'existe pas.");
-      }
-      
-      const ticketTypeData = ticketTypeDoc.data();
-      
-      // ✅ VÉRIFIER QU'IL Y A DES TICKETS RÉELLEMENT DISPONIBLES
-      const availableTicketsQuery = await t.get(
-        db.collection("tickets")
-          .where("ticketTypeId", "==", ticketTypeId)
-          .where("status", "==", "available")
-          .limit(1)
-      );
-
-      if (availableTicketsQuery.empty) {
-        logger.warn(`⚠️ Aucun ticket disponible pour le type: ${ticketTypeId}`);
-        
-        // Mettre à jour le compteur si incohérent
-        t.update(ticketTypeRef, {
-          ticketsAvailable: 0,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        
-        throw new HttpsError("out-of-range", "Désolé, ce forfait est momentanément épuisé.");
-      }
-
-      logger.info(`✅ ${availableTicketsQuery.docs.length} ticket(s) disponible(s) trouvé(s)`);
-
-      // Créer la transaction
-      const newTransactionRef = db.collection("transactions").doc();
-      const transactionData = {
-        ticketTypeId: ticketTypeId,
-        ticketTypeName: ticketTypeData.name,
-        phoneNumber: formattedPhone,
-        amount: ticketTypeData.price,
-        status: "pending",
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        zoneId: ticketTypeData.zoneId,
-        expiresAt: admin.firestore.Timestamp.fromDate(
-          new Date(Date.now() + 15 * 60 * 1000) // Expire dans 15 minutes
-        ),
-      };
-      
-      t.set(newTransactionRef, transactionData);
-      logger.info(`📄 Transaction créée avec statut PENDING: ${newTransactionRef.id}`);
-      
-      return { ref: newTransactionRef, data: transactionData, ticketTypeData };
-    });
-
-    // === ÉTAPE 2: APPELER L'API FREEMOPAY (VERSION CORRIGÉE) ===
-    const freemopayUrl = `${FREEMOPAY_CONFIG.baseUrl}/api/v2/payment`;
-
-    // ✅ PAYLOAD CORRIGÉ selon le format qui fonctionne
-    const payload = {
-      payer: formattedPhone,                    // ✅ "payer" au lieu de "receiver"
-      amount: transactionRef.data.amount.toString(), // ✅ String au lieu de number
-      externalId: transactionRef.ref.id,
-      description: `Achat ticket WiFi - ${transactionRef.ticketTypeData.name}`, // ✅ Description ajoutée
-      callback: WEBHOOK_URL,
-    };
-
-    logger.info("📲 Appel de l'API Freemopay...", { 
-      url: freemopayUrl, 
-      payload: { 
-        ...payload, 
-        payer: "***masked***" 
-      } 
-    });
-
-    let freemopayResponse;
-    try {
-      freemopayResponse = await axios.post(freemopayUrl, payload, {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        // ✅ UTILISER auth PROPERTY COMME DANS LE CODE QUI MARCHE
-        auth: {
-          username: FREEMOPAY_CONFIG.appKey,
-          password: FREEMOPAY_CONFIG.secretKey
-        },
-        timeout: FREEMOPAY_CONFIG.timeout,
-      });
-      
-      logger.info("✅ Réponse de Freemopay reçue", { 
-        status: freemopayResponse.status, 
-        data: freemopayResponse.data 
-      });
-
-      // ✅ VÉRIFIER LA RÉPONSE SELON LE MODÈLE QUI FONCTIONNE
-      if (freemopayResponse.data && freemopayResponse.data.status === 'SUCCESS') {
-        // Succès immédiat (rare)
-        logger.info("🎉 Paiement accepté immédiatement");
-      } else if (freemopayResponse.data && freemopayResponse.data.reference) {
-        // Paiement en attente (cas normal)
-        logger.info("⏳ Paiement en attente de validation");
-      } else {
-        // Réponse inattendue
-        logger.warn("⚠️ Réponse inattendue de Freemopay", freemopayResponse.data);
-      }
-      
-    } catch (axiosError) {
-      logger.error("❌ Erreur lors de l'appel Freemopay", {
-        error: axiosError.message,
-        status: axiosError.response?.status,
-        statusText: axiosError.response?.statusText,
-        data: axiosError.response?.data,
-        headers: axiosError.response?.headers,
-        code: axiosError.code,
-      });
-
-      // Marquer la transaction comme échouée
-      await transactionRef.ref.update({
-        status: "failed",
-        failureReason: `Erreur API Freemopay: ${axiosError.response?.status} - ${axiosError.response?.data?.message || axiosError.message}`,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        errorDetails: {
-          httpStatus: axiosError.response?.status,
-          freemopayError: axiosError.response?.data,
-          timestamp: new Date().toISOString(),
-        }
-      });
-
-      // Erreurs spécifiques
-      if (axiosError.code === 'ECONNABORTED') {
-        throw new HttpsError("deadline-exceeded", "Le service de paiement ne répond pas. Veuillez réessayer.");
-      } else if (axiosError.response) {
-        const status = axiosError.response.status;
-        const errorData = axiosError.response.data;
-        
-        if (status === 401) {
-          throw new HttpsError("failed-precondition", "Clés API Freemopay invalides");
-        } else if (status === 400) {
-          throw new HttpsError("invalid-argument", `Données invalides: ${errorData?.message || 'Format incorrect'}`);
-        } else if (status === 500) {
-          throw new HttpsError("unavailable", `Erreur serveur Freemopay: ${errorData?.message || 'Service temporairement indisponible'}`);
-        } else if (status >= 500) {
-          throw new HttpsError("unavailable", "Service de paiement temporairement indisponible");
-        }
-      }
-      
-      throw new HttpsError("internal", "Erreur lors de l'initialisation du paiement");
-    }
-
-    // === ÉTAPE 3: METTRE À JOUR LA TRANSACTION AVEC LA RÉFÉRENCE FREEMOPAY ===
-    await transactionRef.ref.update({
-      freemopayReference: freemopayResponse.data.reference,
-      freemopayStatus: freemopayResponse.data.status,
-      freemopayMessage: freemopayResponse.data.message,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    logger.info("🎉 Paiement initié avec succès", { 
-      transactionId: transactionRef.ref.id,
-      freemopayReference: freemopayResponse.data.reference,
-    });
-
-    // Retourner l'ID de la transaction au client
-    return { 
-      success: true,
-      transactionId: transactionRef.ref.id,
-      freemopayReference: freemopayResponse.data.reference,
-      amount: transactionRef.data.amount,
-      message: "Paiement initié. Veuillez confirmer sur votre téléphone.",
-    };
-
-  } catch (error) {
-    // Si la transaction a été créée mais a échoué après, la marquer comme échouée
-    if (transactionRef?.ref) {
-      try {
-        await transactionRef.ref.update({
-          status: "failed",
-          failureReason: error.message || "Erreur inconnue",
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      } catch (updateError) {
-        logger.error("❌ Erreur lors de la mise à jour de la transaction échouée", { 
-          error: updateError.message 
-        });
-      }
-    }
-
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-    
-    logger.error("❌ Erreur inattendue dans initiatePublicPayment", { 
-      error: error.toString(),
-      stack: error.stack,
-    });
-    throw new HttpsError("internal", "Une erreur interne est survenue. Veuillez réessayer.");
-  }
-});
-
-// ===== FONCTION 2: WEBHOOK FREEMOPAY =====
-
-exports.handleFreemopayWebhook = onRequest(async (req, res) => {
-  // Configuration CORS pour permettre les requêtes de Freemopay
+// ====== INIT PAYMENT (site -> CF -> Freemopay) ======
+exports.initiatePayment = onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'POST');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.set('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
   }
-
-  if (req.method !== "POST") {
-    logger.warn("⚠️ Webhook reçu avec une méthode non-POST", { method: req.method });
-    return res.status(405).send("Method Not Allowed");
-  }
-
-  const webhookData = req.body;
-  logger.info("🔔 Webhook Freemopay reçu !", { 
-    body: {
-      ...webhookData,
-      // Masquer les données sensibles dans les logs
-      externalId: webhookData.externalId || "missing",
-      status: webhookData.status || "missing",
-      amount: webhookData.amount || "missing",
-    }
-  });
-
-  const { status, reference, externalId, message, amount } = webhookData;
-
-  // Validation des données du webhook
-  if (!externalId) {
-    logger.error("❌ Webhook invalide: externalId manquant", { body: webhookData });
-    return res.status(400).send("Invalid request: missing externalId");
-  }
-
-  if (!status) {
-    logger.error("❌ Webhook invalide: status manquant", { body: webhookData });
-    return res.status(400).send("Invalid request: missing status");
-  }
-
-  const transactionRef = db.collection("transactions").doc(externalId);
 
   try {
-    // Vérifier que la transaction existe
-    const transactionDoc = await transactionRef.get();
-    if (!transactionDoc.exists) {
-      logger.error(`❌ Transaction non trouvée: ${externalId}`);
-      return res.status(404).send("Transaction not found");
+    validateFreemopayConfig();
+
+    const { planId, phoneNumber, externalId } = req.body || {};
+    if (!planId || !phoneNumber) {
+      return res.status(400).json({ error: 'planId et phoneNumber sont requis' });
     }
 
-    const transactionData = transactionDoc.data();
-    logger.debug(`📋 Transaction trouvée: ${externalId}`, { 
-      currentStatus: transactionData.status,
-      amount: transactionData.amount,
+    const phone = formatCameroonPhone(phoneNumber);
+
+    // 1) Vérifier le plan
+    const planRef = db.collection('ticket_types').doc(planId);
+    const planSnap = await planRef.get();
+    if (!planSnap.exists) throw new HttpsError('not-found', 'Forfait introuvable');
+    const plan = planSnap.data();
+    if (!plan.isActive) throw new HttpsError('failed-precondition', 'Forfait inactif');
+    if (typeof plan.price !== 'number') throw new HttpsError('failed-precondition', 'Prix invalide');
+
+    // 2) Créer la transaction Firestore (idempotence via externalId si fourni)
+    let txnRef;
+    if (externalId) {
+      const existing = await db.collection('transactions').where('externalId', '==', externalId).limit(1).get();
+      if (!existing.empty) {
+        const doc = existing.docs[0];
+        const data = doc.data();
+        // si déjà créée, renvoyer état actuel
+        return res.json({
+          success: true,
+          transactionId: doc.id,
+          status: data.status,
+          freemopayReference: data.freemopayReference || null,
+          amount: data.amount,
+        });
+      }
+    }
+
+    txnRef = await db.collection('transactions').add({
+      createdAt: now(),
+      updatedAt: now(),
+      status: 'created',               // created | pending | completed | failed | expired
+      provider: 'freemopay',
+      amount: plan.price,
+      currency: 'XAF',
+      planId,
+      phone,
+      externalId: externalId || null,
+      freemopayReference: null,
+      webhookReceived: false,
+    });
+    const transactionId = txnRef.id;
+
+    // 3) Réserver un ticket (si tu préfères réserver après SUCCESS, déplace ça dans le webhook)
+    await reserveOneTicketOrThrow(planId, transactionId);
+
+    // 4) Appel Freemopay
+    // ⚠️ Selon ta config, la clé téléphone peut être `payer` (souvent) ou `receiver`.
+    const payload = {
+      amount: plan.price,
+      externalId: externalId || transactionId,
+      callback: WEBHOOK_URL,
+      payer: phone, // <-- change en `receiver: phone` si ton endpoint l’exige
+    };
+
+    const data = await callFreemopay('/api/v2/payment', payload);
+    // Réponse attendue: { reference: "...", status: "CREATED" | "PENDING", ... }
+
+    await txnRef.update({
+      status: 'pending',
+      updatedAt: now(),
+      freemopayReference: data.reference || null,
+      providerInitResponse: data,
     });
 
-    if (status === "SUCCESS") {
-      logger.info(`✅ Traitement du succès pour la transaction ${externalId}`);
-      
-      await db.runTransaction(async (t) => {
-        // Re-vérifier l'état de la transaction dans la transaction
-        const freshTransactionDoc = await t.get(transactionRef);
-        const freshData = freshTransactionDoc.data();
-        
-        if (freshData.status !== 'pending') {
-          logger.warn(`Transaction ${externalId} n'est plus en attente. Statut actuel: ${freshData.status}`);
-          return;
-        }
-
-        // Vérifier la cohérence du montant
-        if (amount && amount !== freshData.amount) {
-          logger.error(`❌ Montant incohérent pour ${externalId}`, {
-            expected: freshData.amount,
-            received: amount,
-          });
-          t.update(transactionRef, {
-            status: "failed",
-            failureReason: "Montant incohérent détecté",
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            webhookData: webhookData,
-          });
-          return;
-        }
-
-        // Trouver et attribuer un ticket disponible
-        const ticketTypeId = freshData.ticketTypeId;
-        const ticketsRef = db.collection("tickets");
-        const availableTicketQuery = await t.get(
-          ticketsRef
-            .where("ticketTypeId", "==", ticketTypeId)
-            .where("status", "==", "available")
-            .limit(1)
-        );
-
-        if (availableTicketQuery.empty) {
-          logger.error(`❌ ERREUR CRITIQUE: Paiement réussi mais plus de tickets disponibles pour ${ticketTypeId}`);
-          t.update(transactionRef, {
-            status: "failed",
-            failureReason: "Paiement réussi mais stock de tickets épuisé",
-            requiresManualReview: true,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            webhookData: webhookData,
-          });
-          return;
-        }
-
-        const ticketToSellRef = availableTicketQuery.docs[0].ref;
-        const ticketData = availableTicketQuery.docs[0].data();
-        
-        logger.info(`🎫 Attribution du ticket ${ticketToSellRef.id} à la transaction ${externalId}`);
-
-        // Mettre à jour le ticket
-        t.update(ticketToSellRef, {
-          status: "sold",
-          soldAt: admin.firestore.FieldValue.serverTimestamp(),
-          buyerPhoneNumber: freshData.phoneNumber,
-          transactionId: externalId,
-          freemopayReference: reference,
-        });
-
-        // Mettre à jour la transaction
-        t.update(transactionRef, {
-          status: "completed",
-          completedAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          webhookData: webhookData,
-          ticketId: ticketToSellRef.id,
-          ticketCredentials: {
-            username: ticketData.username,
-            password: ticketData.password,
-          },
-        });
-
-        // Mettre à jour les compteurs du type de ticket
-        const ticketTypeRef = db.collection("ticket_types").doc(ticketTypeId);
-        t.update(ticketTypeRef, {
-          ticketsSold: admin.firestore.FieldValue.increment(1),
-          ticketsAvailable: admin.firestore.FieldValue.increment(-1),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        logger.info(`🎉 Transaction complétée avec succès: ${externalId}`);
-      });
-
-    } else if (status === "FAILED") {
-      logger.info(`❌ Traitement de l'échec pour la transaction ${externalId}`);
-      
-      await transactionRef.update({
-        status: "failed",
-        failureReason: message || "Le paiement a échoué",
-        failedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        webhookData: webhookData,
-      });
-      
-    } else {
-      logger.warn(`⚠️ Statut inconnu reçu pour ${externalId}: ${status}`);
-      
-      await transactionRef.update({
-        status: "unknown",
-        lastWebhookData: webhookData,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    }
-
-    logger.info(`🏁 Traitement du webhook terminé pour ${externalId}`);
-    res.status(200).send("Webhook processed successfully");
-
-  } catch (error) {
-    logger.error(`🔥 Erreur lors du traitement du webhook pour ${externalId}`, {
-      error: error.toString(),
-      stack: error.stack,
-      webhookData: webhookData,
+    return res.json({
+      success: true,
+      transactionId,
+      freemopayReference: data.reference || null,
+      amount: plan.price,
     });
-    
-    // Tenter de marquer la transaction en erreur
-    try {
-      await transactionRef.update({
-        status: "error",
-        errorMessage: error.message,
-        errorWebhookData: webhookData,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    } catch (updateError) {
-      logger.error("❌ Impossible de mettre à jour la transaction en erreur", {
-        error: updateError.message,
-      });
-    }
-    
-    res.status(500).send("Internal Server Error");
+  } catch (err) {
+    logger.error('❌ initiatePayment error', { error: err.toString(), stack: err.stack });
+    return res.status(500).json({ error: err.message || 'Erreur interne' });
   }
 });
 
-// ===== FONCTION 3: NETTOYAGE DES TRANSACTIONS EXPIRÉES =====
+// ====== CHECK TRANSACTION STATUS (site -> CF) ======
+exports.checkTransactionStatus = onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
 
-exports.cleanupExpiredTransactions = require("firebase-functions/v2/scheduler").onSchedule(
-  {
-    schedule: "every 30 minutes",
-    timeZone: "Africa/Douala",
-  },
-  async (event) => {
-    logger.info("🧹 Démarrage du nettoyage des transactions expirées");
-    
-    const now = admin.firestore.Timestamp.now();
-    const expiredTransactionsQuery = await db
-      .collection("transactions")
-      .where("status", "==", "pending")
-      .where("expiresAt", "<=", now)
-      .limit(100)
-      .get();
-    
-    if (expiredTransactionsQuery.empty) {
-      logger.info("✅ Aucune transaction expirée trouvée");
-      return;
-    }
-    
-    const batch = db.batch();
-    let count = 0;
-    
-    expiredTransactionsQuery.docs.forEach((doc) => {
-      batch.update(doc.ref, {
-        status: "expired",
-        expiredAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      count++;
-    });
-    
-    await batch.commit();
-    logger.info(`🧹 ${count} transactions expirées nettoyées`);
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
   }
-);
 
-// ===== FONCTION 4: TEST DES CLÉS API =====
+  try {
+    const { transactionId } = req.query;
+    if (!transactionId) return res.status(400).json({ error: 'transactionId requis' });
 
-exports.testFreemopayAPI = onCall(async (request) => {
-  logger.info("🧪 Test des clés API Freemopay");
-  
+    const doc = await db.collection('transactions').doc(String(transactionId)).get();
+    if (!doc.exists) return res.status(404).json({ error: 'Transaction introuvable' });
+
+    const tx = doc.data();
+    // Si SUCCESS et ticket délivré, renvoyer les credentials
+    return res.json({
+      success: true,
+      transaction: {
+        id: doc.id,
+        status: tx.status,
+        amount: tx.amount,
+        freemopayReference: tx.freemopayReference || null,
+        credentials: tx.credentials || null, // {username, password}
+        ticketTypeName: tx.ticketTypeName || null,
+        updatedAt: tx.updatedAt?.toDate?.()?.toISOString?.() || null,
+      },
+    });
+  } catch (err) {
+    logger.error('❌ checkTransactionStatus error', { error: err.toString() });
+    return res.status(500).json({ error: 'Erreur interne' });
+  }
+});
+
+// ====== WEBHOOK (Freemopay -> CF) ======
+exports.handleFreemopayWebhook = onRequest(async (req, res) => {
+  try {
+    // Freemopay envoie un JSON comme:
+    // { status: "SUCCESS" | "FAILED", reference: "...", amount: 100, transactionType: "DEPOSIT", externalId: "xxx", message: "..." }
+    const body = req.body || {};
+    logger.info('📩 Webhook Freemopay reçu', body);
+
+    const { status, reference, amount, externalId, message } = body;
+    if (!reference && !externalId) {
+      logger.warn('Webhook sans reference/externalId');
+      return res.status(400).send('missing reference');
+    }
+
+    // Retrouver la transaction par reference Freemopay ou externalId
+    let txnSnap;
+    if (reference) {
+      txnSnap = await db.collection('transactions').where('freemopayReference', '==', reference).limit(1).get();
+    }
+    if ((!txnSnap || txnSnap.empty) && externalId) {
+      txnSnap = await db.collection('transactions').where('externalId', '==', externalId).limit(1).get();
+    }
+    if (!txnSnap || txnSnap.empty) {
+      logger.error('❌ Transaction introuvable pour webhook', { reference, externalId });
+      return res.status(404).send('transaction not found');
+    }
+
+    const txnDoc = txnSnap.docs[0];
+    const txnRef = txnDoc.ref;
+    const txn = txnDoc.data();
+
+    // Idempotence: si déjà finalisée, on confirme 200
+    if (['completed', 'failed', 'expired'].includes(txn.status)) {
+      logger.info('ℹ️ Webhook idempotent: transaction déjà finalisée', { id: txnDoc.id, status: txn.status });
+      await txnRef.update({ webhookReceived: true, updatedAt: now() });
+      return res.status(200).send('');
+    }
+
+    if (String(status).toUpperCase() === 'SUCCESS') {
+      // Délivrer le ticket réservé
+      const delivered = await deliverReservedTicket(txnDoc.id);
+
+      let credentials = null;
+      let ticketTypeName = null;
+
+      if (delivered) {
+        credentials = {
+          username: delivered.username,
+          password: delivered.password,
+        };
+        // récupérer le nom du forfait
+        if (txn.planId) {
+          const ttype = await db.collection('ticket_types').doc(txn.planId).get();
+          ticketTypeName = ttype.exists ? (ttype.data().name || null) : null;
+        }
+      } else {
+        // Aucun ticket réservé trouvé → tenter un ticket dispo
+        const fallback = await db.collection('tickets')
+          .where('ticketTypeId', '==', txn.planId)
+          .where('status', '==', 'available')
+          .limit(1)
+          .get();
+        if (!fallback.empty) {
+          const doc = fallback.docs[0];
+          await doc.ref.update({ status: 'sold', soldAt: now() });
+          const data = doc.data();
+          credentials = { username: data.username, password: data.password };
+          const ttype = await db.collection('ticket_types').doc(txn.planId).get();
+          ticketTypeName = ttype.exists ? (ttype.data().name || null) : null;
+        } else {
+          logger.error('❌ Paiement réussi mais aucun ticket disponible à délivrer', { id: txnDoc.id });
+        }
+      }
+
+      await txnRef.update({
+        status: 'completed',
+        updatedAt: now(),
+        providerStatus: status,
+        webhookReceived: true,
+        providerMessage: message || null,
+        credentials: credentials || null,
+        ticketTypeName: ticketTypeName || null,
+      });
+
+      return res.status(200).send('');
+    } else if (String(status).toUpperCase() === 'FAILED') {
+      // Libérer ticket réservé si existant
+      await releaseReservedTicket(txnDoc.id);
+
+      await txnRef.update({
+        status: 'failed',
+        updatedAt: now(),
+        providerStatus: status,
+        webhookReceived: true,
+        providerMessage: message || null,
+      });
+
+      return res.status(200).send('');
+    } else {
+      logger.warn('Webhook status non géré', { status });
+      await txnRef.update({
+        updatedAt: now(),
+        providerStatus: status || 'UNKNOWN',
+        webhookReceived: true,
+        providerMessage: message || null,
+      });
+      return res.status(200).send('');
+    }
+  } catch (err) {
+    logger.error('🔥 Erreur webhook Freemopay', { error: err.toString(), stack: err.stack });
+    // Toujours 200 pour éviter les retries infinis côté provider si nécessaire,
+    // ou renvoyer 500 si vous voulez des retries (choix produit).
+    return res.status(200).send('');
+  }
+});
+
+// ====== (OPTIONNEL) DIRECT WITHDRAW / CASHOUT ======
+exports.directWithdraw = onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+
   try {
     validateFreemopayConfig();
-    
-    // Test avec un appel minimal
-    const testPayload = {
-      payer: "237695509408", // Numéro de test
-      amount: "10",           // Montant minimal
-      externalId: `test_${Date.now()}`,
-      description: "Test API depuis Cloud Function",
-      callback: WEBHOOK_URL,
+
+    const { receiver, amount, externalId, callback } = req.body || {};
+    if (!receiver || !amount) return res.status(400).json({ error: 'receiver et amount requis' });
+
+    const phone = formatCameroonPhone(receiver);
+
+    const payload = {
+      receiver: phone,                  // pour withdraw, la doc parle bien de "receiver"
+      amount: String(amount),
+      externalId: externalId || `wd_${Date.now()}`,
+      callback: callback || WEBHOOK_URL,
     };
-    
-    logger.info("🔑 Test d'authentification", {
-      appKeyLength: FREEMOPAY_CONFIG.appKey.length,
-      secretKeyLength: FREEMOPAY_CONFIG.secretKey.length,
-    });
-    
-    const response = await axios.post(
-      `${FREEMOPAY_CONFIG.baseUrl}/api/v2/payment`,
-      testPayload,
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-        auth: {
-          username: FREEMOPAY_CONFIG.appKey,
-          password: FREEMOPAY_CONFIG.secretKey
-        },
-        timeout: 10000,
-      }
-    );
-    
-    logger.info("✅ Test API réussi", { 
-      status: response.status,
-      data: response.data 
-    });
-    
-    return {
-      success: true,
-      message: "Clés API Freemopay valides",
-      response: response.data
-    };
-    
-  } catch (error) {
-    logger.error("❌ Test API échoué", {
-      error: error.message,
-      status: error.response?.status,
-      data: error.response?.data,
-    });
-    
-    return {
-      success: false,
-      error: error.message,
-      details: {
-        status: error.response?.status,
-        data: error.response?.data,
-      }
-    };
+
+    const data = await callFreemopay('/api/v2/payment/direct-withdraw', payload);
+
+    return res.json({ success: true, ...data });
+  } catch (err) {
+    logger.error('❌ directWithdraw error', { error: err.toString() });
+    return res.status(500).json({ error: err.message || 'Erreur interne' });
   }
 });
