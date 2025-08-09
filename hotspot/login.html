@@ -6,23 +6,18 @@
   <meta http-equiv="pragma" content="no-cache">
   <meta http-equiv="expires" content="-1">
   <title>Connexion Wi-Fi Dnet</title>
-  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="icon" href="img/favicon.ico" type="image/x-icon">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles/main.css">
   
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-functions-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore-compat.js"></script>
   
   <!-- MD5 pour l'authentification hotspot -->
-  <script src="md5.js"></script>
-  
-  <!-- Scripts de l'application -->
-  <script src="scripts/config.js"></script>
-  <script src="scripts/firebase-integration.js"></script>
-  <script src="scripts/ui-handlers.js"></script>
-  <script src="scripts/main.js"></script>
-  
+  <script src="scripts/md5.js"></script>
+    
   <script>
     $(if chap-id)
     function doLogin() {
@@ -33,12 +28,30 @@
     }
     $(endif)
   </script>
+
+  <!-- Scripts de l'application -->
+  <script src="scripts/config.js"></script>
+  <script src="scripts/firebase-integration.js"></script>
+  <script src="scripts/ui-handlers.js"></script>
+  <script src="scripts/main.js"></script>
+
 </head>
 <body>
+
+  <!-- Formulaire CHAP caché (obligatoire pour MikroTik si activé) -->
+  $(if chap-id)
+  <form name="sendin" action="$(link-login-only)" method="post" style="display:none;">
+    <input type="hidden" name="username" />
+    <input type="hidden" name="password" />
+    <input type="hidden" name="dst" value="$(link-orig)" />
+    <input type="hidden" name="popup" value="true" />
+  </form>
+  $(endif)
+
   <div class="main-container">
     <!-- Panneau de gauche (Accueil) -->
     <div class="welcome-panel">
-      <img src="logo-dnet.png" alt="Dnet Logo" class="logo">
+      <img src="img/logo-dnet.png" alt="Dnet Logo" class="logo">
       <h1>Bienvenue sur<br>Dnet WiFi</h1>
       <p>Connectez-vous à Internet haute vitesse en quelques clics seulement.</p>
     </div>
@@ -52,8 +65,17 @@
 
       <p class="subtitle">Entrez vos identifiants ou choisissez un forfait</p>
 
+      <!-- Message d'erreur -->
+      $(if error)
+        <p style="color: red; margin-bottom: 20px; font-weight: 600;">$(error)</p>
+      $(endif)
+
       <!-- Formulaire de connexion existant -->
-      <form name="login" onSubmit="return doLogin()" method="post">
+      <form name="login" action="$(link-login-only)" method="post" $(if chap-id) onsubmit="return doLogin()" $(endif)>
+        
+        <input type="hidden" name="dst" value="$(link-orig)" />
+        <input type="hidden" name="popup" value="true" />
+
         <div class="input-group">
           <span class="icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -61,7 +83,7 @@
               <circle cx="12" cy="7" r="4"/>
             </svg>
           </span>
-          <input type="text" id="code-input" name="username" placeholder="Nom d'utilisateur" required>
+          <input type="text" id="code-input" name="username" placeholder="Nom d'utilisateur" required value="$(username)">
         </div>
 
         <div class="input-group">
@@ -247,243 +269,6 @@
   </form>
 </body>
 
-<script>
-// ====== Stockage local ======
-const TicketStore = {
-  KEY: 'dnet_tickets',
-  all() {
-    try { return JSON.parse(localStorage.getItem(this.KEY) || '[]'); } catch { return []; }
-  },
-  add(ticket) {
-    const list = this.all();
-    list.unshift({ ...ticket, savedAt: Date.now() });
-    localStorage.setItem(this.KEY, JSON.stringify(list.slice(0, 100))); // on garde 100 max
-  },
-  clear() { localStorage.removeItem(this.KEY); }
-};
-
-// ====== Vue “Mes tickets” ======
-const MyTickets = {
-  open() {
-    const modal = document.getElementById('tickets-modal');
-    this.render();
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden', 'false');
-  },
-  close() {
-    const modal = document.getElementById('tickets-modal');
-    modal.style.display = 'none';
-    modal.setAttribute('aria-hidden', 'true');
-  },
-  clearAll() {
-    if (confirm('Supprimer tous les tickets enregistrés sur cet appareil ?')) {
-      TicketStore.clear();
-      this.render();
-    }
-  },
-  render() {
-    const holder = document.getElementById('tickets-list');
-    const items = TicketStore.all();
-    if (!items.length) {
-      holder.innerHTML = `<div class="t-muted">Aucun ticket enregistré pour le moment.</div>`;
-      return;
-    }
-    holder.innerHTML = '';
-    items.forEach((t, i) => {
-      const el = document.createElement('div');
-      el.className = 'ticket-item';
-      const saved = new Date(t.savedAt || Date.now()).toLocaleString();
-      el.innerHTML = `
-        <div><strong>${t.planName || 'Ticket'}</strong><div class="kv">Acheté le ${saved}</div></div>
-        <div class="kv">Validité: <strong>${t.validityText || '-'}</strong><br>Montant: <strong>${(t.amount||'') && t.amount.toLocaleString ? t.amount.toLocaleString() : (t.amount||'-')} F</strong></div>
-        <div>
-          <div>👤 <span class="cred">${t.username}</span></div>
-          <div>🔑 <span class="cred">${t.password}</span></div>
-          <button class="copy-btn" onclick="MyTickets.copyCreds('${t.username}','${t.password}')">Copier</button>
-        </div>
-      `;
-      holder.appendChild(el);
-    });
-  },
-  copyCreds(u, p) {
-    const text = `Utilisateur: ${u}\nMot de passe: ${p}`;
-    navigator.clipboard?.writeText(text);
-    alert('Identifiants copiés.');
-  }
-};
-
-// bouton d’ouverture
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('btn-my-tickets');
-  if (btn) btn.addEventListener('click', () => MyTickets.open());
-});
-
-
-// Dernier numéro mémorisé (pour préremplir)
-const PhoneMemory = {
-  KEY: 'dnet_last_phone',
-  get() { try { return localStorage.getItem(this.KEY) || ''; } catch { return ''; } },
-  set(v) { try { localStorage.setItem(this.KEY, v); } catch {} }
-};
-
-// Validation simple Cameroun: 9 chiffres commençant par 6
-function isValidCMLocal(n) {
-  return /^[6]\d{8}$/.test(n);
-}
-
-// ------ PaymentFlow (mise à jour) ------
-const PaymentFlow = {
-  _interval: null,
-  _txId: null,
-  _plan: null,
-
-  open(plan, prefillPhone = '') {
-    this._plan = plan;
-    // Titre & résumé
-    document.getElementById('modal-plan-title').textContent = `Paiement — ${plan.name}`;
-    document.getElementById('sum-name').textContent = plan.name;
-    document.getElementById('sum-price').textContent = plan.formattedPrice || `${plan.price?.toLocaleString?.() || plan.price} F`;
-
-    // Étape 1 visible, autres cachées
-    this.setStep(1);
-    document.getElementById('phone-capture').style.display = 'block';
-    this.showStage(null); // cache toutes les autres stages
-
-    // Préremplir téléphone
-    const input = document.getElementById('pay-phone');
-    const last = prefillPhone || PhoneMemory.get();
-    input.value = (last || '').replace(/\D/g, '').slice(-9); // 9 derniers chiffres
-    this._toggleStartButton();
-
-    // Listeners
-    input.oninput = () => this._toggleStartButton();
-    document.getElementById('btn-start-payment').onclick = () => this._proceedFromPhone();
-
-    // Ouvrir modal
-    const modal = document.getElementById('payment-modal');
-    modal.style.display = 'flex';
-    modal.setAttribute('aria-hidden', 'false');
-
-    // Focus
-    setTimeout(() => input.focus(), 50);
-  },
-
-  close() {
-    const modal = document.getElementById('payment-modal');
-    modal.style.display = 'none';
-    modal.setAttribute('aria-hidden', 'true');
-    this._stop();
-    this._plan = null;
-  },
-
-  setStep(n){
-    document.querySelectorAll('#pay-steps li').forEach(li => {
-      li.classList.toggle('active', Number(li.dataset.step) === n);
-    });
-  },
-
-  showStage(id){
-    ['stage-init','stage-pending','stage-success','stage-failed'].forEach(s => {
-      const el = document.getElementById(s);
-      if (el) el.style.display = (id && s===id) ? 'block' : 'none';
-    });
-  },
-
-  _toggleStartButton(){
-    const ok = isValidCMLocal(document.getElementById('pay-phone').value.trim());
-    document.getElementById('btn-start-payment').disabled = !ok;
-  },
-
-  async _proceedFromPhone(){
-    const local9 = document.getElementById('pay-phone').value.trim();
-    if (!isValidCMLocal(local9)) return;
-
-    const full = `237${local9}`;
-    PhoneMemory.set(local9); // on mémorise (format local, 9 chiffres)
-
-    // Étape 2: init + attente
-    this.setStep(2);
-    document.getElementById('phone-capture').style.display = 'none';
-    this.showStage('stage-init');
-
-    await this._init(full);
-  },
-
-  async _init(fullPhone){
-    try {
-      // Init côté CF
-      const result = await firebaseIntegration.initiatePayment(this._plan.id, fullPhone);
-      if (!result || !result.success) throw new Error(result?.error || 'Échec de l’initiation');
-
-      this._txId = result.transactionId;
-
-      // PENDING
-      this.showStage('stage-pending');
-      document.getElementById('live-status').textContent =
-        `Référence: ${result.freemopayReference || '—'} • Montant: ${result.amount?.toLocaleString?.() || result.amount} F`;
-
-      // Poll
-      this._start();
-      document.getElementById('btn-resend-check').onclick = () => this._tick();
-    } catch (e) {
-      console.error(e);
-      this.setStep(1);
-      this.showStage('stage-failed');
-      document.getElementById('fail-reason').textContent = e.message || 'Impossible de démarrer le paiement.';
-    }
-  },
-
-  _start(){
-    this._interval = setInterval(() => this._tick(), CONFIG.ui?.transactionCheckInterval || 3000);
-  },
-
-  _stop(){
-    if (this._interval) clearInterval(this._interval);
-    this._interval = null;
-    this._txId = null;
-  },
-
-  async _tick(){
-    if (!this._txId) return;
-    try {
-      const res = await firebaseIntegration.checkTransactionStatus(this._txId);
-      if (!res?.success) return;
-
-      const tx = res.transaction || {};
-      if (tx.status === 'completed' && tx.credentials) {
-        this.setStep(3);
-        this.showStage('stage-success');
-        document.getElementById('cred-username').textContent = tx.credentials.username;
-        document.getElementById('cred-password').textContent = tx.credentials.password;
-
-        // Sauvegarde locale
-        TicketStore.add({
-          username: tx.credentials.username,
-          password: tx.credentials.password,
-          planName: this._plan.name,
-          amount: tx.amount,
-          validityText: tx.ticketTypeName || this._plan.validityText || '',
-          freemopayReference: tx.freemopayReference || null
-        });
-
-        this._stop();
-      } else if (tx.status === 'failed' || tx.status === 'expired') {
-        this.showStage('stage-failed');
-        document.getElementById('fail-reason').textContent =
-          'Le paiement a été annulé ou a échoué. Veuillez réessayer.';
-        this._stop();
-      } else {
-        const live = document.getElementById('live-status');
-        live.textContent = `Statut: ${tx.status || 'pending'} • Dernière mise à jour: ${tx.updatedAt || '—'}`;
-      }
-    } catch (e) {
-      console.warn('tick error', e.message);
-    }
-  }
-};
-
-
-</script>
-
+<script src="scripts/ticket.js"></script>
 
 </html>

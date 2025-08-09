@@ -5,170 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="refresh" content="60" />
   <title>Dnet - Erreur de Connexion</title>
-  <link rel="icon" type="image/x-icon" href="favicon.ico" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico" />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --brand-color: #19c394;
-      --brand-dark: #13a57d;
-      --error-color: #dc3545;
-      --error-dark: #b02a37;
-      --bg-gradient-start: #fceeee;
-      --bg-gradient-end: #f8f9fa;
-      --card-bg: #ffffff;
-      --text-dark: #212529;
-      --text-light: #6c757d;
-      --border-color: #f5c6cb;
-      --shadow: 0 15px 40px rgba(0, 0, 0, 0.08);
-      --radius: 20px;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'Poppins', sans-serif;
-      background: linear-gradient(45deg, var(--bg-gradient-start), var(--bg-gradient-end));
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 20px;
-      color: var(--text-dark);
-    }
-
-    .main-container {
-      width: 100%;
-      max-width: 1100px;
-      background: var(--card-bg);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      display: flex;
-      overflow: hidden;
-    }
-
-    .welcome-panel {
-      flex-basis: 45%;
-      background: var(--error-color);
-      color: white;
-      padding: 60px 40px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-    }
-
-    .welcome-panel .logo {
-      max-width: 180px;
-      margin-bottom: 25px;
-      filter: brightness(0) invert(1);
-    }
-
-    .welcome-panel h1 {
-      font-size: 2.2rem;
-      font-weight: 700;
-      line-height: 1.3;
-      margin-bottom: 15px;
-    }
-
-    .welcome-panel p {
-      font-size: 1rem;
-      opacity: 0.9;
-      max-width: 300px;
-    }
-
-    .status-panel {
-      flex-basis: 55%;
-      padding: 50px 60px;
-      text-align: center;
-    }
-
-    .status-header {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 15px;
-      margin-bottom: 30px;
-    }
-
-    .status-header .icon {
-      width: 60px;
-      height: 60px;
-      color: var(--error-color);
-      flex-shrink: 0;
-    }
-
-    .header-text {
-      text-align: left;
-    }
-
-    .status-header h2 {
-      font-weight: 700;
-      font-size: 1.8rem;
-      margin-bottom: 5px;
-    }
-
-    .status-header p {
-      color: var(--text-light);
-    }
-
-    .error-message {
-      font-size: 1.2rem;
-      color: var(--error-dark);
-      background: #f8d7da;
-      border: 1px solid var(--border-color);
-      padding: 20px;
-      border-radius: 12px;
-      margin-bottom: 25px;
-    }
-
-    .contact-info {
-      font-size: 1rem;
-      margin-top: 15px;
-      color: var(--text-dark);
-    }
-
-    .contact-info a {
-      color: var(--brand-dark);
-      font-weight: 600;
-      text-decoration: none;
-    }
-
-    .contact-info a:hover {
-      text-decoration: underline;
-    }
-
-    @media (max-width: 992px) {
-      .main-container {
-        flex-direction: column;
-        max-width: 500px;
-      }
-
-      .welcome-panel {
-        display: none;
-      }
-
-      .status-panel {
-        padding: 40px 30px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="styles/main.css" />
 </head>
 <body>
-  <div class="main-container">
-    <div class="welcome-panel">
-      <img src="logo-dnet.png" alt="Logo Dnet" class="logo" />
-      <h1>Une erreur s'est produite</h1>
-      <p>Merci de vérifier vos informations ou contacter l’administrateur.</p>
+  <div class="main-container is-compact">
+    <!-- Panneau gauche : variante rouge déjà prévue dans le CSS -->
+    <div class="welcome-panel error">
+      <img src="img/logo-dnet.png" alt="Logo Dnet" class="logo" />
+      <h1>Oups… une erreur est survenue</h1>
+      <p>Veuillez vérifier vos informations ou contacter l’administrateur.</p>
     </div>
 
-    <div class="status-panel">
+    <!-- Panneau droit -->
+    <div class="status-panel error">
       <header class="status-header">
         <div class="icon">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor"
@@ -180,22 +31,23 @@
           </svg>
         </div>
         <div class="header-text">
-          <h2>Erreur : $(error)</h2>
-          <p>Impossible de continuer. Veuillez corriger l’erreur ou contacter l’assistance.</p>
+          <h2 class="text-danger">Erreur : $(error)</h2>
+          <p>Impossible de continuer. Réessayez ou contactez l’assistance.</p>
         </div>
       </header>
 
-      <div class="error-message">
-        Un problème est survenu lors de la connexion. <br />
-        Si vous pensez que c’est une erreur, veuillez contacter l’administrateur.
+      <div class="page-cta error">
+        Si vous pensez que c’est une erreur, contactez l’administrateur ou revenez à la page de connexion.
       </div>
 
-      <div class="contact-info">
-        📞 Appel ou WhatsApp : <a href="https://wa.me/237694221506" target="_blank">+237 6 94 22 15 06</a>
+      <div class="contact-info mt-16">
+        📞 Appel / WhatsApp :
+        <a class="inline-link" href="https://wa.me/237694221506" target="_blank">+237 6 94 22 15 06</a>
       </div>
 
       <p class="contact-info">
-        🔁 Retour à la page de connexion : <a href="$(link-login)">Cliquez ici</a>
+        🔁 Retour à la page de connexion :
+        <a class="inline-link" href="$(link-login)">Cliquez ici</a>
       </p>
     </div>
   </div>

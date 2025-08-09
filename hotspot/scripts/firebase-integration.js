@@ -1,27 +1,61 @@
-// Gestion de l'intégration Firebase
+/**
+ * Module d'intégration Firebase pour le portail captif Dnet
+ * 
+ * Ce module gère toutes les interactions avec les services Firebase:
+ * - Communication avec les Cloud Functions via HTTP
+ * - Récupération des forfaits disponibles
+ * - Initiation et suivi des paiements Mobile Money
+ * - Gestion des erreurs réseau avec retry automatique
+ * 
+ * Caractéristiques:
+ * - Retry automatique avec backoff exponentiel
+ * - Gestion des timeouts configurable
+ * - Support des codes d'erreur HTTP spécifiques (429, 5xx)
+ * - Respect des headers Retry-After
+ * 
+ * @author Dnet Team
+ * @version 1.0
+ */
 class FirebaseIntegration {
   constructor() {
     this.functions = null;
     this.initialized = false;
+
+    /**
+     * Configuration réseau par défaut avec possibilité de surcharge via CONFIG.network
+     * Ces valeurs sont optimisées pour un environnement mobile avec connexion variable
+     */
+    this.defaultTimeoutMs = (CONFIG?.network?.timeoutMs) || 10000; // 10 secondes
+    this.maxRetries       = (CONFIG?.network?.maxRetries) || 4;    // 4 tentatives totales
+    this.baseBackoffMs    = (CONFIG?.network?.baseBackoffMs) || 600; // 0.6 seconde de base
+    this.maxBackoffMs     = (CONFIG?.network?.maxBackoffMs) || 5000; // 5 secondes maximum
   }
 
-  // Initialiser Firebase
+  /**
+   * Initialise la connexion Firebase (optionnel pour les appels HTTP directs)
+   * 
+   * Cette méthode initialise le SDK Firebase si disponible, mais l'application
+   * peut fonctionner en mode HTTP-only sans le SDK pour les endpoints publics.
+   * 
+   * @async
+   * @returns {Promise<boolean>} true si Firebase est initialisé, false sinon
+   */
   async init() {
     try {
       if (this.initialized) return true;
 
-      // Vérifier que la configuration Firebase existe
       if (!CONFIG.firebase || !CONFIG.firebase.apiKey) {
-        console.warn('⚠️ Configuration Firebase manquante, mode dégradé activé');
-        return false;
+        console.warn('⚠️ Configuration Firebase manquante, mode HTTP-only activé');
+        return false; // on peut fonctionner sans SDK pour ces endpoints HTTP
       }
 
-      // Initialiser Firebase
-      firebase.initializeApp(CONFIG.firebase);
+      if (!firebase.apps || firebase.apps.length === 0) {
+        firebase.initializeApp(CONFIG.firebase);
+      }
       this.functions = firebase.functions();
 
       this.initialized = true;
-      console.log('✅ Firebase initialisé avec succès');
+      console.log('✅ Firebase initialisé (SDK présent)');
       return true;
     } catch (error) {
       console.error('❌ Erreur d\'initialisation Firebase:', error);
@@ -29,137 +63,232 @@ class FirebaseIntegration {
     }
   }
 
-  // Récupérer les forfaits depuis Firebase
+  /**
+   * Méthode helper pour les requêtes HTTP avec retry automatique
+   * 
+   * Cette méthode implémente un système robuste de gestion des erreurs réseau:
+   * - Timeout configurable par requête
+   * - Retry automatique avec backoff exponentiel
+   * - Gestion spéciale des codes 429 (rate limiting)
+   * - Respect des headers Retry-After
+   * - Jitter aléatoire pour éviter les thundering herds
+   * 
+   * @async
+   * @param {string} url - URL de la requête
+   * @param {Object} options - Options fetch standard
+   * @param {Object} retryConfig - Configuration du retry
+   * @returns {Promise<Response>} Réponse HTTP
+   * @throws {Error} En cas d'échec après tous les retries
+   */
+  async _fetchWithRetry(url, options = {}, {
+    timeoutMs = this.defaultTimeoutMs,
+    maxRetries = this.maxRetries,
+    baseBackoffMs = this.baseBackoffMs,
+    maxBackoffMs = this.maxBackoffMs,
+    retryOn = [429, 500, 502, 503, 504]
+  } = {}) {
+    let attempt = 0;
+    let lastErr = null;
+
+    while (attempt <= maxRetries) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const resp = await fetch(url, { ...options, signal: controller.signal });
+
+        if (resp.ok) {
+          clearTimeout(timer);
+          return resp;
+        }
+
+        if (retryOn.includes(resp.status)) {
+          const retryAfter = resp.headers?.get?.('retry-after');
+          const retryAfterMs = retryAfter ? (parseFloat(retryAfter) * 1000) : null;
+
+          clearTimeout(timer);
+          if (attempt === maxRetries) {
+            let msg = `HTTP ${resp.status}`;
+            try { const data = await resp.json(); msg = data.error || msg; } catch {}
+            throw new Error(msg);
+          }
+
+          const delay = retryAfterMs ?? Math.min(
+            maxBackoffMs,
+            Math.floor(baseBackoffMs * Math.pow(1.7, attempt)) + Math.floor(Math.random() * 200)
+          );
+          await new Promise(r => setTimeout(r, delay));
+          attempt++;
+          continue;
+        }
+
+        clearTimeout(timer);
+        let msg = `HTTP ${resp.status}: ${resp.statusText}`;
+        try {
+          const data = await resp.json();
+          msg = data.error || msg;
+        } catch {}
+        throw new Error(msg);
+
+      } catch (err) {
+        clearTimeout(timer);
+        lastErr = err;
+
+        const isAbort = err?.name === 'AbortError';
+        if (isAbort || err?.message?.includes('NetworkError') || err?.message?.includes('Failed to fetch')) {
+          if (attempt === maxRetries) break;
+          const delay = Math.min(
+            maxBackoffMs,
+            Math.floor(baseBackoffMs * Math.pow(1.7, attempt)) + Math.floor(Math.random() * 200)
+          );
+          await new Promise(r => setTimeout(r, delay));
+          attempt++;
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    throw lastErr || new Error('Échec réseau après retries');
+  }
+
+  /**
+   * Récupère la liste des forfaits disponibles depuis Firebase
+   * 
+   * Cette méthode effectue un appel GET vers l'endpoint public getPublicTicketTypes
+   * pour récupérer les forfaits Internet disponibles pour la zone configurée.
+   * 
+   * @async
+   * @returns {Promise<Object>} Objet contenant success, plans, zone ou error
+   */
   async getPlans() {
     try {
-      // ✅ CORRECTION : Construction correcte de l'URL
-      let url = `${CONFIG.api.cloudFunctionsUrl}${CONFIG.api.endpoints.getPlans}?zoneId=${CONFIG.zone.id}`;
-      
-      if (CONFIG.zone.publicKey) {
-        url += `&publicKey=${CONFIG.zone.publicKey}`;
-      }
+      let url = `${CONFIG.api.cloudFunctionsUrl}${CONFIG.api.endpoints.getPlans}?zoneId=${encodeURIComponent(CONFIG.zone.id)}`;
+      if (CONFIG.zone.publicKey) url += `&publicKey=${encodeURIComponent(CONFIG.zone.publicKey)}`;
 
-      console.log('🔍 Appel de l\'API:', url);
+      console.log('🔍 Appel GET plans:', url);
 
-      const response = await fetch(url, {
+      const resp = await this._fetchWithRetry(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+        headers: { 'Accept': 'application/json' }
       });
-      
-      console.log('📡 Réponse reçue:', response.status, response.statusText);
 
-      if (!response.ok) {
-        // Gestion spécifique des erreurs HTTP
-        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch (parseError) {
-          // Si on ne peut pas parser la réponse, garder le message HTTP
-        }
-        
-        throw new Error(errorMessage);
+      const data = await resp.json();
+      console.log('📦 Plans reçus:', data);
+
+      if (data.success && Array.isArray(data.plans) && data.plans.length > 0) {
+        return { success: true, plans: data.plans, zone: data.zone };
       }
-
-      const data = await response.json();
-      console.log('📦 Données reçues:', data);
-
-      if (data.success && data.plans && data.plans.length > 0) {
-        console.log(`✅ ${data.plans.length} forfaits chargés depuis Firebase`);
-        return {
-          success: true,
-          plans: data.plans,
-          zone: data.zone
-        };
-      } else {
-        throw new Error(data.error || 'Aucun forfait disponible');
-      }
+      throw new Error(data.error || 'Aucun forfait disponible');
     } catch (error) {
-      console.error('❌ Erreur lors du chargement des forfaits:', error);
-      return {
-        success: false,
-        error: error.message,
-        plans: CONFIG.fallbackPlans
-      };
+      console.error('❌ Erreur lors du chargement des forfaits:', error?.message || error);
+      return { success: false, error: error.message, plans: CONFIG.fallbackPlans };
     }
   }
 
-  // Initier un paiement (HTTP onRequest)
-async initiatePayment(ticketTypeId, phoneNumber) {
-  // ensure init() was called if you need firebase for other things, but not required for HTTP
-  const url = `${CONFIG.api.cloudFunctionsUrl}/initiatePayment`;
-  const body = {
-    planId: ticketTypeId,          // <-- CF attend planId
-    phoneNumber: phoneNumber,
-    externalId: undefined          // ou fournissez un ID pour l’idempotence
-  };
-
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', 'Accept':'application/json' },
-    body: JSON.stringify(body)
-  });
-
-  if (!resp.ok) {
-    let msg = `HTTP ${resp.status}`;
-    try { const err = await resp.json(); msg = err.error || msg; } catch {}
-    throw new Error(msg);
+  /**
+   * Génère un identifiant externe unique pour les transactions
+   * 
+   * Cet identifiant permet d'assurer l'idempotence des requêtes de paiement
+   * et de suivre les transactions côté client.
+   * 
+   * Format: ext_{timestamp}_{random_string}
+   * 
+   * @returns {string} Identifiant externe unique
+   */
+  genExternalId() {
+    return `ext_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   }
-  const data = await resp.json();
-  // attendu: { success:true, transactionId, freemopayReference, amount }
-  return data;
-}
 
-// Vérifier le statut (HTTP onRequest)
-async checkTransactionStatus(transactionId) {
-  const url = `${CONFIG.api.cloudFunctionsUrl}/checkTransactionStatus?transactionId=${encodeURIComponent(transactionId)}`;
-  const resp = await fetch(url, { method: 'GET', headers: { 'Accept':'application/json' }});
-  if (!resp.ok) {
-    let msg = `HTTP ${resp.status}`;
-    try { const err = await resp.json(); msg = err.error || msg; } catch {}
-    throw new Error(msg);
+  /**
+   * Initie un paiement Mobile Money via Firebase
+   * 
+   * Cette méthode envoie une requête POST à la Cloud Function pour initier
+   * un paiement Mobile Money. La réponse est immédiate et contient les
+   * informations de transaction.
+   * 
+   * @async
+   * @param {string} ticketTypeId - ID du type de forfait à acheter
+   * @param {string} phoneNumber - Numéro de téléphone Mobile Money
+   * @returns {Promise<Object>} Réponse avec success, transactionId, amount, status
+   */
+  async initiatePayment(ticketTypeId, phoneNumber) {
+    const externalId = this.genExternalId();
+    const url = `${CONFIG.api.cloudFunctionsUrl}/initiatePublicPayment`;
+
+    const body = {
+      planId: ticketTypeId,
+      phoneNumber,
+      externalId
+    };
+
+    const resp = await this._fetchWithRetry(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    const data = await resp.json();
+    return data;
   }
-  return await resp.json(); // { success:true, transaction:{...} }
-}
 
+  /**
+   * Vérifie le statut d'une transaction en cours
+   * 
+   * Cette méthode effectue un appel GET pour vérifier l'état actuel
+   * d'une transaction de paiement. Utilisée pour le polling en temps réel.
+   * 
+   * @async
+   * @param {string} transactionId - ID de la transaction à vérifier
+   * @returns {Promise<Object>} Statut de la transaction
+   */
+  async checkTransactionStatus(transactionId) {
+    const url = `${CONFIG.api.cloudFunctionsUrl}/checkTransactionStatus?transactionId=${encodeURIComponent(transactionId)}`;
 
-  // // Vérifier le statut d'une transaction
-  // async checkTransactionStatus(transactionId) {
-  //   try {
-  //     if (!this.initialized) {
-  //       const initSuccess = await this.init();
-  //       if (!initSuccess) {
-  //         throw new Error('Firebase non disponible');
-  //       }
-  //     }
+    const resp = await this._fetchWithRetry(url, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    }, {
+      timeoutMs: Math.min(this.defaultTimeoutMs, 6000),
+      maxRetries: 2, // Peu de retries car l'UI gère le polling
+      baseBackoffMs: 400,
+      maxBackoffMs: 2000
+    });
 
-  //     const checkTransaction = this.functions.httpsCallable(CONFIG.api.endpoints.checkTransaction);
+    return await resp.json();
+  }
 
-  //     const result = await checkTransaction({ transactionId });
-
-  //     return result.data;
-  //   } catch (error) {
-  //     console.error('❌ Erreur lors de la vérification:', error);
-  //     throw error;
-  //   }
-  // }
-
-  // Méthode de test pour vérifier la connectivité
+  /**
+   * Teste la connectivité avec les services Firebase
+   * 
+   * Méthode utilitaire pour vérifier si les services Firebase sont accessibles
+   * avant de tenter des opérations critiques. Utilisée pour le diagnostic.
+   * 
+   * @async
+   * @returns {Promise<boolean>} true si la connectivité est OK, false sinon
+   */
   async testConnection() {
     try {
-      const testUrl = `${CONFIG.api.cloudFunctionsUrl}/getPublicTicketTypes?zoneId=test`;
-      const response = await fetch(testUrl, { method: 'HEAD' });
-      return response.status !== 404; // 404 = fonction non trouvée, autres codes = fonction existe
+      const testUrl = `${CONFIG.api.cloudFunctionsUrl}/getPublicTicketTypes?zoneId=${encodeURIComponent(CONFIG.zone.id || 'healthcheck')}`;
+      const resp = await this._fetchWithRetry(testUrl, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      }, { timeoutMs: 5000, maxRetries: 1 });
+
+      return resp.status !== 404;
     } catch (error) {
-      console.error('❌ Test de connexion échoué:', error);
+      console.error('❌ Test de connexion échoué:', error?.message || error);
       return false;
     }
   }
 }
 
-// Instance globale
+/**
+ * Instance globale de FirebaseIntegration
+ * 
+ * Cette instance unique gère toutes les interactions avec Firebase
+ * et est partagée par tous les modules de l'application.
+ * 
+ * @type {FirebaseIntegration}
+ */
 const firebaseIntegration = new FirebaseIntegration();

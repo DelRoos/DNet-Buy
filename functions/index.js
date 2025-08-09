@@ -1,452 +1,297 @@
 /**
- * Cloud Functions pour l'intégration Freemopay
- * Version corrigée avec le bon format de payload
+ * Cloud Functions Freemopay — version optimisée (a→e)
+ * - Réservation après paiement
+ * - Réponse immédiate (déclenchement Freemopay via trigger Firestore)
+ * - Lectures Firestore parallélisées
+ * - .select() pour limiter les données
+ * - Cache mémoire plans (TTL 5 min)
  */
 const { setGlobalOptions } = require("firebase-functions/v2");
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const axios = require("axios");
 
-// Initialisation de Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
-
-// Options globales pour les fonctions (contrôle des coûts)
 setGlobalOptions({ maxInstances: 10 });
 
-// ===== CONFIGURATION FREEMOPAY (CORRIGÉE) =====
+/* ================== CONFIG ================== */
+const PROJECT_ID = "dnet-29b02";
+const REGION = "us-central1";
 const FREEMOPAY_CONFIG = {
   baseUrl: "https://api-v2.freemopay.com",
-  // ✅ CLÉS TESTÉES ET FONCTIONNELLES
   appKey: "7be38c1d-c0d9-4067-aba9-f0380dc68088",
   secretKey: "r1gDV0F2eO1EyfMMrs19",
-  timeout: 5000, // 30 secondes
+  timeout: 5000,
 };
+const WEBHOOK_URL = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/handleFreemopayWebhook`;
 
-// URL de votre projet Firebase pour le webhook
-const PROJECT_ID = "dnet-29b02"; // Remplacez par votre ID de projet
-const WEBHOOK_URL = `https://us-central1-${PROJECT_ID}.cloudfunctions.net/handleFreemopayWebhook`;
+/* ================== UTILS ================== */
+const now = () => admin.firestore.Timestamp.now();
 
-// ===== UTILITAIRES =====
-
-/**
- * Nettoie et formate le numéro de téléphone camerounais
- */
 function formatCameroonPhone(phoneNumber) {
   if (!phoneNumber) throw new Error("Numéro de téléphone requis");
-  
-  let formatted = phoneNumber;
-  
-  // Supprimer tous les caractères non numériques
-  formatted = formatted.replace(/\D/g, '');
-  
-  // Si commence par +237, retirer le +
-  if (phoneNumber.startsWith('+237')) {
-    formatted = phoneNumber.substring(1); // Garde "237XXXXXXXX"
-  }
-  // Si commence par 00237, remplacer par 237
-  else if (formatted.startsWith('00237')) {
-    formatted = formatted.substring(2); // "237XXXXXXXX"
-  }
-  // Si ne commence pas par 237, l'ajouter
-  else if (!formatted.startsWith('237')) {
-    // Supprimer le 0 initial s'il existe
-    if (formatted.startsWith('0')) {
-      formatted = formatted.substring(1);
-    }
+  let formatted = phoneNumber.replace(/\D/g, "");
+  if (phoneNumber.startsWith("+237")) formatted = phoneNumber.substring(1);
+  else if (formatted.startsWith("00237")) formatted = formatted.substring(2);
+  else if (!formatted.startsWith("237")) {
+    if (formatted.startsWith("0")) formatted = formatted.substring(1);
     formatted = `237${formatted}`;
   }
-  
-  // Vérifier le format final
-  if (formatted.length !== 12 || !formatted.startsWith('237')) {
+  if (formatted.length !== 12 || !formatted.startsWith("237")) {
     throw new Error(`Format de numéro invalide: ${phoneNumber} -> ${formatted}`);
   }
-  
-  logger.debug(`📱 Numéro formaté: ${phoneNumber} -> ${formatted}`);
   return formatted;
 }
 
-// ===== NOUVELLE FONCTION: API PUBLIQUE DES FORFAITS =====
-
-exports.getPublicTicketTypes = onRequest(async (req, res) => {
-  // Configuration CORS pour permettre l'accès depuis le hostpot
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
-
-  if (req.method !== "GET") {
-    logger.warn("⚠️ Méthode non autorisée pour getPublicTicketTypes", { method: req.method });
-    return res.status(405).json({ error: "Method Not Allowed" });
-  }
-
-  try {
-    const { zoneId, publicKey } = req.query;
-
-    if (!zoneId) {
-      logger.error("❌ Zone ID manquant dans la requête");
-      return res.status(400).json({ error: "Zone ID requis" });
-    }
-
-    logger.info("🔍 Récupération des forfaits publics", { 
-      zoneId: zoneId,
-      hasPublicKey: !!publicKey 
-    });
-
-    // === ÉTAPE 1: VÉRIFIER QUE LA ZONE EXISTE ET EST PUBLIQUE ===
-    const zoneDoc = await db.collection('zones').doc(zoneId).get();
-
-    if (!zoneDoc.exists) {
-      logger.error(`❌ Zone non trouvée: ${zoneId}`);
-      return res.status(404).json({ error: "Zone non trouvée" });
-    }
-
-    const zoneData = zoneDoc.data();
-
-    // Vérifier l'accès public
-    if (!zoneData.isActive) {
-      logger.warn(`⚠️ Tentative d'accès à une zone privée: ${zoneId}`);
-      return res.status(403).json({ error: "Zone non accessible publiquement" });
-    }
-
-    // Vérification optionnelle de la clé publique pour plus de sécurité
-    if (zoneData.publicAccessKey && publicKey !== zoneData.publicAccessKey) {
-      logger.warn(`⚠️ Clé publique invalide pour la zone: ${zoneId}`);
-      return res.status(403).json({ error: "Clé d'accès invalide" });
-    }
-
-    // === ÉTAPE 2: RÉCUPÉRER LES FORFAITS ACTIFS ===
-    const ticketTypesSnapshot = await db.collection('ticket_types')
-      .where('zoneId', '==', zoneId)
-      .where('isActive', '==', true)
-      .orderBy('price', 'asc')
-      .get();
-
-    if (ticketTypesSnapshot.empty) {
-      logger.info(`📭 Aucun forfait actif trouvé pour la zone: ${zoneId}`);
-      return res.json({ 
-        success: true,
-        zone: {
-          id: zoneData.id || zoneId,
-          name: zoneData.name,
-          description: zoneData.description
-        },
-        plans: [] 
-      });
-    }
-
-    // === ÉTAPE 3: FORMATER LES DONNÉES POUR LE HOSTPOT ===
-    const plans = await Promise.all(
-      ticketTypesSnapshot.docs.map(async (doc) => {
-        const data = doc.data();
-        
-        // Vérifier la disponibilité des tickets
-        const availableTicketsSnapshot = await db.collection('tickets')
-          .where('ticketTypeId', '==', doc.id)
-          .where('status', '==', 'available')
-          .limit(1)
-          .get();
-
-        const isAvailable = !availableTicketsSnapshot.empty;
-
-        return {
-          id: doc.id,
-          name: data.name,
-          description: data.description,
-          price: data.price,
-          formattedPrice: `${data.price.toLocaleString()} F`,
-          validityHours: data.validityHours,
-          validityText: formatValidityDuration(data.validityHours),
-          downloadLimit: data.downloadLimit,
-          uploadLimit: data.uploadLimit,
-          sessionTimeLimit: data.sessionTimeLimit,
-          isAvailable: isAvailable,
-          ticketsAvailable: data.ticketsAvailable || 0,
-          rateLimit: data.rateLimit || null,
-          isActive: data.isActive,
-          // Pour l'affichage des promotions
-          originalPrice: data.originalPrice || null,
-          hasPromotion: !!(data.originalPrice && data.originalPrice > data.price),
-          createdAt: data.createdAt?.toDate()?.toISOString(),
-        };
-      })
-    );
-
-    // Filtrer les forfaits disponibles
-    const availablePlans = plans.filter(plan => plan.isAvailable);
-
-    logger.info(`✅ ${availablePlans.length} forfaits récupérés pour la zone ${zoneId}`);
-
-    res.json({
-      success: true,
-      zone: {
-        id: zoneId,
-        name: zoneData.name,
-        description: zoneData.description,
-        location: zoneData.location,
-        routerType: zoneData.routerType,
-      },
-      plans: availablePlans,
-      totalPlans: availablePlans.length,
-      lastUpdated: new Date().toISOString(),
-    });
-
-  } catch (error) {
-    logger.error("🔥 Erreur lors de la récupération des forfaits publics", {
-      error: error.toString(),
-      stack: error.stack,
-      zoneId: req.query.zoneId,
-    });
-
-    res.status(500).json({ 
-      success: false,
-      error: "Erreur interne du serveur" 
-    });
-  }
-});
-
-
-// ===== FONCTION UTILITAIRE POUR FORMATER LA DURÉE =====
-function formatValidityDuration(hours) {
-  if (hours < 24) {
-    return `${hours}h`;
-  } else if (hours < 168) { // moins d'une semaine
-    const days = Math.floor(hours / 24);
-    return `${days} jour${days > 1 ? 's' : ''}`;
-  } else if (hours < 720) { // moins d'un mois
-    const weeks = Math.floor(hours / 168);
-    return `${weeks} semaine${weeks > 1 ? 's' : ''}`;
-  } else {
-    const months = Math.floor(hours / 720);
-    return `${months} mois`;
-  }
-}
-
-
-/**
- * Valide la configuration Freemopay
- */
 function validateFreemopayConfig() {
-  if (!FREEMOPAY_CONFIG.appKey) {
-    throw new Error("Configuration Freemopay: App Key manquante");
-  }
-  if (!FREEMOPAY_CONFIG.secretKey) {
-    throw new Error("Configuration Freemopay: Secret Key manquante");
-  }
+  if (!FREEMOPAY_CONFIG.appKey) throw new Error("App Key manquante");
+  if (!FREEMOPAY_CONFIG.secretKey) throw new Error("Secret Key manquante");
 }
-// ====== UTILS FREEMOPAY ======
+
 function getBasicAuthHeader() {
-  const token = Buffer.from(`${FREEMOPAY_CONFIG.appKey}:${FREEMOPAY_CONFIG.secretKey}`).toString('base64');
+  const token = Buffer.from(
+    `${FREEMOPAY_CONFIG.appKey}:${FREEMOPAY_CONFIG.secretKey}`
+  ).toString("base64");
   return `Basic ${token}`;
 }
 
 async function callFreemopay(endpoint, payload, timeoutMs = FREEMOPAY_CONFIG.timeout) {
   const url = `${FREEMOPAY_CONFIG.baseUrl}${endpoint}`;
-  const headers = {
-    'Authorization': getBasicAuthHeader(),
-    'Content-Type': 'application/json',
-  };
-  logger.info('➡️ Appel Freemopay', { url, payload: { ...payload, secretKey: undefined } });
+  const headers = { Authorization: getBasicAuthHeader(), "Content-Type": "application/json" };
+  logger.info("➡️ Freemopay call", { url, payload: { ...payload, secretKey: undefined } });
   const resp = await axios.post(url, payload, { headers, timeout: timeoutMs });
-  logger.info('⬅️ Réponse Freemopay', { status: resp.status, data: resp.data });
+  logger.info("⬅️ Freemopay response", { status: resp.status, data: resp.data });
   return resp.data;
 }
 
-// Petite aide pour l’horodatage
-const now = () => admin.firestore.Timestamp.now();
-
-function addMinutes(ts, minutes) {
-  return admin.firestore.Timestamp.fromMillis(ts.toMillis() + minutes * 60 * 1000);
+/* ================== FORMATAGE DUREE ================== */
+function formatValidityDuration(hours) {
+  if (hours < 24) return `${hours}h`;
+  if (hours < 168) {
+    const d = Math.floor(hours / 24); return `${d} jour${d > 1 ? "s" : ""}`;
+  }
+  if (hours < 720) {
+    const w = Math.floor(hours / 168); return `${w} semaine${w > 1 ? "s" : ""}`;
+  }
+  const m = Math.floor(hours / 720); return `${m} mois`;
 }
 
-// ====== RÉSERVATION TICKET ======
-async function reserveOneTicketOrThrow(ticketTypeId, transactionId) {
-  // On prend un ticket "available" au hasard (ou 1er)
-  const snap = await db.collection('tickets')
-    .where('ticketTypeId', '==', ticketTypeId)
-    .where('status', '==', 'available')
+/* ================== CACHE PLANS (TTL 5 min) ================== */
+const planCache = new Map(); // key: planId -> {data, exp:number}
+const PLAN_TTL_MS = 5 * 60 * 1000;
+
+async function getPlanCached(planId) {
+  const hit = planCache.get(planId);
+  if (hit && Date.now() < hit.exp) return hit.data;
+
+  const FieldPath = admin.firestore.FieldPath;
+  const qs = await db.collection("ticket_types")
+    .where(FieldPath.documentId(), "==", planId)
+    .select("price", "isActive", "name", "validityHours")
     .limit(1)
     .get();
 
-  if (snap.empty) {
-    throw new HttpsError('failed-precondition', 'Aucun ticket disponible pour ce forfait.');
-  }
-  const doc = snap.docs[0];
-  const expiresAt = addMinutes(now(), 10); // réservation 10 min
+  if (qs.empty) throw new HttpsError("not-found", "Forfait introuvable");
+  const data = qs.docs[0].data();
 
-  await doc.ref.update({
-    status: 'reserved',
-    reservedBy: transactionId,
-    reservedAt: now(),
-    reservationExpiresAt: expiresAt,
-  });
-
-  return { id: doc.id, ...doc.data() };
+  planCache.set(planId, { data, exp: Date.now() + PLAN_TTL_MS });
+  return data;
 }
 
-async function releaseReservedTicket(transactionId) {
-  const snap = await db.collection('tickets')
-    .where('reservedBy', '==', transactionId)
-    .where('status', '==', 'reserved')
-    .limit(1)
-    .get();
-  if (snap.empty) return false;
 
-  const doc = snap.docs[0];
-  await doc.ref.update({
-    status: 'available',
-    reservedBy: admin.firestore.FieldValue.delete(),
-    reservedAt: admin.firestore.FieldValue.delete(),
-    reservationExpiresAt: admin.firestore.FieldValue.delete(),
-  });
-  return true;
-}
+/* ================== API PUBLIQUE DES FORFAITS ================== */
+exports.getPublicTicketTypes = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(204).send("");
 
-async function deliverReservedTicket(transactionId) {
-  const snap = await db.collection('tickets')
-    .where('reservedBy', '==', transactionId)
-    .where('status', '==', 'reserved')
-    .limit(1)
-    .get();
+  if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
 
-  if (snap.empty) {
-    // En dernier recours, essaye d’en prendre un dispo
-    logger.warn('⚠️ Aucun ticket réservé trouvé, tentative de délivrance depuis "available"', { transactionId });
-    return null;
+  try {
+    const { zoneId, publicKey } = req.query;
+    if (!zoneId) return res.status(400).json({ error: "Zone ID requis" });
+
+    const zoneDoc = await db.collection("zones").doc(zoneId).get();
+    if (!zoneDoc.exists) return res.status(404).json({ error: "Zone non trouvée" });
+
+    const zone = zoneDoc.data();
+    if (!zone.isActive) return res.status(403).json({ error: "Zone non accessible publiquement" });
+    if (zone.publicAccessKey && publicKey !== zone.publicAccessKey) {
+      return res.status(403).json({ error: "Clé d'accès invalide" });
+    }
+
+    const ticketTypesSnapshot = await db.collection("ticket_types")
+      .where("zoneId", "==", zoneId)
+      .where("isActive", "==", true)
+      .orderBy("price", "asc")
+      .get();
+
+    const plans = await Promise.all(ticketTypesSnapshot.docs.map(async (doc) => {
+      const data = doc.data();
+      // simple ping dispo (limité)
+      const availableTicketsSnapshot = await db.collection("tickets")
+        .where("ticketTypeId", "==", doc.id).where("status", "==", "available").limit(1).get();
+
+      const isAvailable = !availableTicketsSnapshot.empty;
+      return {
+        id: doc.id,
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        formattedPrice: `${Number(data.price).toLocaleString()} F`,
+        validityHours: data.validityHours,
+        validityText: formatValidityDuration(data.validityHours),
+        isAvailable,
+        rateLimit: data.rateLimit || null,
+        hasPromotion: !!(data.originalPrice && data.originalPrice > data.price),
+        originalPrice: data.originalPrice || null,
+      };
+    }));
+
+    const availablePlans = plans.filter(p => p.isAvailable);
+    return res.json({
+      success: true,
+      zone: { id: zoneId, name: zone.name, description: zone.description, location: zone.location, routerType: zone.routerType },
+      plans: availablePlans,
+      totalPlans: availablePlans.length,
+      lastUpdated: new Date().toISOString(),
+    });
+  } catch (e) {
+    logger.error("getPublicTicketTypes error", e);
+    return res.status(500).json({ success: false, error: "Erreur interne du serveur" });
   }
+});
 
-  const doc = snap.docs[0];
-  await doc.ref.update({
-    status: 'sold',
-    soldAt: now(),
-  });
-  return { id: doc.id, ...doc.data() };
-}
+/* ============================================================
+   INIT PAYMENT — Réponse immédiate (b) + parallélisation (c) + cache (e)
+   Note: pas de réservation ici (a)
+   ============================================================ */
+exports.initiatePublicPayment = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(204).send("");
 
-// ====== INIT PAYMENT (site -> CF -> Freemopay) ======
-exports.initiatePayment = onRequest(async (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(204).send('');
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
+  if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
 
   try {
     validateFreemopayConfig();
-
-    const { planId, phoneNumber, externalId } = req.body || {};
-    if (!planId || !phoneNumber) {
-      return res.status(400).json({ error: 'planId et phoneNumber sont requis' });
-    }
+    const { planId, phoneNumber } = req.body || {};
+    if (!planId || !phoneNumber) return res.status(400).json({ error: "planId et phoneNumber sont requis" });
 
     const phone = formatCameroonPhone(phoneNumber);
+    const planData = await getPlanCached(planId);
+    if (!planData.isActive) throw new HttpsError("failed-precondition", "Forfait inactif");
+    if (typeof planData.price !== "number") throw new HttpsError("failed-precondition", "Prix invalide");
 
-    // 1) Vérifier le plan
-    const planRef = db.collection('ticket_types').doc(planId);
-    const planSnap = await planRef.get();
-    if (!planSnap.exists) throw new HttpsError('not-found', 'Forfait introuvable');
-    const plan = planSnap.data();
-    if (!plan.isActive) throw new HttpsError('failed-precondition', 'Forfait inactif');
-    if (typeof plan.price !== 'number') throw new HttpsError('failed-precondition', 'Prix invalide');
+    // ✅ 1) on forge un ID de transaction dès maintenant
+    const txnRef = db.collection("transactions").doc();       // <-- pas add()
+    const txnId  = txnRef.id;
 
-    // 2) Créer la transaction Firestore (idempotence via externalId si fourni)
-    let txnRef;
-    if (externalId) {
-      const existing = await db.collection('transactions').where('externalId', '==', externalId).limit(1).get();
-      if (!existing.empty) {
-        const doc = existing.docs[0];
-        const data = doc.data();
-        // si déjà créée, renvoyer état actuel
-        return res.json({
-          success: true,
-          transactionId: doc.id,
-          status: data.status,
-          freemopayReference: data.freemopayReference || null,
-          amount: data.amount,
-        });
-      }
-    }
-
-    txnRef = await db.collection('transactions').add({
+    // ✅ 2) on stocke externalId = txnId (et si tu veux, garde un "clientExternalId")
+    await txnRef.set({
       createdAt: now(),
       updatedAt: now(),
-      status: 'created',               // created | pending | completed | failed | expired
-      provider: 'freemopay',
-      amount: plan.price,
-      currency: 'XAF',
+      status: "created",
+      provider: "freemopay",
+      amount: planData.price,
+      currency: "XAF",
       planId,
       phone,
-      externalId: externalId || null,
+      externalId: txnId,              // <-- clé d’idempotence côté provider = ID doc
+      clientExternalId: null,         // facultatif si tu recevais avant un externalId client
       freemopayReference: null,
       webhookReceived: false,
     });
-    const transactionId = txnRef.id;
 
-    // 3) Réserver un ticket (si tu préfères réserver après SUCCESS, déplace ça dans le webhook)
-    await reserveOneTicketOrThrow(planId, transactionId);
+    // ✅ 3) Réponse immédiate: le trigger Firestore fera l'appel provider
+    return res.json({
+      success: true,
+      transactionId: txnId,
+      amount: planData.price,
+      status: "created",
+    });
+  } catch (err) {
+    logger.error("initiatePublicPayment error", { error: err.toString(), stack: err.stack });
+    return res.status(500).json({ error: err.message || "Erreur interne" });
+  }
+});
 
-    // 4) Appel Freemopay
-    // ⚠️ Selon ta config, la clé téléphone peut être `payer` (souvent) ou `receiver`.
+/* ===================================================================
+   TRIGGER: quand une transaction est créée -> appel Freemopay (b)
+   =================================================================== */
+exports.onTransactionCreated = onDocumentCreated("transactions/{transactionId}", async (event) => {
+  try {
+    const txnId = event.params.transactionId;
+    const tx = event.data?.data();
+    if (!tx || tx.status !== "created") return;
+
+    // Init paiement
     const payload = {
-      amount: plan.price,
-      externalId: externalId || transactionId,
+      amount: tx.amount,
+      externalId: tx.externalId || txnId,   // chez nous: = txnId
       callback: WEBHOOK_URL,
-      payer: phone, // <-- change en `receiver: phone` si ton endpoint l’exige
+      payer: tx.phone,
     };
+    const data = await callFreemopay("/api/v2/payment", payload);
 
-    const data = await callFreemopay('/api/v2/payment', payload);
-    // Réponse attendue: { reference: "...", status: "CREATED" | "PENDING", ... }
-
-    await txnRef.update({
-      status: 'pending',
+    await db.collection("transactions").doc(txnId).update({
+      status: "pending",
       updatedAt: now(),
       freemopayReference: data.reference || null,
       providerInitResponse: data,
     });
 
-    return res.json({
-      success: true,
-      transactionId,
-      freemopayReference: data.reference || null,
-      amount: plan.price,
-    });
-  } catch (err) {
-    logger.error('❌ initiatePayment error', { error: err.toString(), stack: err.stack });
-    return res.status(500).json({ error: err.message || 'Erreur interne' });
+    // ✅ Fast path: 2s plus tard on regarde si le statut est déjà final
+    if (data.reference) {
+      setTimeout(async () => {
+        try {
+          const st = await getPaymentStatusByReference(data.reference);
+          const s = String(st?.status || "").toUpperCase();
+          if (s === "SUCCESS" || s === "FAILED") {
+            // Simule le webhook pour finaliser immédiatement
+            const fakeReq = { body: { status: s, reference: data.reference, externalId: txnId, message: st?.message || null } };
+            const fakeRes = { status: () => ({ send: () => {} }) };
+            await exports.handleFreemopayWebhook.run(fakeReq, fakeRes); // gcf v2: appelle la même logique
+          }
+        } catch (_) { /* ignore: si PENDING, le webhook finira le job */ }
+      }, 2000);
+    }
+  } catch (e) {
+    logger.error("onTransactionCreated error", e);
+    if (event?.params?.transactionId) {
+      await db.collection("transactions").doc(event.params.transactionId).update({
+        status: "failed",
+        updatedAt: now(),
+        providerStatus: "INIT_FAILED",
+      });
+    }
   }
 });
 
-// ====== CHECK TRANSACTION STATUS (site -> CF) ======
+
+/* ===========================================
+   CHECK TRANSACTION — poll depuis le frontend
+   =========================================== */
 exports.checkTransactionStatus = onRequest(async (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(204).send('');
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
 
   try {
     const { transactionId } = req.query;
-    if (!transactionId) return res.status(400).json({ error: 'transactionId requis' });
+    if (!transactionId) return res.status(400).json({ error: "transactionId requis" });
 
-    const doc = await db.collection('transactions').doc(String(transactionId)).get();
-    if (!doc.exists) return res.status(404).json({ error: 'Transaction introuvable' });
-
+    const doc = await db.collection("transactions").doc(String(transactionId)).get();
+    if (!doc.exists) return res.status(404).json({ error: "Transaction introuvable" });
     const tx = doc.data();
-    // Si SUCCESS et ticket délivré, renvoyer les credentials
+
     return res.json({
       success: true,
       transaction: {
@@ -454,162 +299,134 @@ exports.checkTransactionStatus = onRequest(async (req, res) => {
         status: tx.status,
         amount: tx.amount,
         freemopayReference: tx.freemopayReference || null,
-        credentials: tx.credentials || null, // {username, password}
+        credentials: tx.credentials || null,
         ticketTypeName: tx.ticketTypeName || null,
         updatedAt: tx.updatedAt?.toDate?.()?.toISOString?.() || null,
       },
     });
-  } catch (err) {
-    logger.error('❌ checkTransactionStatus error', { error: err.toString() });
-    return res.status(500).json({ error: 'Erreur interne' });
+  } catch (e) {
+    logger.error("checkTransactionStatus error", e);
+    return res.status(500).json({ error: "Erreur interne" });
   }
 });
 
-// ====== WEBHOOK (Freemopay -> CF) ======
+/* ==================================================================
+   WEBHOOK Freemopay — délivrance ticket (a) (pas de réservation avant)
+   ================================================================== */
+async function sellOneAvailableOrNull(ticketTypeId) {
+  const snap = await db.collection("tickets")
+    .where("ticketTypeId", "==", ticketTypeId)
+    .where("status", "==", "available")
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+
+  const doc = snap.docs[0];
+  const data = doc.data();
+  await doc.ref.update({ status: "sold", soldAt: now() });
+  return { id: doc.id, ...data };
+}
+
 exports.handleFreemopayWebhook = onRequest(async (req, res) => {
   try {
-    // Freemopay envoie un JSON comme:
-    // { status: "SUCCESS" | "FAILED", reference: "...", amount: 100, transactionType: "DEPOSIT", externalId: "xxx", message: "..." }
     const body = req.body || {};
-    logger.info('📩 Webhook Freemopay reçu', body);
+    const { status, reference, externalId, message } = body;
 
-    const { status, reference, amount, externalId, message } = body;
-    if (!reference && !externalId) {
-      logger.warn('Webhook sans reference/externalId');
-      return res.status(400).send('missing reference');
+    // ✅ 1) accès direct par ID (plus aucune requête “where” coûteuse si externalId est bien ton txnId)
+    let txnRef = null;
+    let snap   = null;
+
+    if (externalId) {
+      txnRef = db.collection("transactions").doc(String(externalId));
+      snap   = await txnRef.get();
     }
 
-    // Retrouver la transaction par reference Freemopay ou externalId
-    let txnSnap;
-    if (reference) {
-      txnSnap = await db.collection('transactions').where('freemopayReference', '==', reference).limit(1).get();
-    }
-    if ((!txnSnap || txnSnap.empty) && externalId) {
-      txnSnap = await db.collection('transactions').where('externalId', '==', externalId).limit(1).get();
-    }
-    if (!txnSnap || txnSnap.empty) {
-      logger.error('❌ Transaction introuvable pour webhook', { reference, externalId });
-      return res.status(404).send('transaction not found');
+    // ✅ 2) fallback legacy par reference si pas trouvé
+    if ((!snap || !snap.exists) && reference) {
+      const byRef = await db.collection("transactions")
+        .where("freemopayReference", "==", reference)
+        .limit(1)
+        .get();
+      if (!byRef.empty) {
+        snap   = byRef.docs[0];
+        txnRef = snap.ref;
+      }
     }
 
-    const txnDoc = txnSnap.docs[0];
-    const txnRef = txnDoc.ref;
-    const txn = txnDoc.data();
+    if (!snap || !snap.exists) return res.status(404).send("transaction not found");
 
-    // Idempotence: si déjà finalisée, on confirme 200
-    if (['completed', 'failed', 'expired'].includes(txn.status)) {
-      logger.info('ℹ️ Webhook idempotent: transaction déjà finalisée', { id: txnDoc.id, status: txn.status });
+    const tx = snap.data();
+    if (["completed", "failed", "expired"].includes(tx.status)) {
       await txnRef.update({ webhookReceived: true, updatedAt: now() });
-      return res.status(200).send('');
+      return res.status(200).send("");
     }
 
-    if (String(status).toUpperCase() === 'SUCCESS') {
-      // Délivrer le ticket réservé
-      const delivered = await deliverReservedTicket(txnDoc.id);
-
-      let credentials = null;
-      let ticketTypeName = null;
-
-      if (delivered) {
-        credentials = {
-          username: delivered.username,
-          password: delivered.password,
-        };
-        // récupérer le nom du forfait
-        if (txn.planId) {
-          const ttype = await db.collection('ticket_types').doc(txn.planId).get();
-          ticketTypeName = ttype.exists ? (ttype.data().name || null) : null;
-        }
-      } else {
-        // Aucun ticket réservé trouvé → tenter un ticket dispo
-        const fallback = await db.collection('tickets')
-          .where('ticketTypeId', '==', txn.planId)
-          .where('status', '==', 'available')
-          .limit(1)
-          .get();
-        if (!fallback.empty) {
-          const doc = fallback.docs[0];
-          await doc.ref.update({ status: 'sold', soldAt: now() });
-          const data = doc.data();
-          credentials = { username: data.username, password: data.password };
-          const ttype = await db.collection('ticket_types').doc(txn.planId).get();
-          ticketTypeName = ttype.exists ? (ttype.data().name || null) : null;
-        } else {
-          logger.error('❌ Paiement réussi mais aucun ticket disponible à délivrer', { id: txnDoc.id });
-        }
+    if (String(status).toUpperCase() === "SUCCESS") {
+      // délivrance ticket immédiate
+      const sold = await sellOneAvailableOrNull(tx.planId);
+      let credentials = null, ticketTypeName = null;
+      if (sold) {
+        credentials = { username: sold.username, password: sold.password };
+        const qs = await db.collection("ticket_types")
+          .where(admin.firestore.FieldPath.documentId(), "==", tx.planId)
+          .select("name")
+          .limit(1).get();
+        if (!qs.empty) ticketTypeName = qs.docs[0].data().name || null;
       }
 
       await txnRef.update({
-        status: 'completed',
+        status: "completed",
         updatedAt: now(),
         providerStatus: status,
         webhookReceived: true,
         providerMessage: message || null,
-        credentials: credentials || null,
-        ticketTypeName: ticketTypeName || null,
+        freemopayReference: reference || tx.freemopayReference || null,
+        credentials,
+        ticketTypeName,
       });
-
-      return res.status(200).send('');
-    } else if (String(status).toUpperCase() === 'FAILED') {
-      // Libérer ticket réservé si existant
-      await releaseReservedTicket(txnDoc.id);
-
-      await txnRef.update({
-        status: 'failed',
-        updatedAt: now(),
-        providerStatus: status,
-        webhookReceived: true,
-        providerMessage: message || null,
-      });
-
-      return res.status(200).send('');
-    } else {
-      logger.warn('Webhook status non géré', { status });
-      await txnRef.update({
-        updatedAt: now(),
-        providerStatus: status || 'UNKNOWN',
-        webhookReceived: true,
-        providerMessage: message || null,
-      });
-      return res.status(200).send('');
+      return res.status(200).send("");
     }
-  } catch (err) {
-    logger.error('🔥 Erreur webhook Freemopay', { error: err.toString(), stack: err.stack });
-    // Toujours 200 pour éviter les retries infinis côté provider si nécessaire,
-    // ou renvoyer 500 si vous voulez des retries (choix produit).
-    return res.status(200).send('');
+
+    if (String(status).toUpperCase() === "FAILED") {
+      await txnRef.update({
+        status: "failed",
+        updatedAt: now(),
+        providerStatus: status,
+        webhookReceived: true,
+        providerMessage: message || null,
+      });
+      return res.status(200).send("");
+    }
+
+    await txnRef.update({
+      updatedAt: now(),
+      providerStatus: status || "UNKNOWN",
+      webhookReceived: true,
+      providerMessage: message || null,
+    });
+    return res.status(200).send("");
+  } catch (e) {
+    logger.error("handleFreemopayWebhook error", e);
+    return res.status(200).send(""); // on évite les retries agressifs côté Freemopay
   }
 });
 
-// ====== (OPTIONNEL) DIRECT WITHDRAW / CASHOUT ======
-exports.directWithdraw = onRequest(async (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(204).send('');
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
-
+async function getPaymentStatusByReference(reference) {
+  const url = `${FREEMOPAY_CONFIG.baseUrl}/api/v2/payment/${reference}`;
+  // --- Basic Auth (doc officielle) ---
+  const auth = {
+    username: FREEMOPAY_CONFIG.appKey,
+    password: FREEMOPAY_CONFIG.secretKey
+  };
   try {
-    validateFreemopayConfig();
-
-    const { receiver, amount, externalId, callback } = req.body || {};
-    if (!receiver || !amount) return res.status(400).json({ error: 'receiver et amount requis' });
-
-    const phone = formatCameroonPhone(receiver);
-
-    const payload = {
-      receiver: phone,                  // pour withdraw, la doc parle bien de "receiver"
-      amount: String(amount),
-      externalId: externalId || `wd_${Date.now()}`,
-      callback: callback || WEBHOOK_URL,
-    };
-
-    const data = await callFreemopay('/api/v2/payment/direct-withdraw', payload);
-
-    return res.json({ success: true, ...data });
+    const resp = await axios.get(url, { auth, timeout: FREEMOPAY_CONFIG.timeout });
+    return resp.data; // attendu: { status: "PENDING"|"SUCCESS"|"FAILED", reference: "...", ... }
   } catch (err) {
-    logger.error('❌ directWithdraw error', { error: err.toString() });
-    return res.status(500).json({ error: err.message || 'Erreur interne' });
+    // si rate limit, respecte Retry-After
+    if (err?.response?.status === 429) {
+      const ra = Number(err.response.headers["retry-after"] || 1);
+      await new Promise(r => setTimeout(r, Math.min(ra, 5) * 1000));
+    }
+    throw err;
   }
-});
+}
