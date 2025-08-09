@@ -22,7 +22,7 @@ const FREEMOPAY_CONFIG = {
   // ✅ CLÉS TESTÉES ET FONCTIONNELLES
   appKey: "7be38c1d-c0d9-4067-aba9-f0380dc68088",
   secretKey: "r1gDV0F2eO1EyfMMrs19",
-  timeout: 30000, // 30 secondes
+  timeout: 5000, // 30 secondes
 };
 
 // URL de votre projet Firebase pour le webhook
@@ -67,6 +67,165 @@ function formatCameroonPhone(phoneNumber) {
   logger.debug(`📱 Numéro formaté: ${phoneNumber} -> ${formatted}`);
   return formatted;
 }
+
+// ===== NOUVELLE FONCTION: API PUBLIQUE DES FORFAITS =====
+
+exports.getPublicTicketTypes = onRequest(async (req, res) => {
+  // Configuration CORS pour permettre l'accès depuis le hostpot
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== "GET") {
+    logger.warn("⚠️ Méthode non autorisée pour getPublicTicketTypes", { method: req.method });
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
+  try {
+    const { zoneId, publicKey } = req.query;
+
+    if (!zoneId) {
+      logger.error("❌ Zone ID manquant dans la requête");
+      return res.status(400).json({ error: "Zone ID requis" });
+    }
+
+    logger.info("🔍 Récupération des forfaits publics", { 
+      zoneId: zoneId,
+      hasPublicKey: !!publicKey 
+    });
+
+    // === ÉTAPE 1: VÉRIFIER QUE LA ZONE EXISTE ET EST PUBLIQUE ===
+    const zoneDoc = await db.collection('zones').doc(zoneId).get();
+
+    if (!zoneDoc.exists) {
+      logger.error(`❌ Zone non trouvée: ${zoneId}`);
+      return res.status(404).json({ error: "Zone non trouvée" });
+    }
+
+    const zoneData = zoneDoc.data();
+
+    // Vérifier l'accès public
+    if (!zoneData.isActive) {
+      logger.warn(`⚠️ Tentative d'accès à une zone privée: ${zoneId}`);
+      return res.status(403).json({ error: "Zone non accessible publiquement" });
+    }
+
+    // Vérification optionnelle de la clé publique pour plus de sécurité
+    if (zoneData.publicAccessKey && publicKey !== zoneData.publicAccessKey) {
+      logger.warn(`⚠️ Clé publique invalide pour la zone: ${zoneId}`);
+      return res.status(403).json({ error: "Clé d'accès invalide" });
+    }
+
+    // === ÉTAPE 2: RÉCUPÉRER LES FORFAITS ACTIFS ===
+    const ticketTypesSnapshot = await db.collection('ticket_types')
+      .where('zoneId', '==', zoneId)
+      .where('isActive', '==', true)
+      .orderBy('price', 'asc')
+      .get();
+
+    if (ticketTypesSnapshot.empty) {
+      logger.info(`📭 Aucun forfait actif trouvé pour la zone: ${zoneId}`);
+      return res.json({ 
+        success: true,
+        zone: {
+          id: zoneData.id || zoneId,
+          name: zoneData.name,
+          description: zoneData.description
+        },
+        plans: [] 
+      });
+    }
+
+    // === ÉTAPE 3: FORMATER LES DONNÉES POUR LE HOSTPOT ===
+    const plans = await Promise.all(
+      ticketTypesSnapshot.docs.map(async (doc) => {
+        const data = doc.data();
+        
+        // Vérifier la disponibilité des tickets
+        const availableTicketsSnapshot = await db.collection('tickets')
+          .where('ticketTypeId', '==', doc.id)
+          .where('status', '==', 'available')
+          .limit(1)
+          .get();
+
+        const isAvailable = !availableTicketsSnapshot.empty;
+
+        return {
+          id: doc.id,
+          name: data.name,
+          description: data.description,
+          price: data.price,
+          formattedPrice: `${data.price.toLocaleString()} F`,
+          validityHours: data.validityHours,
+          validityText: formatValidityDuration(data.validityHours),
+          downloadLimit: data.downloadLimit,
+          uploadLimit: data.uploadLimit,
+          sessionTimeLimit: data.sessionTimeLimit,
+          isAvailable: isAvailable,
+          ticketsAvailable: data.ticketsAvailable || 0,
+          // Pour l'affichage des promotions
+          originalPrice: data.originalPrice || null,
+          hasPromotion: !!(data.originalPrice && data.originalPrice > data.price),
+          createdAt: data.createdAt?.toDate()?.toISOString(),
+        };
+      })
+    );
+
+    // Filtrer les forfaits disponibles
+    const availablePlans = plans.filter(plan => plan.isAvailable);
+
+    logger.info(`✅ ${availablePlans.length} forfaits récupérés pour la zone ${zoneId}`);
+
+    res.json({
+      success: true,
+      zone: {
+        id: zoneId,
+        name: zoneData.name,
+        description: zoneData.description,
+        location: zoneData.location,
+        routerType: zoneData.routerType,
+      },
+      plans: availablePlans,
+      totalPlans: availablePlans.length,
+      lastUpdated: new Date().toISOString(),
+    });
+
+  } catch (error) {
+    logger.error("🔥 Erreur lors de la récupération des forfaits publics", {
+      error: error.toString(),
+      stack: error.stack,
+      zoneId: req.query.zoneId,
+    });
+
+    res.status(500).json({ 
+      success: false,
+      error: "Erreur interne du serveur" 
+    });
+  }
+});
+
+
+// ===== FONCTION UTILITAIRE POUR FORMATER LA DURÉE =====
+function formatValidityDuration(hours) {
+  if (hours < 24) {
+    return `${hours}h`;
+  } else if (hours < 168) { // moins d'une semaine
+    const days = Math.floor(hours / 24);
+    return `${days} jour${days > 1 ? 's' : ''}`;
+  } else if (hours < 720) { // moins d'un mois
+    const weeks = Math.floor(hours / 168);
+    return `${weeks} semaine${weeks > 1 ? 's' : ''}`;
+  } else {
+    const months = Math.floor(hours / 720);
+    return `${months} mois`;
+  }
+}
+
 
 /**
  * Valide la configuration Freemopay
