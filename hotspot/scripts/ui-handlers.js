@@ -209,59 +209,195 @@ class UIHandlers {
   // ============================
   // Monitoring transaction — backoff progressif
   // ============================
-  startTransactionMonitoring(transactionId) {
-    // stop un éventuel monitoring précédent
-    this.stopTransactionMonitoring();
+/**
+ * Démarre la surveillance temps réel d'une transaction via Firestore
+ * 
+ * Cette méthode remplace l'ancien système de polling par une écoute
+ * en temps réel des modifications Firestore.
+ * 
+ * @param {string} transactionId - ID de la transaction à surveiller
+ */
+startTransactionMonitoring(transactionId) {
+  // Arrêter toute surveillance précédente
+  this.stopTransactionMonitoring();
 
-    this.currentTransaction = transactionId;
+  this.currentTransaction = transactionId;
+  const startedAt = Date.now();
 
-    let attempt = 0;
-    const startedAt = Date.now();
-    const HARD_TIMEOUT = CONFIG.ui.transactionMonitorTimeout || 90000; // 90s par défaut
-    const BASE_DELAY = CONFIG.ui.transactionCheckInterval || 1500;     // 1.5s par défaut
-    const MAX_DELAY = 6000; // plafonné à 6s
+  console.log('🚀 Démarrage surveillance Firestore:', transactionId);
 
-    const poll = async () => {
-      if (Date.now() - startedAt > HARD_TIMEOUT) {
-        this.showTransactionTimeout();
+  // Callbacks pour les mises à jour
+  const onUpdate = (transactionData) => {
+    try {
+      console.log('📨 Nouvelle donnée reçue:', transactionData);
+
+      // Vérifier les statuts finaux
+      if (transactionData.status === 'completed') {
+        this.showTransactionCompleted(transactionData);
         this.stopTransactionMonitoring();
         return;
       }
 
-      try {
-        const res = await firebaseIntegration.checkTransactionStatus(transactionId);
-        if (res && res.success) {
-          const tx = res.transaction;
-
-          if (tx.status === 'completed') {
-            this.showTransactionCompleted(tx);
-            this.stopTransactionMonitoring();
-            return;
-          }
-
-          if (tx.status === 'failed' || tx.status === 'expired') {
-            // accepte soit un objet, soit un message
-            this.showTransactionFailed(tx.providerMessage || 'Paiement échoué');
-            this.stopTransactionMonitoring();
-            return;
-          }
-
-          // sinon: created / pending → on continue
-        }
-      } catch (err) {
-        // erreurs réseau / 5xx : on log et on retente
-        console.warn('[poll]', err?.message || err);
+      if (transactionData.status === 'failed' || transactionData.status === 'expired') {
+        this.showTransactionFailed(
+          transactionData.providerMessage || 'Paiement échoué'
+        );
+        this.stopTransactionMonitoring();
+        return;
       }
 
-      // backoff (1.5^n) jusqu’à MAX_DELAY
-      attempt++;
-      const nextDelay = Math.min(MAX_DELAY, Math.floor(BASE_DELAY * Math.pow(1.5, attempt)));
-      this.transactionMonitorInterval = setTimeout(poll, nextDelay);
-    };
+      // Mettre à jour l'interface pour les statuts intermédiaires
+      if (transactionData.status === 'pending' || transactionData.status === 'processing') {
+        this.updateTransactionStatus(transactionData);
+      }
 
-    // premier poll rapide
-    this.transactionMonitorInterval = setTimeout(poll, 800);
+    } catch (error) {
+      console.error('❌ Erreur lors du traitement de la mise à jour:', error);
+      this.showTransactionFailed('Erreur de traitement');
+      this.stopTransactionMonitoring();
+    }
+  };
+
+  const onError = (error) => {
+    console.error('❌ Erreur de surveillance Firestore:', error);
+    
+    // En cas d'erreur, revenir au polling comme fallback
+    console.log('🔄 Basculement vers le mode polling de secours');
+    this.startPollingFallback(transactionId);
+  };
+
+  // Démarrer l'écoute Firestore
+  this.firestoreUnsubscribe = firebaseIntegration.listenToTransaction(
+    transactionId, 
+    onUpdate, 
+    onError
+  );
+
+  // Timeout de sécurité global
+  this.monitoringTimeout = setTimeout(() => {
+    console.warn('⏰ Timeout global de surveillance atteint');
+    this.showTransactionTimeout();
+    this.stopTransactionMonitoring();
+  }, CONFIG.ui?.firestoreListenerTimeout || 300000);
+}
+
+/**
+ * Arrête la surveillance de transaction
+ */
+stopTransactionMonitoring() {
+  if (this.firestoreUnsubscribe) {
+    this.firestoreUnsubscribe();
+    this.firestoreUnsubscribe = null;
   }
+
+  if (this.monitoringTimeout) {
+    clearTimeout(this.monitoringTimeout);
+    this.monitoringTimeout = null;
+  }
+
+  if (this.transactionMonitorInterval) {
+    clearTimeout(this.transactionMonitorInterval);
+    this.transactionMonitorInterval = null;
+  }
+
+  this.currentTransaction = null;
+  console.log('✅ Surveillance arrêtée');
+}
+
+/**
+ * Mode de secours avec polling en cas d'échec Firestore
+ * 
+ * @param {string} transactionId - ID de la transaction
+ */
+startPollingFallback(transactionId) {
+  console.log('🔄 Activation du mode polling de secours');
+  
+  // Utiliser l'ancien système de polling comme fallback
+  let attempt = 0;
+  const startedAt = Date.now();
+  const HARD_TIMEOUT = 60000; // 1 minute en mode secours
+  const BASE_DELAY = 3000; // 3 secondes
+  const MAX_DELAY = 8000; // 8 secondes max
+
+  const poll = async () => {
+    if (Date.now() - startedAt > HARD_TIMEOUT) {
+      this.showTransactionTimeout();
+      this.stopTransactionMonitoring();
+      return;
+    }
+
+    try {
+      const res = await firebaseIntegration.checkTransactionStatus(transactionId);
+      if (res && res.success) {
+        const tx = res.transaction;
+
+        if (tx.status === 'completed') {
+          this.showTransactionCompleted(tx);
+          this.stopTransactionMonitoring();
+          return;
+        }
+
+        if (tx.status === 'failed' || tx.status === 'expired') {
+          this.showTransactionFailed(tx.providerMessage || 'Paiement échoué');
+          this.stopTransactionMonitoring();
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[polling fallback]', err?.message || err);
+    }
+
+    // Backoff progressif
+    attempt++;
+    const nextDelay = Math.min(MAX_DELAY, Math.floor(BASE_DELAY * Math.pow(1.3, attempt)));
+    this.transactionMonitorInterval = setTimeout(poll, nextDelay);
+  };
+
+  // Démarrer le polling de secours
+  this.transactionMonitorInterval = setTimeout(poll, 1000);
+}
+
+/**
+ * Met à jour l'interface pour les statuts intermédiaires
+ * 
+ * @param {Object} transactionData - Données de transaction
+ */
+updateTransactionStatus(transactionData) {
+  const statusElement = document.getElementById('transaction-status');
+  const timestampElement = document.getElementById('transaction-timestamp');
+  
+  if (statusElement) {
+    const statusText = this.getStatusDisplayText(transactionData.status);
+    statusElement.textContent = statusText;
+  }
+  
+  if (timestampElement) {
+    const lastUpdate = transactionData.updatedAt ? 
+      new Date(transactionData.updatedAt).toLocaleTimeString() : 
+      new Date().toLocaleTimeString();
+    timestampElement.textContent = `Dernière mise à jour: ${lastUpdate}`;
+  }
+}
+
+/**
+ * Convertit le statut technique en texte utilisateur
+ * 
+ * @param {string} status - Statut technique
+ * @returns {string} Texte à afficher
+ */
+getStatusDisplayText(status) {
+  const statusMap = {
+    'created': 'Transaction créée',
+    'pending': 'En attente de confirmation',
+    'processing': 'Traitement en cours',
+    'completed': 'Terminée avec succès',
+    'failed': 'Échouée',
+    'expired': 'Expirée',
+    'cancelled': 'Annulée'
+  };
+  
+  return statusMap[status] || status;
+}
 
   stopTransactionMonitoring() {
     if (this.transactionMonitorInterval) {

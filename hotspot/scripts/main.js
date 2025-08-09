@@ -34,7 +34,7 @@ class HotspotApp {
       console.log('🚀 Initialisation de l\'application hotspot...');
       
       // Afficher le loader global
-uiHandlers.showPlansLoader(true, 'Initialisation...');
+      uiHandlers.showPlansLoader(true, 'Initialisation...');
       
 //       // ✅ AJOUT: Test de connectivité d'abord
 //       console.log('🔍 Test de connectivité Firebase...');
@@ -56,7 +56,20 @@ uiHandlers.showPlansLoader(true, 'Initialisation...');
 //         console.warn('⚠️ Firebase non disponible, utilisation des forfaits de fallback');
 //         this.useFallbackPlans();
 //       }
-        await this.loadPlans();
+      
+      // Initialiser Firebase et Firestore
+      console.log('🔥 Initialisation Firebase...');
+      const firebaseSuccess = await firebaseIntegration.init();
+      
+      if (firebaseSuccess) {
+        console.log('✅ Firebase initialisé avec succès');
+        uiHandlers.showPlansLoader(true, 'Chargement des forfaits...');
+      } else {
+        console.warn('⚠️ Firebase non disponible, mode dégradé');
+        uiHandlers.showPlansLoader(true, 'Mode hors ligne...');
+      }
+      
+      await this.loadPlans();
       
       this.initialized = true;
       

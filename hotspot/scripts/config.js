@@ -30,6 +30,31 @@ const CONFIG = {
   },
 
   /**
+   * Configuration Firestore pour l'écoute temps réel
+   * 
+   * Ces paramètres configurent l'accès à Firestore pour la surveillance
+   * des transactions en temps réel via les webhooks.
+   */
+  firestore: {
+    // Collection où sont stockées les transactions
+    transactionsCollection: 'transactions',
+    
+    // Options de surveillance
+    realtimeOptions: {
+      // Réessais automatiques en cas de déconnexion
+      maxRetries: 5,
+      retryDelayMs: 1000,
+      
+      // Timeout pour la connexion initiale
+      connectionTimeoutMs: 10000,
+      
+      // Désactiver le cache local pour éviter les données obsolètes
+      enableLocalCache: false
+    }
+  },
+
+
+  /**
    * Configuration de la zone hotspot
    * 
    * Ces paramètres identifient votre zone hotspot spécifique.
@@ -40,6 +65,7 @@ const CONFIG = {
     publicKey: null // Clé publique optionnelle pour la sécurité
   },
 
+  
   /**
    * Configuration des services API
    * 
@@ -126,6 +152,7 @@ const CONFIG = {
   ui: {
     loaderTimeout: 10000,              // 10 secondes max pour charger les forfaits
     transactionMonitorTimeout: 300000, // 5 minutes max pour une transaction
-    transactionCheckInterval: 3000     // Vérifier toutes les 3 secondes
+    transactionCheckInterval: 3000,    // Vérifier toutes les 3 secondes
+    firestoreListenerTimeout: 300000   // 5 minutes max pour l'écoute Firestore
   }
 };

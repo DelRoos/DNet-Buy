@@ -161,15 +161,141 @@ const PaymentFlow = {
     }
   },
 
-  _start() {
-    this._interval = setInterval(() => this._tick(), CONFIG.ui?.transactionCheckInterval || 3000);
-  },
+  // Dans l'objet PaymentFlow, remplacer ces méthodes :
 
-  _stop() {
-    if (this._interval) clearInterval(this._interval);
+_start() {
+  console.log('🚀 Démarrage surveillance Firestore pour ticket');
+  
+  const onUpdate = (transactionData) => {
+    try {
+      const tx = transactionData;
+      
+      if (tx.status === 'completed' && tx.credentials) {
+        this.setStep(3);
+        this.showStage('stage-success');
+        document.getElementById('cred-username').textContent = tx.credentials.username;
+        document.getElementById('cred-password').textContent = tx.credentials.password;
+        
+        TicketStore.add({
+          username: tx.credentials.username,
+          password: tx.credentials.password,
+          planName: this._plan.name,
+          amount: tx.amount,
+          validityText: tx.ticketTypeName || this._plan.validityText || '',
+          freemopayReference: tx.freemopayReference || null
+        });
+        
+        this._stop();
+        return;
+      }
+
+      if (tx.status === 'failed' || tx.status === 'expired') {
+        this.showStage('stage-failed');
+        document.getElementById('fail-reason').textContent =
+          'Le paiement a été annulé ou a échoué. Veuillez réessayer.';
+        this._stop();
+        return;
+      }
+
+      // Mettre à jour le statut live
+      document.getElementById('live-status').textContent =
+        `Statut: ${this.getStatusText(tx.status)} • Dernière mise à jour: ${new Date().toLocaleTimeString()}`;
+
+    } catch (error) {
+      console.error('Erreur traitement mise à jour ticket:', error);
+      this._handleError('Erreur de traitement');
+    }
+  };
+
+  const onError = (error) => {
+    console.error('Erreur surveillance Firestore ticket:', error);
+    // Basculer vers polling de secours
+    this._startPollingFallback();
+  };
+
+  // Démarrer l'écoute Firestore
+  this._firestoreUnsubscribe = firebaseIntegration.listenToTransaction(
+    this._txId,
+    onUpdate,
+    onError
+  );
+},
+
+_stop() {
+  if (this._firestoreUnsubscribe) {
+    this._firestoreUnsubscribe();
+    this._firestoreUnsubscribe = null;
+  }
+  
+  if (this._interval) {
+    clearInterval(this._interval);
     this._interval = null;
-    this._txId = null;
-  },
+  }
+  
+  this._txId = null;
+},
+
+// Nouvelle méthode de fallback
+_startPollingFallback() {
+  console.log('🔄 Basculement vers polling pour ticket');
+  this._interval = setInterval(() => this._tick(), CONFIG.ui?.transactionCheckInterval || 4000);
+},
+
+// Garder l'ancienne méthode _tick comme fallback
+async _tick() {
+  if (!this._txId) return;
+  try {
+    const res = await firebaseIntegration.checkTransactionStatus(this._txId);
+    if (!res?.success) return;
+    
+    const tx = res.transaction || {};
+    if (tx.status === 'completed' && tx.credentials) {
+      this.setStep(3);
+      this.showStage('stage-success');
+      document.getElementById('cred-username').textContent = tx.credentials.username;
+      document.getElementById('cred-password').textContent = tx.credentials.password;
+      
+      TicketStore.add({
+        username: tx.credentials.username,
+        password: tx.credentials.password,
+        planName: this._plan.name,
+        amount: tx.amount,
+        validityText: tx.ticketTypeName || this._plan.validityText || '',
+        freemopayReference: tx.freemopayReference || null
+      });
+      
+      this._stop();
+    } else if (tx.status === 'failed' || tx.status === 'expired') {
+      this.showStage('stage-failed');
+      document.getElementById('fail-reason').textContent =
+        'Le paiement a été annulé ou a échoué. Veuillez réessayer.';
+      this._stop();
+    } else {
+      document.getElementById('live-status').textContent =
+        `Statut: ${tx.status || 'pending'} • Dernière mise à jour: ${tx.updatedAt || '—'}`;
+    }
+  } catch (e) {
+    console.warn('tick error fallback', e.message);
+  }
+},
+
+getStatusText(status) {
+  const statusMap = {
+    'created': 'Créée',
+    'pending': 'En attente',
+    'processing': 'En cours',
+    'completed': 'Terminée',
+    'failed': 'Échouée',
+    'expired': 'Expirée'
+  };
+  return statusMap[status] || status;
+},
+
+_handleError(message) {
+  this.showStage('stage-failed');
+  document.getElementById('fail-reason').textContent = message;
+  this._stop();
+},
 
   async _tick() {
     if (!this._txId) return;

@@ -41,27 +41,125 @@ class FirebaseIntegration {
    * @returns {Promise<boolean>} true si Firebase est initialisé, false sinon
    */
   async init() {
-    try {
-      if (this.initialized) return true;
+  try {
+    if (this.initialized) return true;
 
-      if (!CONFIG.firebase || !CONFIG.firebase.apiKey) {
-        console.warn('⚠️ Configuration Firebase manquante, mode HTTP-only activé');
-        return false; // on peut fonctionner sans SDK pour ces endpoints HTTP
-      }
-
-      if (!firebase.apps || firebase.apps.length === 0) {
-        firebase.initializeApp(CONFIG.firebase);
-      }
-      this.functions = firebase.functions();
-
-      this.initialized = true;
-      console.log('✅ Firebase initialisé (SDK présent)');
-      return true;
-    } catch (error) {
-      console.error('❌ Erreur d\'initialisation Firebase:', error);
+    if (!CONFIG.firebase || !CONFIG.firebase.apiKey) {
+      console.warn('⚠️ Configuration Firebase manquante');
       return false;
     }
+
+    // Initialiser Firebase
+    if (!firebase.apps || firebase.apps.length === 0) {
+      firebase.initializeApp(CONFIG.firebase);
+    }
+    
+    // Initialiser Functions et Firestore
+    this.functions = firebase.functions();
+    this.firestore = firebase.firestore();
+    
+    // Configuration Firestore
+    if (CONFIG.firestore && !CONFIG.firestore.realtimeOptions.enableLocalCache) {
+      this.firestore.disableNetwork();
+      await this.firestore.enableNetwork();
+    }
+
+    this.initialized = true;
+    console.log('✅ Firebase + Firestore initialisés');
+    return true;
+  } catch (error) {
+    console.error('❌ Erreur d\'initialisation Firebase:', error);
+    return false;
   }
+}
+
+
+/**
+ * Écoute en temps réel les changements d'une transaction via Firestore
+ * 
+ * Cette méthode remplace le système de polling en établissant un listener
+ * Firestore qui se déclenche automatiquement à chaque modification.
+ * 
+ * @param {string} transactionId - ID de la transaction à surveiller
+ * @param {Function} onUpdate - Callback appelé à chaque mise à jour
+ * @param {Function} onError - Callback appelé en cas d'erreur
+ * @returns {Function} Fonction pour arrêter l'écoute
+ */
+listenToTransaction(transactionId, onUpdate, onError) {
+  if (!this.firestore) {
+    console.error('❌ Firestore non initialisé');
+    onError?.(new Error('Firestore non disponible'));
+    return () => {};
+  }
+
+  const docRef = this.firestore
+    .collection(CONFIG.firestore?.transactionsCollection || 'transactions')
+    .doc(transactionId);
+
+  console.log('👂 Démarrage écoute temps réel pour transaction:', transactionId);
+
+  // Établir l'écoute en temps réel
+  const unsubscribe = docRef.onSnapshot(
+    {
+      // Options pour forcer les données du serveur
+      source: 'server',
+      includeMetadataChanges: false
+    },
+    (docSnapshot) => {
+      try {
+        if (!docSnapshot.exists) {
+          console.warn('⚠️ Transaction non trouvée:', transactionId);
+          onError?.(new Error('Transaction non trouvée'));
+          return;
+        }
+
+        const transactionData = docSnapshot.data();
+        const lastUpdate = docSnapshot.metadata.fromCache ? 'cache' : 'serveur';
+        
+        console.log(`📱 Mise à jour reçue depuis ${lastUpdate}:`, transactionData);
+
+        // Appeler le callback avec les nouvelles données
+        onUpdate?.(transactionData);
+        
+      } catch (error) {
+        console.error('❌ Erreur lors du traitement de la mise à jour:', error);
+        onError?.(error);
+      }
+    },
+    (error) => {
+      console.error('❌ Erreur Firestore listener:', error);
+      
+      // Gestion des erreurs de permission
+      if (error.code === 'permission-denied') {
+        onError?.(new Error('Accès refusé à la transaction'));
+        return;
+      }
+      
+      // Gestion des erreurs réseau
+      if (error.code === 'unavailable') {
+        console.warn('⚠️ Firestore temporairement indisponible, tentative de reconnexion...');
+        // Le SDK Firebase gère automatiquement les reconnexions
+        return;
+      }
+      
+      onError?.(error);
+    }
+  );
+
+  // Timeout de sécurité
+  const timeoutId = setTimeout(() => {
+    console.warn('⏰ Timeout atteint pour l\'écoute Firestore');
+    unsubscribe();
+    onError?.(new Error('Timeout de surveillance dépassé'));
+  }, CONFIG.ui?.firestoreListenerTimeout || 300000);
+
+  // Retourner une fonction de nettoyage
+  return () => {
+    console.log('🛑 Arrêt de l\'écoute temps réel');
+    clearTimeout(timeoutId);
+    unsubscribe();
+  };
+}
 
   /**
    * Méthode helper pour les requêtes HTTP avec retry automatique

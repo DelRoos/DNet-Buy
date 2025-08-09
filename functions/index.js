@@ -9,6 +9,7 @@
 const { setGlobalOptions } = require("firebase-functions/v2");
 const { onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const axios = require("axios");
@@ -101,6 +102,25 @@ async function getPlanCached(planId) {
   return data;
 }
 
+async function reserveTicketForPlan(planId) {
+  const snap = await db.collection("tickets")
+    .where("ticketTypeId", "==", planId)
+    .where("status", "==", "available")
+    .limit(1)
+    .get();
+
+  if (snap.empty) return null;
+
+  const doc = snap.docs[0];
+  await doc.ref.update({
+    status: "reserved",
+    reservedAt: now(),
+  });
+
+  return { id: doc.id, ...doc.data() };
+}
+
+
 
 /* ================== API PUBLIQUE DES FORFAITS ================== */
 exports.getPublicTicketTypes = onRequest(async (req, res) => {
@@ -170,56 +190,60 @@ exports.getPublicTicketTypes = onRequest(async (req, res) => {
    INIT PAYMENT — Réponse immédiate (b) + parallélisation (c) + cache (e)
    Note: pas de réservation ici (a)
    ============================================================ */
-exports.initiatePublicPayment = onRequest(async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
-  if (req.method === "OPTIONS") return res.status(204).send("");
+  exports.initiatePublicPayment = onRequest(async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
 
-  if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
+    try {
+      validateFreemopayConfig();
+      const { planId, phoneNumber } = req.body || {};
+      if (!planId || !phoneNumber) return res.status(400).json({ error: "planId et phoneNumber sont requis" });
 
-  try {
-    validateFreemopayConfig();
-    const { planId, phoneNumber } = req.body || {};
-    if (!planId || !phoneNumber) return res.status(400).json({ error: "planId et phoneNumber sont requis" });
+      const phone = formatCameroonPhone(phoneNumber);
+      const planData = await getPlanCached(planId);
+      if (!planData.isActive) throw new HttpsError("failed-precondition", "Forfait inactif");
 
-    const phone = formatCameroonPhone(phoneNumber);
-    const planData = await getPlanCached(planId);
-    if (!planData.isActive) throw new HttpsError("failed-precondition", "Forfait inactif");
-    if (typeof planData.price !== "number") throw new HttpsError("failed-precondition", "Prix invalide");
+      // ✅ Réservation ticket
+      const reservedTicket = await reserveTicketForPlan(planId);
+      if (!reservedTicket) return res.status(409).json({ error: "Aucun ticket disponible" });
 
-    // ✅ 1) on forge un ID de transaction dès maintenant
-    const txnRef = db.collection("transactions").doc();       // <-- pas add()
-    const txnId  = txnRef.id;
+      // ✅ ID transaction
+      const txnRef = db.collection("transactions").doc();
+      const txnId = txnRef.id;
 
-    // ✅ 2) on stocke externalId = txnId (et si tu veux, garde un "clientExternalId")
-    await txnRef.set({
-      createdAt: now(),
-      updatedAt: now(),
-      status: "created",
-      provider: "freemopay",
-      amount: planData.price,
-      currency: "XAF",
-      planId,
-      phone,
-      externalId: txnId,              // <-- clé d’idempotence côté provider = ID doc
-      clientExternalId: null,         // facultatif si tu recevais avant un externalId client
-      freemopayReference: null,
-      webhookReceived: false,
-    });
+      await txnRef.set({
+        createdAt: now(),
+        updatedAt: now(),
+        status: "created",
+        provider: "freemopay",
+        amount: planData.price,
+        currency: "XAF",
+        planId,
+        phone,
+        externalId: txnId,
+        freemopayReference: null,
+        webhookReceived: false,
+        reservedTicketId: reservedTicket.id,
+        credentials: {
+          username: reservedTicket.username,
+          password: reservedTicket.password
+        }
+      });
 
-    // ✅ 3) Réponse immédiate: le trigger Firestore fera l'appel provider
-    return res.json({
-      success: true,
-      transactionId: txnId,
-      amount: planData.price,
-      status: "created",
-    });
-  } catch (err) {
-    logger.error("initiatePublicPayment error", { error: err.toString(), stack: err.stack });
-    return res.status(500).json({ error: err.message || "Erreur interne" });
-  }
-});
+      return res.json({
+        success: true,
+        transactionId: txnId,
+        amount: planData.price,
+        status: "created",
+      });
+    } catch (err) {
+      logger.error("initiatePublicPayment error", err);
+      return res.status(500).json({ error: err.message || "Erreur interne" });
+    }
+  });
 
 /* ===================================================================
    TRIGGER: quand une transaction est créée -> appel Freemopay (b)
@@ -313,103 +337,139 @@ exports.checkTransactionStatus = onRequest(async (req, res) => {
 /* ==================================================================
    WEBHOOK Freemopay — délivrance ticket (a) (pas de réservation avant)
    ================================================================== */
-async function sellOneAvailableOrNull(ticketTypeId) {
-  const snap = await db.collection("tickets")
-    .where("ticketTypeId", "==", ticketTypeId)
-    .where("status", "==", "available")
-    .limit(1)
-    .get();
-  if (snap.empty) return null;
-
-  const doc = snap.docs[0];
-  const data = doc.data();
-  await doc.ref.update({ status: "sold", soldAt: now() });
-  return { id: doc.id, ...data };
-}
-
 exports.handleFreemopayWebhook = onRequest(async (req, res) => {
+  const t0 = Date.now();
+  const logStep = (msg) => logger.info(`⏱ [handleFreemopayWebhook] ${msg} — ${Date.now() - t0} ms écoulées`);
+
   try {
-    const body = req.body || {};
-    const { status, reference, externalId, message } = body;
+    logStep("Webhook reçu");
 
-    // ✅ 1) accès direct par ID (plus aucune requête “where” coûteuse si externalId est bien ton txnId)
-    let txnRef = null;
-    let snap   = null;
-
-    if (externalId) {
-      txnRef = db.collection("transactions").doc(String(externalId));
-      snap   = await txnRef.get();
+    const { status, reference, externalId, message } = req.body || {};
+    if (!status || (!externalId && !reference)) {
+      return res.status(400).send("Missing status or ID");
     }
 
-    // ✅ 2) fallback legacy par reference si pas trouvé
+    let txnRef = null, snap = null;
+
+    // 🔹 1) Lecture directe par externalId (doc.get)
+    if (externalId) {
+      txnRef = db.collection("transactions").doc(String(externalId));
+      snap = await txnRef.get();
+    }
+    logStep("Lecture transaction par externalId");
+
+    // 🔹 2) Fallback par reference si pas trouvé
     if ((!snap || !snap.exists) && reference) {
       const byRef = await db.collection("transactions")
         .where("freemopayReference", "==", reference)
         .limit(1)
         .get();
       if (!byRef.empty) {
-        snap   = byRef.docs[0];
+        snap = byRef.docs[0];
         txnRef = snap.ref;
       }
     }
 
     if (!snap || !snap.exists) return res.status(404).send("transaction not found");
-
     const tx = snap.data();
+
+    // 🔹 3) Si déjà traité, on marque juste webhookReceived
     if (["completed", "failed", "expired"].includes(tx.status)) {
       await txnRef.update({ webhookReceived: true, updatedAt: now() });
       return res.status(200).send("");
     }
 
-    if (String(status).toUpperCase() === "SUCCESS") {
-      // délivrance ticket immédiate
-      const sold = await sellOneAvailableOrNull(tx.planId);
-      let credentials = null, ticketTypeName = null;
-      if (sold) {
-        credentials = { username: sold.username, password: sold.password };
-        const qs = await db.collection("ticket_types")
-          .where(admin.firestore.FieldPath.documentId(), "==", tx.planId)
-          .select("name")
-          .limit(1).get();
-        if (!qs.empty) ticketTypeName = qs.docs[0].data().name || null;
-      }
+    const s = String(status).toUpperCase();
+if (String(status).toUpperCase() === "SUCCESS") {
+  await txnRef.update({
+    status: "completed",
+    updatedAt: now(),
+    providerStatus: status,
+    webhookReceived: true,
+    providerMessage: message || null,
+    freemopayReference: reference || tx.freemopayReference || null,
+    ticketTypeName: tx.ticketTypeName || null
+  });
+  return res.status(200).send("");
+}
 
-      await txnRef.update({
-        status: "completed",
-        updatedAt: now(),
-        providerStatus: status,
-        webhookReceived: true,
-        providerMessage: message || null,
-        freemopayReference: reference || tx.freemopayReference || null,
-        credentials,
-        ticketTypeName,
-      });
-      return res.status(200).send("");
-    }
-
-    if (String(status).toUpperCase() === "FAILED") {
-      await txnRef.update({
-        status: "failed",
-        updatedAt: now(),
-        providerStatus: status,
-        webhookReceived: true,
-        providerMessage: message || null,
-      });
-      return res.status(200).send("");
-    }
-
-    await txnRef.update({
-      updatedAt: now(),
-      providerStatus: status || "UNKNOWN",
-      webhookReceived: true,
-      providerMessage: message || null,
+if (String(status).toUpperCase() === "FAILED" || String(status).toUpperCase() === "EXPIRED") {
+  // ✅ Libérer le ticket réservé
+  if (tx.reservedTicketId) {
+    await db.collection("tickets").doc(tx.reservedTicketId).update({
+      status: "available",
+      reservedAt: admin.firestore.FieldValue.delete()
     });
-    return res.status(200).send("");
+  }
+
+  await txnRef.update({
+    status: "failed",
+    updatedAt: now(),
+    providerStatus: status,
+    webhookReceived: true,
+    providerMessage: message || null
+  });
+  return res.status(200).send("");
+}
   } catch (e) {
     logger.error("handleFreemopayWebhook error", e);
-    return res.status(200).send(""); // on évite les retries agressifs côté Freemopay
+    return res.status(200).send(""); // éviter retries agressifs
   }
 });
+
+
+
+exports.cleanExpiredReservations = onSchedule(
+  {
+    schedule: "every 5 minutes",
+    region: "us-central1",
+    timeZone: "Africa/Douala",
+  },
+  async () => {
+    const nowTs = admin.firestore.Timestamp.now();
+    const limitTs = admin.firestore.Timestamp.fromMillis(
+      Date.now() - 10 * 60 * 1000
+    ); // 10 min avant
+
+    // Chercher tickets réservés expirés
+    const snap = await db.collection("tickets")
+      .where("status", "==", "reserved")
+      .where("reservedAt", "<", limitTs)
+      .limit(50)
+      .get();
+
+    if (snap.empty) return logger.info("✅ Aucun ticket réservé expiré");
+
+    const batch = db.batch();
+    for (const doc of snap.docs) {
+      const data = doc.data();
+
+      // Libération du ticket
+      batch.update(doc.ref, {
+        status: "available",
+        reservedAt: admin.firestore.FieldValue.delete(),
+      });
+
+      // Marquer transaction associée comme expirée si trouvée
+      const txnSnap = await db.collection("transactions")
+        .where("reservedTicketId", "==", doc.id)
+        .where("status", "in", ["created", "pending"])
+        .limit(1)
+        .get();
+
+      if (!txnSnap.empty) {
+        batch.update(txnSnap.docs[0].ref, {
+          status: "expired",
+          updatedAt: nowTs,
+          providerMessage: "Paiement non complété dans le délai imparti",
+        });
+      }
+    }
+
+    await batch.commit();
+    logger.info(`♻️ ${snap.size} tickets libérés`);
+  }
+);
 
 async function getPaymentStatusByReference(reference) {
   const url = `${FREEMOPAY_CONFIG.baseUrl}/api/v2/payment/${reference}`;
