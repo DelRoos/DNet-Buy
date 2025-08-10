@@ -831,8 +831,7 @@ function autoConnectFromCredentials() {
     alert('❌ Erreur lors de la connexion automatique');
   }
 }
-
-// ✅ Fonction principale de connexion automatique
+// ✅ Fonction principale de connexion automatique AMÉLIORÉE
 function autoConnectAndSubmit(username, password) {
   try {
     console.log('🔍 Début autoConnectAndSubmit');
@@ -841,15 +840,28 @@ function autoConnectAndSubmit(username, password) {
     const passwordInput = document.getElementById('password-input');
     
     if (usernameInput && passwordInput) {
+      // ✅ NOUVEAU : Scroll vers le formulaire AVANT de remplir
+      scrollToLoginForm();
+      
+      // Remplir les champs
       usernameInput.value = username;
       passwordInput.value = password;
+      
+      // Effet visuel amélioré
+      highlightFilledFields(usernameInput, passwordInput);
       
       console.log('✅ Champs remplis pour soumission');
       
       // Fermer le modal
       PaymentFlow.close();
       
-      // Soumettre automatiquement après un délai
+      // Focus sur le premier champ pour attirer l'attention
+      setTimeout(() => {
+        usernameInput.focus();
+        usernameInput.select(); // Sélectionner le texte pour visibilité
+      }, 300);
+      
+      // Soumettre automatiquement après un délai plus long pour laisser le temps de voir
       setTimeout(() => {
         const submitButton = document.querySelector('.submit-button');
         if (submitButton) {
@@ -858,7 +870,7 @@ function autoConnectAndSubmit(username, password) {
         } else {
           alert('❌ Bouton de connexion non trouvé');
         }
-      }, 500);
+      }, 2000); // ✅ Augmenté à 2 secondes pour laisser le temps de voir
       
     } else {
       alert('❌ Champs de connexion non trouvés');
@@ -868,4 +880,61 @@ function autoConnectAndSubmit(username, password) {
     console.error('💥 Erreur autoConnectAndSubmit:', error);
     alert('❌ Erreur lors de la connexion automatique');
   }
+}
+
+// ✅ NOUVELLE FONCTION : Scroll fluide vers le formulaire de connexion
+function scrollToLoginForm() {
+  const loginForm = document.querySelector('form[name="login"]') || document.querySelector('.login-panel');
+  
+  if (loginForm) {
+    // Scroll fluide vers le formulaire
+    loginForm.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+      inline: 'nearest'
+    });
+    
+    console.log('📜 Scroll vers le formulaire de connexion');
+  } else {
+    // Fallback : scroll vers le haut de la page
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+    console.log('📜 Scroll vers le haut de la page');
+  }
+}
+
+// ✅ NOUVELLE FONCTION : Mise en évidence des champs remplis
+function highlightFilledFields(usernameInput, passwordInput) {
+  const highlightStyle = {
+    backgroundColor: '#e8f5e8',
+    borderColor: '#19c394',
+    boxShadow: '0 0 10px rgba(25, 195, 148, 0.3)',
+    transform: 'scale(1.02)',
+    transition: 'all 0.3s ease'
+  };
+  
+  // Appliquer le style de mise en évidence
+  Object.assign(usernameInput.style, highlightStyle);
+  Object.assign(passwordInput.style, highlightStyle);
+  
+  // Ajouter une animation de "pulse"
+  usernameInput.style.animation = 'credentialsPulse 1s ease-in-out';
+  passwordInput.style.animation = 'credentialsPulse 1s ease-in-out';
+  
+  // Retirer l'effet après quelques secondes
+  setTimeout(() => {
+    usernameInput.style.backgroundColor = '';
+    usernameInput.style.borderColor = '';
+    usernameInput.style.boxShadow = '';
+    usernameInput.style.transform = '';
+    usernameInput.style.animation = '';
+    
+    passwordInput.style.backgroundColor = '';
+    passwordInput.style.borderColor = '';
+    passwordInput.style.boxShadow = '';
+    passwordInput.style.transform = '';
+    passwordInput.style.animation = '';
+  }, 3000);
 }

@@ -689,3 +689,53 @@ a.inline-link:hover { text-decoration: underline; }
     text-align: center;
   }
 }
+
+/* ✅ NOUVELLES ANIMATIONS pour les champs remplis automatiquement */
+@keyframes credentialsPulse {
+  0% { 
+    transform: scale(1); 
+    box-shadow: 0 0 5px rgba(25, 195, 148, 0.3); 
+  }
+  50% { 
+    transform: scale(1.05); 
+    box-shadow: 0 0 20px rgba(25, 195, 148, 0.6); 
+  }
+  100% { 
+    transform: scale(1.02); 
+    box-shadow: 0 0 10px rgba(25, 195, 148, 0.3); 
+  }
+}
+
+/* ✅ Style pour les champs auto-remplis */
+.input-group input.auto-filled {
+  background: linear-gradient(135deg, #e8f5e8 0%, #f0f9f0 100%);
+  border-color: #19c394;
+  box-shadow: 0 0 15px rgba(25, 195, 148, 0.2);
+}
+
+/* ✅ Amélioration du scroll fluide */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ✅ Mise en évidence du formulaire de connexion */
+.login-panel {
+  scroll-margin-top: 20px; /* Espace en haut quand on scroll vers cet élément */
+}
+
+/* ✅ Animation d'attention pour le formulaire */
+@keyframes formHighlight {
+  0% { 
+    background-color: transparent; 
+  }
+  50% { 
+    background-color: rgba(25, 195, 148, 0.05); 
+  }
+  100% { 
+    background-color: transparent; 
+  }
+}
+
+.login-panel.highlighted {
+  animation: formHighlight 2s ease-in-out;
+}

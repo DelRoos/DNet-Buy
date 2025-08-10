@@ -214,24 +214,22 @@ exports.getPublicTicketTypes = onRequest(async (req, res) => {
       const txnRef = db.collection("transactions").doc();
       const txnId = txnRef.id;
 
-      await txnRef.set({
-        createdAt: now(),
-        updatedAt: now(),
-        status: "created",
-        provider: "freemopay",
-        amount: planData.price,
-        currency: "XAF",
-        planId,
-        phone,
-        externalId: txnId,
-        freemopayReference: null,
-        webhookReceived: false,
-        reservedTicketId: reservedTicket.id,
-        credentials: {
-          username: reservedTicket.username,
-          password: reservedTicket.password
-        }
-      });
+await txnRef.set({
+  createdAt: now(),
+  updatedAt: now(),
+  status: "created",
+  provider: "freemopay",
+  amount: planData.price,
+  currency: "XAF",
+  planId,
+  phone,
+  externalId: txnId,
+  freemopayReference: null,
+  webhookReceived: false,
+  reservedTicketId: reservedTicket.id,
+  planName: planData.name,
+  ticketTypeName: formatValidityDuration(planData.validityHours),
+});
 
       return res.json({
         success: true,
@@ -301,6 +299,7 @@ exports.onTransactionCreated = onDocumentCreated("transactions/{transactionId}",
 /* ===========================================
    CHECK TRANSACTION — poll depuis le frontend
    =========================================== */
+// ✅ NOUVELLE VERSION SÉCURISÉE
 exports.checkTransactionStatus = onRequest(async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
@@ -314,19 +313,37 @@ exports.checkTransactionStatus = onRequest(async (req, res) => {
 
     const doc = await db.collection("transactions").doc(String(transactionId)).get();
     if (!doc.exists) return res.status(404).json({ error: "Transaction introuvable" });
+    
     const tx = doc.data();
+
+    // ✅ SÉCURITÉ : Données de base toujours accessibles
+    const responseData = {
+      id: doc.id,
+      status: tx.status,
+      amount: tx.amount,
+      freemopayReference: tx.freemopayReference || null,
+      ticketTypeName: tx.ticketTypeName || null,
+      updatedAt: tx.updatedAt?.toDate?.()?.toISOString?.() || null,
+      planName: tx.planName || null
+    };
+    
+    // ✅ SÉCURITÉ CRITIQUE : Credentials UNIQUEMENT si paiement réellement completed
+    if (tx.status === "completed" && tx.credentials && tx.credentials.username && tx.credentials.password) {
+      responseData.credentials = {
+        username: tx.credentials.username,
+        password: tx.credentials.password
+      };
+      logger.info(`Credentials fournis pour transaction ${transactionId}`);
+    } else {
+      // ✅ Log de sécurité
+      if (tx.status !== "completed") {
+        logger.info(`Credentials non fournis - statut: ${tx.status} pour transaction ${transactionId}`);
+      }
+    }
 
     return res.json({
       success: true,
-      transaction: {
-        id: doc.id,
-        status: tx.status,
-        amount: tx.amount,
-        freemopayReference: tx.freemopayReference || null,
-        credentials: tx.credentials || null,
-        ticketTypeName: tx.ticketTypeName || null,
-        updatedAt: tx.updatedAt?.toDate?.()?.toISOString?.() || null,
-      },
+      transaction: responseData,
     });
   } catch (e) {
     logger.error("checkTransactionStatus error", e);
@@ -380,35 +397,109 @@ exports.handleFreemopayWebhook = onRequest(async (req, res) => {
     }
 
     const s = String(status).toUpperCase();
+
 if (String(status).toUpperCase() === "SUCCESS") {
-  await txnRef.update({
+  logStep("Paiement réussi - génération des credentials");
+  
+  let credentials = null;
+  let ticketUpdate = null;
+  
+  // ✅ Récupérer et valider le ticket réservé
+  if (tx.reservedTicketId) {
+    try {
+      const ticketDoc = await db.collection("tickets").doc(tx.reservedTicketId).get();
+      
+      if (ticketDoc.exists) {
+        const ticketData = ticketDoc.data();
+        
+        // ✅ Vérification de sécurité : ticket doit être "reserved"
+        if (ticketData.status === "reserved") {
+          credentials = {
+            username: ticketData.username,
+            password: ticketData.password
+          };
+          
+          // ✅ Marquer le ticket comme utilisé de façon atomique
+          ticketUpdate = {
+            status: "used",
+            usedAt: now(),
+            transactionId: txnRef.id,
+            // ✅ Supprimer la réservation
+            reservedAt: admin.firestore.FieldValue.delete()
+          };
+          
+          logStep("Credentials générés avec succès");
+        } else {
+          logger.warn(`Ticket ${tx.reservedTicketId} n'est pas dans le bon état: ${ticketData.status}`);
+        }
+      } else {
+        logger.error(`Ticket réservé ${tx.reservedTicketId} introuvable`);
+      }
+    } catch (ticketError) {
+      logger.error("Erreur lors de la récupération du ticket:", ticketError);
+    }
+  }
+  
+  // ✅ Mise à jour atomique avec batch
+  const batch = db.batch();
+  
+  // Mise à jour de la transaction
+  batch.update(txnRef, {
     status: "completed",
     updatedAt: now(),
     providerStatus: status,
     webhookReceived: true,
     providerMessage: message || null,
     freemopayReference: reference || tx.freemopayReference || null,
-    ticketTypeName: tx.ticketTypeName || null
+    ticketTypeName: tx.ticketTypeName || null,
+    credentials: credentials, // ✅ Credentials générés ici UNIQUEMENT
+    completedAt: now() // ✅ Timestamp de completion
   });
+  
+  // Mise à jour du ticket si nécessaire
+  if (ticketUpdate && tx.reservedTicketId) {
+    batch.update(db.collection("tickets").doc(tx.reservedTicketId), ticketUpdate);
+  }
+  
+  await batch.commit();
+  logStep("Transaction et ticket mis à jour avec succès");
+  
   return res.status(200).send("");
 }
 
+// ✅ NOUVEAU CODE FAILED/EXPIRED SÉCURISÉ
 if (String(status).toUpperCase() === "FAILED" || String(status).toUpperCase() === "EXPIRED") {
+  logStep("Paiement échoué - nettoyage des ressources");
+  
+  const batch = db.batch();
+  
   // ✅ Libérer le ticket réservé
   if (tx.reservedTicketId) {
-    await db.collection("tickets").doc(tx.reservedTicketId).update({
+    batch.update(db.collection("tickets").doc(tx.reservedTicketId), {
       status: "available",
-      reservedAt: admin.firestore.FieldValue.delete()
+      reservedAt: admin.firestore.FieldValue.delete(),
+      // ✅ Nettoyer toute trace de la transaction échouée
+      transactionId: admin.firestore.FieldValue.delete()
     });
+    logStep("Ticket libéré");
   }
-
-  await txnRef.update({
-    status: "failed",
+  
+  // ✅ Mise à jour sécurisée de la transaction
+  batch.update(txnRef, {
+    status: status.toLowerCase() === "expired" ? "expired" : "failed",
     updatedAt: now(),
     providerStatus: status,
     webhookReceived: true,
-    providerMessage: message || null
+    providerMessage: message || "Paiement échoué ou expiré",
+    failedAt: now(), // ✅ Timestamp d'échec
+    // ✅ SÉCURITÉ : Supprimer toute trace de credentials
+    credentials: admin.firestore.FieldValue.delete(),
+    reservedTicketId: admin.firestore.FieldValue.delete() // ✅ Nettoyer la référence
   });
+  
+  await batch.commit();
+  logStep("Nettoyage terminé");
+  
   return res.status(200).send("");
 }
   } catch (e) {
@@ -418,7 +509,7 @@ if (String(status).toUpperCase() === "FAILED" || String(status).toUpperCase() ==
 });
 
 
-
+// ✅ FONCTION DE NETTOYAGE AMÉLIORÉE
 exports.cleanExpiredReservations = onSchedule(
   {
     schedule: "every 5 minutes",
@@ -431,43 +522,61 @@ exports.cleanExpiredReservations = onSchedule(
       Date.now() - 10 * 60 * 1000
     ); // 10 min avant
 
-    // Chercher tickets réservés expirés
-    const snap = await db.collection("tickets")
-      .where("status", "==", "reserved")
-      .where("reservedAt", "<", limitTs)
-      .limit(50)
-      .get();
-
-    if (snap.empty) return logger.info("✅ Aucun ticket réservé expiré");
-
-    const batch = db.batch();
-    for (const doc of snap.docs) {
-      const data = doc.data();
-
-      // Libération du ticket
-      batch.update(doc.ref, {
-        status: "available",
-        reservedAt: admin.firestore.FieldValue.delete(),
-      });
-
-      // Marquer transaction associée comme expirée si trouvée
-      const txnSnap = await db.collection("transactions")
-        .where("reservedTicketId", "==", doc.id)
-        .where("status", "in", ["created", "pending"])
-        .limit(1)
+    try {
+      // ✅ 1) Nettoyer les tickets réservés expirés
+      const expiredTicketsSnap = await db.collection("tickets")
+        .where("status", "==", "reserved")
+        .where("reservedAt", "<", limitTs)
+        .limit(50)
         .get();
 
-      if (!txnSnap.empty) {
-        batch.update(txnSnap.docs[0].ref, {
+      // ✅ 2) Nettoyer les transactions orphelines (created/pending trop anciennes)
+      const expiredTransactionsSnap = await db.collection("transactions")
+        .where("status", "in", ["created", "pending"])
+        .where("createdAt", "<", limitTs)
+        .limit(50)
+        .get();
+
+      if (expiredTicketsSnap.empty && expiredTransactionsSnap.empty) {
+        return logger.info("✅ Aucun élément expiré à nettoyer");
+      }
+
+      const batch = db.batch();
+      let ticketsFreed = 0;
+      let transactionsCleaned = 0;
+
+      // ✅ Libérer les tickets expirés
+      for (const ticketDoc of expiredTicketsSnap.docs) {
+        batch.update(ticketDoc.ref, {
+          status: "available",
+          reservedAt: admin.firestore.FieldValue.delete(),
+          transactionId: admin.firestore.FieldValue.delete()
+        });
+        ticketsFreed++;
+      }
+
+      // ✅ Marquer les transactions expirées
+      for (const txDoc of expiredTransactionsSnap.docs) {
+        const txData = txDoc.data();
+        
+        batch.update(txDoc.ref, {
           status: "expired",
           updatedAt: nowTs,
-          providerMessage: "Paiement non complété dans le délai imparti",
+          expiredAt: nowTs,
+          providerMessage: "Transaction expirée - délai dépassé",
+          // ✅ SÉCURITÉ : Nettoyer les credentials potentiels
+          credentials: admin.firestore.FieldValue.delete(),
+          reservedTicketId: admin.firestore.FieldValue.delete()
         });
+        transactionsCleaned++;
       }
-    }
 
-    await batch.commit();
-    logger.info(`♻️ ${snap.size} tickets libérés`);
+      await batch.commit();
+      logger.info(`♻️ Nettoyage terminé - ${ticketsFreed} tickets libérés, ${transactionsCleaned} transactions expirées`);
+      
+    } catch (error) {
+      logger.error("Erreur lors du nettoyage automatique:", error);
+    }
   }
 );
 

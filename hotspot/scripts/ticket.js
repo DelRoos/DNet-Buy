@@ -64,15 +64,21 @@ const MyTickets = {
     navigator.clipboard?.writeText(text);
     alert('Identifiants copiés.');
   },
-  // ✅ NOUVELLE FONCTION : Utiliser un ticket pour remplir le formulaire
-  useTicket(username, password) {
-    try {
-      console.log('🎫 Utilisation du ticket:', username);
-      
-      // Fermer le modal des tickets
-      this.close();
-      
-      // Remplir les champs de connexion
+  // ✅ NOUVELLE FONCTION : Utiliser un ticket pour remplir le formulaire (AMÉLIORÉE)
+useTicket(username, password) {
+  try {
+    console.log('🎫 Utilisation du ticket:', username);
+    
+    // Fermer le modal des tickets
+    this.close();
+    
+    // ✅ NOUVEAU : Scroll vers le formulaire AVANT de remplir
+    setTimeout(() => {
+      scrollToLoginForm();
+    }, 100); // Petit délai pour que le modal se ferme
+    
+    // Remplir les champs de connexion après le scroll
+    setTimeout(() => {
       const usernameInput = document.getElementById('code-input');
       const passwordInput = document.getElementById('password-input');
       
@@ -80,22 +86,12 @@ const MyTickets = {
         usernameInput.value = username;
         passwordInput.value = password;
         
-        // Effet visuel pour montrer que les champs ont été remplis
-        usernameInput.style.backgroundColor = '#e8f5e8';
-        passwordInput.style.backgroundColor = '#e8f5e8';
-        usernameInput.style.borderColor = '#19c394';
-        passwordInput.style.borderColor = '#19c394';
+        // ✅ Mise en évidence améliorée
+        highlightFilledFields(usernameInput, passwordInput);
         
         // Focus sur le champ username
         usernameInput.focus();
-        
-        // Retirer l'effet visuel après 3 secondes
-        setTimeout(() => {
-          usernameInput.style.backgroundColor = '';
-          passwordInput.style.backgroundColor = '';
-          usernameInput.style.borderColor = '';
-          passwordInput.style.borderColor = '';
-        }, 3000);
+        usernameInput.select();
         
         // Afficher une notification de succès
         this._showTicketUsedNotification();
@@ -104,53 +100,73 @@ const MyTickets = {
       } else {
         alert('❌ Formulaire de connexion non trouvé');
       }
-      
-    } catch (error) {
-      console.error('❌ Erreur lors de l\'utilisation du ticket:', error);
-      alert('❌ Erreur lors de l\'utilisation du ticket');
-    }
-  },
-  
-  // ✅ NOUVELLE FONCTION : Notification de succès
-  _showTicketUsedNotification() {
-    const notification = document.createElement('div');
-    notification.textContent = '✅ Ticket utilisé ! Formulaire rempli automatiquement';
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #4CAF50;
-      color: white;
-      padding: 12px 20px;
-      border-radius: 8px;
-      z-index: 10001;
-      font-weight: 600;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      animation: slideDown 0.3s ease-out;
-    `;
+    }, 500); // Délai pour permettre le scroll
     
-    // Ajouter l'animation CSS si elle n'existe pas
-    if (!document.querySelector('#ticket-notification-style')) {
-      const style = document.createElement('style');
-      style.id = 'ticket-notification-style';
-      style.textContent = `
-        @keyframes slideDown {
-          from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
-          to { transform: translateX(-50%) translateY(0); opacity: 1; }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-    
-    document.body.appendChild(notification);
-    
-    // Retirer la notification après 3 secondes
-    setTimeout(() => {
-      notification.style.animation = 'slideDown 0.3s ease-out reverse';
-      setTimeout(() => notification.remove(), 300);
-    }, 3000);
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'utilisation du ticket:', error);
+    alert('❌ Erreur lors de l\'utilisation du ticket');
   }
+},
+  
+// ✅ NOTIFICATION AMÉLIORÉE avec instructions
+_showTicketUsedNotification() {
+  const notification = document.createElement('div');
+  notification.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 24px;">✅</span>
+      <div>
+        <div style="font-weight: 600;">Ticket utilisé !</div>
+        <div style="font-size: 14px; opacity: 0.9;">Formulaire rempli automatiquement ci-dessus</div>
+      </div>
+    </div>
+  `;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 12px;
+    z-index: 10001;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    animation: slideDownBounce 0.5s ease-out;
+    max-width: 300px;
+    text-align: center;
+  `;
+  
+  // ✅ Ajouter l'animation CSS si elle n'existe pas
+  if (!document.querySelector('#enhanced-notification-style')) {
+    const style = document.createElement('style');
+    style.id = 'enhanced-notification-style';
+    style.textContent = `
+      @keyframes slideDownBounce {
+        0% { 
+          transform: translateX(-50%) translateY(-30px) scale(0.8); 
+          opacity: 0; 
+        }
+        60% { 
+          transform: translateX(-50%) translateY(5px) scale(1.05); 
+          opacity: 1; 
+        }
+        100% { 
+          transform: translateX(-50%) translateY(0) scale(1); 
+          opacity: 1; 
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.body.appendChild(notification);
+  
+  // ✅ Retirer la notification avec animation
+  setTimeout(() => {
+    notification.style.animation = 'slideDownBounce 0.3s ease-out reverse';
+    setTimeout(() => notification.remove(), 300);
+  }, 4000); // Affichage plus long pour laisser le temps de voir
+}
 };
 
 // bouton d’ouverture
@@ -335,24 +351,29 @@ open(plan, prefillPhone = '') {
       phone: this._currentPhone
     });
   },
-
-  close() {
-    console.log('🔽 Fermeture PaymentFlow - Début du nettoyage');
+close() {
+  console.log('🔽 Fermeture PaymentFlow - Début du nettoyage');
+  
+  // Récupérer les identifiants avant nettoyage (fonctionnalité existante)
+  const usernameElement = document.getElementById('cred-username');
+  const passwordElement = document.getElementById('cred-password');
+  
+  let credentialsFound = false;
+  
+  if (usernameElement && passwordElement) {
+    const username = usernameElement.textContent.trim();
+    const password = passwordElement.textContent.trim();
     
-    // Récupérer les identifiants avant nettoyage (fonctionnalité existante)
-    const usernameElement = document.getElementById('cred-username');
-    const passwordElement = document.getElementById('cred-password');
-    
-    let credentialsFound = false;
-    
-    if (usernameElement && passwordElement) {
-      const username = usernameElement.textContent.trim();
-      const password = passwordElement.textContent.trim();
+    if (username && password && username !== '—' && password !== '—') {
+      console.log('✅ Identifiants trouvés lors de la fermeture');
       
-      if (username && password && username !== '—' && password !== '—') {
-        console.log('✅ Identifiants trouvés lors de la fermeture');
-        
-        // Préremplir les champs de connexion
+      // ✅ NOUVEAU : Scroll vers le formulaire
+      setTimeout(() => {
+        scrollToLoginForm();
+      }, 200);
+      
+      // Préremplir les champs de connexion après le scroll
+      setTimeout(() => {
         const usernameInput = document.getElementById('code-input');
         const passwordInput = document.getElementById('password-input');
         
@@ -360,40 +381,35 @@ open(plan, prefillPhone = '') {
           usernameInput.value = username;
           passwordInput.value = password;
           
-          // Effet visuel
-          usernameInput.style.backgroundColor = '#e8f5e8';
-          passwordInput.style.backgroundColor = '#e8f5e8';
-          usernameInput.style.borderColor = '#19c394';
-          passwordInput.style.borderColor = '#19c394';
+          // ✅ Mise en évidence améliorée
+          highlightFilledFields(usernameInput, passwordInput);
           
-          setTimeout(() => {
-            usernameInput.style.backgroundColor = '';
-            passwordInput.style.backgroundColor = '';
-            usernameInput.style.borderColor = '';
-            passwordInput.style.borderColor = '';
-          }, 3000);
+          // Focus pour attirer l'attention
+          usernameInput.focus();
+          usernameInput.select();
           
           credentialsFound = true;
           this._showAutoFillNotification();
         }
-      }
+      }, 700); // Délai pour permettre le scroll
     }
-    
-    // Fermer le modal
-    const modal = document.getElementById('payment-modal');
-    modal.style.display = 'none';
-    modal.setAttribute('aria-hidden', 'true');
-    
-    // ✅ NETTOYAGE COMPLET APRÈS FERMETURE
-    setTimeout(() => {
-      this._resetAll();
-    }, 100); // Petit délai pour éviter les conflits
-    
-    console.log(credentialsFound ? 
-      '🎯 PaymentFlow fermé avec récupération des identifiants' : 
-      '🔽 PaymentFlow fermé sans identifiants');
-  },
-
+  }
+  
+  // Fermer le modal
+  const modal = document.getElementById('payment-modal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  
+  // ✅ NETTOYAGE COMPLET APRÈS FERMETURE
+  setTimeout(() => {
+    this._resetAll();
+  }, 100);
+  
+  console.log(credentialsFound ? 
+    '🎯 Fermeture avec remplissage automatique + scroll' : 
+    '🔽 Fermeture simple'
+  );
+},
 
 // ✅ NOUVELLE MÉTHODE : Notification d'auto-remplissage
 _showAutoFillNotification() {
@@ -850,43 +866,6 @@ _startPollingFallback() {
   this._interval = setInterval(() => this._tick(), CONFIG.ui?.transactionCheckInterval || 4000);
 },
 
-// Garder l'ancienne méthode _tick comme fallback
-async _tick() {
-  if (!this._txId) return;
-  try {
-    const res = await firebaseIntegration.checkTransactionStatus(this._txId);
-    if (!res?.success) return;
-    
-    const tx = res.transaction || {};
-    if (tx.status === 'completed' && tx.credentials) {
-      this.setStep(3);
-      this.showStage('stage-success');
-      document.getElementById('cred-username').textContent = tx.credentials.username;
-      document.getElementById('cred-password').textContent = tx.credentials.password;
-      
-      TicketStore.add({
-        username: tx.credentials.username,
-        password: tx.credentials.password,
-        planName: this._plan.name,
-        amount: tx.amount,
-        validityText: tx.ticketTypeName || this._plan.validityText || '',
-        freemopayReference: tx.freemopayReference || null
-      });
-      
-      this._stop();
-    } else if (tx.status === 'failed' || tx.status === 'expired') {
-      this.showStage('stage-failed');
-      document.getElementById('fail-reason').textContent =
-        'Le paiement a été annulé ou a échoué. Veuillez réessayer.';
-      this._stop();
-    } else {
-      document.getElementById('live-status').textContent =
-        `Statut: ${tx.status || 'pending'} • Dernière mise à jour: ${tx.updatedAt || '—'}`;
-    }
-  } catch (e) {
-    console.warn('tick error fallback', e.message);
-  }
-},
 
 getStatusText(status) {
   const statusMap = {
@@ -906,37 +885,97 @@ _handleError(message) {
   this._stop();
 },
 
-  async _tick() {
-    if (!this._txId) return;
-    try {
-      const res = await firebaseIntegration.checkTransactionStatus(this._txId);
-      if (!res?.success) return;
-      const tx = res.transaction || {};
-      if (tx.status === 'completed' && tx.credentials) {
-        this.setStep(3);
-        this.showStage('stage-success');
-        document.getElementById('cred-username').textContent = tx.credentials.username;
-        document.getElementById('cred-password').textContent = tx.credentials.password;
+async _tick() {
+  if (!this._txId) {
+    console.warn('🚫 Pas de transaction ID - arrêt du monitoring');
+    this._stop();
+    return;
+  }
+  
+  try {
+    const res = await firebaseIntegration.checkTransactionStatus(this._txId);
+    if (!res?.success) {
+      console.warn('⚠️ Réponse invalide du serveur');
+      return;
+    }
+    
+    const tx = res.transaction || {};
+    console.log(`🔍 Statut transaction: ${tx.status}`);
+    
+    // ✅ SÉCURITÉ : Validation stricte pour affichage des credentials
+    if (tx.status === 'completed' && 
+        tx.credentials && 
+        tx.credentials.username && 
+        tx.credentials.password &&
+        tx.credentials.username.trim() !== '' &&
+        tx.credentials.password.trim() !== '') {
+      
+      console.log('✅ Paiement confirmé - affichage des credentials');
+      this.setStep(3);
+      this.showStage('stage-success');
+      
+      // ✅ Affichage sécurisé dans l'interface
+      const usernameEl = document.getElementById('cred-username');
+      const passwordEl = document.getElementById('cred-password');
+      
+      if (usernameEl && passwordEl) {
+        usernameEl.textContent = tx.credentials.username;
+        passwordEl.textContent = tx.credentials.password;
+        
+        // ✅ Sauvegarder UNIQUEMENT si paiement réellement réussi
         TicketStore.add({
           username: tx.credentials.username,
           password: tx.credentials.password,
-          planName: this._plan.name,
+          planName: tx.planName || this._plan?.name || 'Forfait',
           amount: tx.amount,
-          validityText: tx.ticketTypeName || this._plan.validityText || '',
-          freemopayReference: tx.freemopayReference || null
+          validityText: tx.ticketTypeName || this._plan?.validityText || '',
+          freemopayReference: tx.freemopayReference || null,
+          purchaseDate: new Date().toISOString(),
+          transactionId: this._txId
         });
-        this._stop();
-      } else if (tx.status === 'failed' || tx.status === 'expired') {
-        this.showStage('stage-failed');
-        document.getElementById('fail-reason').textContent =
-          'Le paiement a été annulé ou a échoué. Veuillez réessayer.';
-        this._stop();
-      } else {
-        document.getElementById('live-status').textContent =
-          `Statut: ${tx.status || 'pending'} • Dernière mise à jour: ${tx.updatedAt || '—'}`;
+        
+        console.log('✅ Ticket sauvegardé localement');
       }
-    } catch (e) {
-      console.warn('tick error', e.message);
+      
+      this._stop();
+      return;
     }
+    
+    // ✅ Gestion des échecs avec nettoyage
+    if (tx.status === 'failed' || tx.status === 'expired') {
+      console.log(`❌ Paiement échoué: ${tx.status}`);
+      this.showStage('stage-failed');
+      
+      const failReasonEl = document.getElementById('fail-reason');
+      if (failReasonEl) {
+        const messages = {
+          'failed': 'Le paiement a échoué. Votre argent est sécurisé.',
+          'expired': 'Le délai de paiement a expiré. Veuillez réessayer.'
+        };
+        failReasonEl.textContent = messages[tx.status] || 'Une erreur est survenue.';
+      }
+      
+      this._stop();
+      return;
+    }
+    
+    // ✅ Status en attente - mise à jour de l'interface
+    if (tx.status === 'pending' || tx.status === 'created') {
+      const statusEl = document.getElementById('live-status');
+      if (statusEl) {
+        const statusMessages = {
+          'created': 'Transaction initiée...',
+          'pending': 'En attente de confirmation...'
+        };
+        statusEl.textContent = statusMessages[tx.status] || 'Vérification en cours...';
+      }
+    }
+    
+  } catch (error) {
+    console.error('❌ Erreur lors de la vérification:', error);
+    // ✅ Ne pas arrêter automatiquement en cas d'erreur réseau temporaire
   }
+}
+
+
 };
