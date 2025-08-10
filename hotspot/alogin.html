@@ -10,13 +10,14 @@
   <!-- On utilise UNIQUEMENT ton CSS global -->
   <link rel="stylesheet" href="styles/main.css">
   <script>
-    function startClock() {
-      $(if popup == 'true')
-      open('$(link-status)', 'hotspot_status', 'toolbar=0,location=0,directories=0,status=0,menubars=0,resizable=1,width=290,height=200');
+      function startClock() {
+          $(if popup == 'true')
+          open('$(link-status)', 'hotspot_status', 'toolbar=0,location=0,directories=0,status=0,menubars=0,resizable=1,width=290,height=200');
       $(endif)
       location.href = unescape('$(link-redirect-esc)');
-    }
-  </script>
+      }
+
+  </script> 
 </head>
 
 <body onload="startClock()">
