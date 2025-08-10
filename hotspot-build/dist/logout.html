@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="pragma" content="no-cache" />
+  <meta http-equiv="expires" content="-1" />
+  <title>Dnet - Déconnexion</title>
+  <link rel="icon" type="image/x-icon" href="img/favicon.ico" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/main.css" />
+  <script>
+    function openLogin() {
+      if (window.name != 'hotspot_logout') return true;
+      open('$(link-login)', '_blank', '');
+      window.close();
+      return false;
+    }
+  </script>
+</head>
+<body>
+  <div class="main-container is-compact">
+    <!-- Panneau gauche : brand vert -->
+    <div class="welcome-panel success">
+      <img src="img/logo-dnet.png" alt="Logo Dnet" class="logo" />
+      <h1>Déconnexion réussie</h1>
+      <p>Merci d’avoir utilisé notre service. À bientôt !</p>
+    </div>
+
+    <!-- Panneau droit -->
+    <div class="status-panel">
+      <header class="status-header">
+        <h2>Vous avez été déconnecté</h2>
+        <p>Voici les détails de votre session :</p>
+      </header>
+
+      <table class="session-table">
+        <tr><td>Nom d'utilisateur</td><td>$(username)</td></tr>
+        <tr><td>Adresse IP</td><td>$(ip)</td></tr>
+        <tr><td>Adresse MAC</td><td>$(mac)</td></tr>
+        <tr><td>Durée de session</td><td>$(uptime)</td></tr>
+        $(if session-time-left)
+        <tr><td>Temps restant</td><td>$(session-time-left)</td></tr>
+        $(endif)
+        <tr><td>Données (Montant / Réception)</td><td>$(bytes-in-nice) / $(bytes-out-nice)</td></tr>
+      </table>
+
+      <form action="$(link-login)" name="login" onsubmit="return openLogin()">
+        <input type="submit" value="Se reconnecter" class="btn-primary full-width" />
+      </form>
+    </div>
+  </div>
+</body>
+</html>

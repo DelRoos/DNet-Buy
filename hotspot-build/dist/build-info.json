@@ -1,0 +1,58 @@
+{
+  "buildDate": "2025-08-10T11:21:27.455Z",
+  "version": "1.0.0",
+  "files": [
+    {
+      "path": "error.html",
+      "size": 1678,
+      "sizeKB": 1.64
+    },
+    {
+      "path": "img/favicon.ico",
+      "size": 15406,
+      "sizeKB": 15.04
+    },
+    {
+      "path": "img/logo-dnet.png",
+      "size": 82622,
+      "sizeKB": 80.69
+    },
+    {
+      "path": "img/password.svg",
+      "size": 644,
+      "sizeKB": 0.63
+    },
+    {
+      "path": "img/user.svg",
+      "size": 444,
+      "sizeKB": 0.43
+    },
+    {
+      "path": "login.html",
+      "size": 9345,
+      "sizeKB": 9.13
+    },
+    {
+      "path": "scripts/app.min.js",
+      "size": 49314,
+      "sizeKB": 48.16
+    },
+    {
+      "path": "status.html",
+      "size": 1814,
+      "sizeKB": 1.77
+    },
+    {
+      "path": "styles/main.min.css",
+      "size": 17441,
+      "sizeKB": 17.03
+    },
+    {
+      "path": "styles/payment-modal.min.css",
+      "size": 6484,
+      "sizeKB": 6.33
+    }
+  ],
+  "totalSize": 185192,
+  "totalSizeKB": 180.85
+}
