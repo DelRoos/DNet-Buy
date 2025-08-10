@@ -138,9 +138,10 @@ class UIHandlers {
     }
   }
 
-  showUnavailableMessage(plan) {
-    alert(`😔 Désolé, le forfait "${plan.name}" est temporairement épuisé.\n\nVeuillez choisir un autre forfait ou réessayer plus tard.`);
-  }
+
+showUnavailableMessage(plan) {
+  alert(`😊 Oups ! Ce forfait est très demandé !\n\nLe forfait "${plan.name}" n'est plus disponible pour le moment.\nNos autres offres sont toujours là pour vous ! 👆`);
+}
 
   // Modal de paiement — étape "initiation"
   showPaymentModal(plan, phoneNumber) {
@@ -201,10 +202,6 @@ class UIHandlers {
           </div>
 
           <div class="transaction-status">
-            <div class="status-indicator">
-              <div class="spinner-small"></div>
-              <span id="status-text">En attente de votre confirmation...</span>
-            </div>
             <div class="status-timer">
               <span id="countdown-timer">2:00</span>
             </div>
@@ -461,7 +458,7 @@ startPaymentCountdown() {
     const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     
     const timerElement = document.getElementById('countdown-timer');
-    const statusElement = document.getElementById('status-text');
+    // const statusElement = document.getElementById('status-text');
     
     if (timerElement) {
       timerElement.textContent = timeString;
@@ -472,17 +469,17 @@ startPaymentCountdown() {
       }
     }
     
-    // Messages progressifs selon le temps restant
-    if (statusElement) {
-      if (remaining > 90000) { // Plus de 1m30
-        statusElement.textContent = "En attente de votre confirmation...";
-      } else if (remaining > 30000) { // Plus de 30s
-        statusElement.textContent = "Veuillez confirmer rapidement sur votre téléphone";
-      } else { // Moins de 30s
-        statusElement.textContent = "⚠️ Attention: Temps limite bientôt écoulé !";
-        statusElement.style.color = '#ff4444';
-      }
-    }
+    // // Messages progressifs selon le temps restant
+    // if (statusElement) {
+    //   if (remaining > 90000) { // Plus de 1m30
+    //     statusElement.textContent = "En attente de votre confirmation...";
+    //   } else if (remaining > 30000) { // Plus de 30s
+    //     statusElement.textContent = "Veuillez confirmer rapidement sur votre téléphone";
+    //   } else { // Moins de 30s
+    //     statusElement.textContent = "⚠️ Attention: Temps limite bientôt écoulé !";
+    //     statusElement.style.color = '#ff4444';
+    //   }
+    // }
   };
   
   // Mise à jour immédiate puis chaque seconde

@@ -191,13 +191,14 @@
 
             <!-- Saisie du téléphone (Étape 1) -->
             <div class="phone-capture" id="phone-capture">
-            <label for="pay-phone">Numéro Mobile Money</label>
-            <div class="input-phone">
+              <h4>💳 Payez par Orange Money ou Mtn Mobile Money</h4>
+              <label for="pay-phone">📱 Votre numéro (MTN ou Orange)</label>
+              <div class="input-phone">
                 <span class="prefix">+237</span>
                 <input id="pay-phone" type="tel" inputmode="numeric" placeholder="6XXXXXXXX" maxlength="9" />
-            </div>
-            <small class="hint">MTN / Orange Cameroun — 9 chiffres après +237.</small>
-            <button id="btn-start-payment" class="close-button" disabled>Continuer</button>
+              </div>
+              <small class="hint">💡 Saisissez vos 9 chiffres après +237<br>Exemple: 694221506</small>
+              <button id="btn-start-payment" class="close-button" disabled>✨ Acheter un ticket</button>
             </div>
 
             <!-- Zones dynamiques Étapes 2 & 3 (conserve ces blocs) -->
@@ -209,8 +210,8 @@
 
             <div class="stage stage-pending" id="stage-pending" style="display:none;">
                 <div class="spinner"></div>
-                <p>En attente de confirmation…</p>
-                <div class="live-status" id="live-status">Aucune mise à jour pour l’instant.</div>
+                <!-- <p>En attente de confirmation…</p>
+                <div class="live-status" id="live-status">Aucune mise à jour pour l’instant.</div> -->
                 <button class="link-button" id="btn-resend-check">Rafraîchir l’état</button>
             </div>
 
