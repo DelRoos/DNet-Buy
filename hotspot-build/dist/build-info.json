@@ -1,11 +1,11 @@
 {
-  "buildDate": "2025-08-10T11:21:27.455Z",
+  "buildDate": "2025-08-10T12:04:04.628Z",
   "version": "1.0.0",
   "files": [
     {
       "path": "error.html",
-      "size": 1678,
-      "sizeKB": 1.64
+      "size": 1723,
+      "sizeKB": 1.68
     },
     {
       "path": "img/favicon.ico",
@@ -29,8 +29,8 @@
     },
     {
       "path": "login.html",
-      "size": 9345,
-      "sizeKB": 9.13
+      "size": 9356,
+      "sizeKB": 9.14
     },
     {
       "path": "scripts/app.min.js",
@@ -39,8 +39,8 @@
     },
     {
       "path": "status.html",
-      "size": 1814,
-      "sizeKB": 1.77
+      "size": 1859,
+      "sizeKB": 1.82
     },
     {
       "path": "styles/main.min.css",
@@ -53,6 +53,6 @@
       "sizeKB": 6.33
     }
   ],
-  "totalSize": 185192,
-  "totalSizeKB": 180.85
+  "totalSize": 185293,
+  "totalSizeKB": 180.95
 }

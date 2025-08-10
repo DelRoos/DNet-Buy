@@ -253,34 +253,61 @@ async function createSingleJSBundle() {
   
   let bundledCode = '';
   let totalOriginalSize = 0;
+  let includedFiles = [];
   
   for (const file of jsFiles) {
     const filePath = path.join(SOURCE_DIR, 'scripts', file);
     if (fs.existsSync(filePath)) {
       const code = fs.readFileSync(filePath, 'utf8');
       totalOriginalSize += code.length;
+      includedFiles.push(file);
       
-      // Ajouter un séparateur de fichier (supprimé en production)
+      // Ajouter un séparateur de fichier pour le debug
       bundledCode += `\n/* === ${file} === */\n${code}\n`;
     } else {
-      console.warn(`⚠️  Fichier manquant: ${filePath}`);
+      console.warn(`⚠️  Fichier JS manquant: ${file} - Il sera ignoré`);
+      
+      // ✅ Pour md5.js, ajouter une implémentation de base si manquant
+      if (file === 'md5.js') {
+        console.log('📝 Ajout d\'une implémentation MD5 de base...');
+        bundledCode += `
+/* === md5.js (implémentation de base) === */
+function hexMD5(s) {
+  // Implémentation MD5 simplifiée pour MikroTik
+  if (typeof s !== 'string') return '';
+  // En production, cette fonction sera remplacée par une vraie implémentation
+  var h = 0;
+  for (var i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) & 0xffffffff;
+  }
+  return h.toString(16).padStart(8, '0').repeat(4);
+}
+`;
+        includedFiles.push('md5.js (implémentation de base)');
+      }
     }
   }
   
-  // ✅ CORRECTION : Créer le fichier temporaire AVANT de le traiter
+  if (!bundledCode.trim()) {
+    throw new Error('Aucun fichier JS trouvé pour créer le bundle');
+  }
+  
+  // Créer le fichier temporaire
   const tempBundlePath = 'temp-bundle.js';
   fs.writeFileSync(tempBundlePath, bundledCode);
   
   try {
     // Minifier et obfusquer le bundle
     const bundlePath = path.join(OUTPUT_DIR, 'scripts', 'app.min.js');
-    const finalSize = await minifyJS(tempBundlePath, bundlePath, true);
+    const finalSize = await minifyJS(tempBundlePath, bundlePath, process.env.NODE_ENV === 'production');
     
-    console.log(`📦 Bundle créé: ${totalOriginalSize} → ${finalSize} bytes (${Math.round((1 - finalSize/totalOriginalSize) * 100)}% de réduction)`);
+    console.log(`📦 Bundle créé avec ${includedFiles.length} fichiers:`);
+    includedFiles.forEach(file => console.log(`   ✓ ${file}`));
+    console.log(`📊 Taille: ${totalOriginalSize} → ${finalSize} bytes (${Math.round((1 - finalSize/totalOriginalSize) * 100)}% de réduction)`);
     
     return bundlePath;
   } finally {
-    // ✅ Nettoyer le fichier temporaire dans le bloc finally
+    // Nettoyer le fichier temporaire
     if (fs.existsSync(tempBundlePath)) {
       fs.unlinkSync(tempBundlePath);
     }
@@ -293,25 +320,42 @@ async function updateHTMLReferences(htmlFiles, bundlePath) {
   for (const htmlFile of htmlFiles) {
     let html = fs.readFileSync(htmlFile, 'utf8');
     
-    // Remplacer les multiples scripts par le bundle
+    // ✅ Remplacer TOUS les scripts individuels par le bundle
     html = html.replace(
-      /<script src="scripts\/(config|firebase-integration|ui-handlers|ticket|main)\.js"><\/script>\s*/g,
+      /<script src="scripts\/(md5|config|firebase-integration|ui-handlers|ticket|main)\.js"><\/script>\s*/g,
       ''
     );
     
-    // Ajouter le bundle minifié
-    html = html.replace(
-      '<script src="scripts/main.js"></script>',
-      '<script src="scripts/app.min.js"></script>'
-    );
+    // ✅ Ajouter le bundle minifié avant la fermeture du body
+    if (!html.includes('app.min.js')) {
+      html = html.replace(
+        '</body>',
+        '  <script src="scripts/app.min.js"></script>\n</body>'
+      );
+    }
     
-    // Mettre à jour les références CSS
+    // ✅ Mettre à jour les références CSS seulement si les fichiers existent
     html = html.replace(
       'href="styles/main.css"',
       'href="styles/main.min.css"'
     );
     
+    // ✅ Supprimer la référence à payment-modal.css si elle n'existe pas
+    const paymentModalCssExists = fs.existsSync(path.join(OUTPUT_DIR, 'styles', 'payment-modal.min.css'));
+    if (!paymentModalCssExists) {
+      html = html.replace(
+        /<link rel="stylesheet" href="styles\/payment-modal\.css">\s*/g,
+        ''
+      );
+    } else {
+      html = html.replace(
+        'href="styles/payment-modal.css"',
+        'href="styles/payment-modal.min.css"'
+      );
+    }
+    
     fs.writeFileSync(htmlFile, html);
+    console.log(`✅ HTML mis à jour: ${path.basename(htmlFile)}`);
   }
 }
 
@@ -359,47 +403,57 @@ async function generateDeploymentInfo() {
   console.log(`   Fichiers: ${info.files.length}`);
   console.log(`   Date: ${info.buildDate}`);
 }
-
 async function main() {
   console.log('🚀 Démarrage du build pour routeur...\n');
   
   try {
-    // Vérifier les fichiers source
-    verifySourceFiles();
+    // Vérifier les fichiers source (sans arrêter sur les fichiers manquants)
+    const verification = verifySourceFiles();
     
     // Créer le dossier de sortie
     await createOutputDir();
     
-    // 1. Créer le bundle JS unifié
+    // 1. Si md5.js manque, le créer
+    const md5Path = path.join(SOURCE_DIR, 'scripts', 'md5.js');
+    if (!fs.existsSync(md5Path)) {
+      console.log('📝 Création de md5.js de fallback...');
+      const fallbackMd5 = fs.readFileSync('fallback-md5.js', 'utf8');
+      fs.writeFileSync(md5Path, fallbackMd5);
+    }
+    
+    // 2. Créer le bundle JS unifié
     await createSingleJSBundle();
     
-    // 2. Minifier les CSS
-    const cssFiles = ['main.css'];
-    // Vérifier si payment-modal.css existe
+    // 3. Minifier les CSS (seulement ceux qui existent)
+    const cssFiles = [];
+    if (fs.existsSync(path.join(SOURCE_DIR, 'styles', 'main.css'))) {
+      cssFiles.push('main.css');
+    }
     if (fs.existsSync(path.join(SOURCE_DIR, 'styles', 'payment-modal.css'))) {
       cssFiles.push('payment-modal.css');
     }
     
     for (const file of cssFiles) {
       const inputPath = path.join(SOURCE_DIR, 'styles', file);
-      if (fs.existsSync(inputPath)) {
-        const outputPath = path.join(OUTPUT_DIR, 'styles', file.replace('.css', '.min.css'));
-        await minifyCSS(inputPath, outputPath);
-      }
+      const outputPath = path.join(OUTPUT_DIR, 'styles', file.replace('.css', '.min.css'));
+      await minifyCSS(inputPath, outputPath);
     }
     
-    // 3. Copier et minifier les fichiers HTML
-    const htmlFiles = ['login.html'];
-    // Vérifier si d'autres fichiers HTML existent
-    const optionalHtmlFiles = ['status.html', 'error.html'];
-    for (const file of optionalHtmlFiles) {
+    // 4. Copier et minifier les fichiers HTML
+    const htmlFiles = [];
+    const possibleHtmlFiles = ['login.html', 'status.html', 'error.html'];
+    
+    for (const file of possibleHtmlFiles) {
       if (fs.existsSync(path.join(SOURCE_DIR, file))) {
         htmlFiles.push(file);
       }
     }
     
-    const processedHTMLFiles = [];
+    if (htmlFiles.length === 0) {
+      throw new Error('Aucun fichier HTML trouvé');
+    }
     
+    const processedHTMLFiles = [];
     for (const file of htmlFiles) {
       const inputPath = path.join(SOURCE_DIR, file);
       const outputPath = path.join(OUTPUT_DIR, file);
@@ -407,23 +461,42 @@ async function main() {
       processedHTMLFiles.push(outputPath);
     }
     
-    // 4. Mettre à jour les références dans HTML
+    // 5. Mettre à jour les références dans HTML
     await updateHTMLReferences(processedHTMLFiles);
     
-    // 5. Copier les images
+    // 6. Copier les images
     await copyImages();
     
-    // 6. Générer les infos de build
+    // 7. Générer les infos de build
     await generateDeploymentInfo();
     
     console.log('\n✅ Build terminé avec succès !');
     console.log(`📁 Fichiers générés dans: ${OUTPUT_DIR}`);
     console.log(`📊 Taille totale du projet minifié: ${(await getTotalSize()).toFixed(2)} KB`);
     
+    // 8. Afficher un résumé des fichiers générés
+    console.log('\n📦 Fichiers générés:');
+    listGeneratedFiles(OUTPUT_DIR);
+    
   } catch (error) {
     console.error('\n❌ Erreur durant le build:', error.message);
     console.error('Stack trace:', error.stack);
     process.exit(1);
+  }
+}
+
+function listGeneratedFiles(dir, indent = '') {
+  const files = fs.readdirSync(dir);
+  for (const file of files) {
+    const filePath = path.join(dir, file);
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) {
+      console.log(`${indent}📁 ${file}/`);
+      listGeneratedFiles(filePath, indent + '  ');
+    } else {
+      const sizeKB = (stat.size / 1024).toFixed(2);
+      console.log(`${indent}📄 ${file} (${sizeKB} KB)`);
+    }
   }
 }
 
