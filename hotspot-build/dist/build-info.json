@@ -1,5 +1,5 @@
 {
-  "buildDate": "2025-08-10T16:40:15.958Z",
+  "buildDate": "2025-08-10T21:23:13.252Z",
   "version": "1.0.0",
   "files": [
     {
@@ -34,8 +34,8 @@
     },
     {
       "path": "scripts/app.min.js",
-      "size": 49314,
-      "sizeKB": 48.16
+      "size": 50142,
+      "sizeKB": 48.97
     },
     {
       "path": "status.html",
@@ -44,8 +44,8 @@
     },
     {
       "path": "styles/main.min.css",
-      "size": 17441,
-      "sizeKB": 17.03
+      "size": 19348,
+      "sizeKB": 18.89
     },
     {
       "path": "styles/payment-modal.min.css",
@@ -53,6 +53,6 @@
       "sizeKB": 6.33
     }
   ],
-  "totalSize": 185293,
-  "totalSizeKB": 180.95
+  "totalSize": 188028,
+  "totalSizeKB": 183.62
 }
