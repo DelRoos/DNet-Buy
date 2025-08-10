@@ -39,6 +39,11 @@ class UIHandlers {
   }
 
   updatePlansUI(plans, zoneInfo = null) {
+    if (!plans || plans.length === 0) {
+      // Ne pas afficher les forfaits, la logique de contact sera gérée par main.js
+      return;
+    }
+    
     const plansGrid = document.getElementById('plans-grid');
     if (!plansGrid) return;
 

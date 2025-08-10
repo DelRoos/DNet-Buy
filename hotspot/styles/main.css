@@ -739,3 +739,155 @@ html {
 .login-panel.highlighted {
   animation: formHighlight 2s ease-in-out;
 }
+
+/* ===============================
+   NOTIFICATION CONTACT SUPPORT
+================================== */
+.contact-support-notification {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px solid #19c394;
+  border-radius: 15px;
+  margin: 30px 20px;
+  box-shadow: 0 8px 25px rgba(25, 195, 148, 0.2);
+  animation: slideInFromTop 0.6s ease-out;
+}
+
+.support-content {
+  padding: 30px;
+  text-align: center;
+}
+
+.support-icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+  animation: pulse 2s infinite;
+}
+
+.support-content h3 {
+  color: #19c394;
+  font-size: 1.5rem;
+  margin-bottom: 15px;
+  font-weight: 700;
+}
+
+.support-content p {
+  color: #495057;
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+.contact-methods {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin: 25px 0;
+  flex-wrap: wrap;
+}
+
+.contact-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 15px 25px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.contact-button.phone {
+  background: #007bff;
+  color: white;
+}
+
+.contact-button.phone:hover {
+  background: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+}
+
+.contact-button.whatsapp {
+  background: #25d366;
+  color: white;
+}
+
+.contact-button.whatsapp:hover {
+  background: #1ebe57;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 211, 102, 0.4);
+}
+
+.manual-payment-info {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 25px;
+  border-left: 4px solid #19c394;
+}
+
+.manual-payment-info h4 {
+  color: #19c394;
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+}
+
+.manual-payment-info p {
+  margin: 8px 0;
+  color: #6c757d;
+  text-align: left;
+}
+
+/* Animations */
+@keyframes slideInFromTop {
+  0% {
+    opacity: 0;
+    transform: translateY(-50px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* Responsive pour mobile */
+@media (max-width: 768px) {
+  .contact-support-notification {
+    margin: 20px 10px;
+  }
+  
+  .support-content {
+    padding: 20px 15px;
+  }
+  
+  .contact-methods {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .contact-button {
+    width: 100%;
+    max-width: 280px;
+    justify-content: center;
+  }
+  
+  .manual-payment-info p {
+    text-align: center;
+  }
+}
+
+.fallback-notice {
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-style: italic;
+  margin-top: 10px;
+}
