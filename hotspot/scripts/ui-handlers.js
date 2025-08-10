@@ -1,15 +1,9 @@
-// ============================
-// Gestion de l'interface utilisateur
-// ============================
 class UIHandlers {
   constructor() {
     this.currentTransaction = null;
-    // IMPORTANT : on utilise setTimeout (pas setInterval) pour backoff progressif,
-    // donc on stocke l’ID ici aussi.
     this.transactionMonitorInterval = null;
   }
 
-  // Afficher/masquer le loader global
   showGlobalLoader(show, message = 'Chargement...', subtext = 'Veuillez patienter') {
     const loader = document.getElementById('global-loader');
     if (!loader) return;
@@ -28,7 +22,6 @@ class UIHandlers {
     }
   }
 
-  // Afficher/masquer le loader des forfaits
   showPlansLoader(show, message = null) {
     const loader = document.getElementById('plans-loader');
     const grid = document.getElementById('plans-grid');
@@ -45,20 +38,17 @@ class UIHandlers {
     }
   }
 
-  // Mettre à jour l'interface avec les forfaits
   updatePlansUI(plans, zoneInfo = null) {
     const plansGrid = document.getElementById('plans-grid');
     if (!plansGrid) return;
 
-    // Vider la grille actuelle
     plansGrid.innerHTML = '';
 
     plans.forEach((plan, index) => {
-      const planCard = this.createPlanCard(plan, index === 1); // 2e = "populaire"
+      const planCard = this.createPlanCard(plan, index === 1);
       plansGrid.appendChild(planCard);
     });
 
-    // Mettre à jour les infos de zone
     if (zoneInfo && zoneInfo.name) {
       const welcomeTitle = document.querySelector('.welcome-panel h1');
       if (welcomeTitle) {
@@ -69,7 +59,6 @@ class UIHandlers {
     this.showPlansLoader(false);
   }
 
-  // Créer une carte de forfait (avec affichage du débit)
   createPlanCard(plan, isPopular = false) {
     const planCard = document.createElement('div');
     planCard.className = `plan-card ${isPopular ? 'popular' : ''}`;
@@ -79,7 +68,7 @@ class UIHandlers {
     }
 
     planCard.onclick = plan.isAvailable
-      ? () => PaymentFlow.open(plan) // tu gères le flow dans PaymentFlow
+      ? () => PaymentFlow.open(plan)
       : () => uiHandlers.showUnavailableMessage(plan);
 
     const formatSpeed = (limitInKbps) => {
@@ -112,7 +101,6 @@ class UIHandlers {
     return planCard;
   }
 
-  // (Ancien flux) Clic plan avec prompt — conservé si besoin
   async handlePlanClick(plan) {
     const phoneNumber = prompt(
       `💰 ${plan.name} - ${plan.formattedPrice}\n\n` +
@@ -126,24 +114,20 @@ class UIHandlers {
       const result = await firebaseIntegration.initiatePayment(plan.id, phoneNumber);
 
       if (result.success) {
-        this.showPaymentSuccess(result); // affiche “paiement initié”
-        // nouvelle logique : réponse immédiate, puis polling
+        this.showPaymentSuccess(result);
         this.startTransactionMonitoring(result.transactionId);
       } else {
         throw new Error(result.error || 'Erreur inconnue');
       }
     } catch (error) {
-      console.error('❌ Erreur de paiement:', error);
       this.showPaymentError(error.message || "Impossible d'initier le paiement");
     }
   }
 
+  showUnavailableMessage(plan) {
+    alert(`Oups ! Ce forfait est très demandé !\n\nLe forfait "${plan.name}" n'est plus disponible pour le moment.\nNos autres offres sont toujours là pour vous !`);
+  }
 
-showUnavailableMessage(plan) {
-  alert(`😊 Oups ! Ce forfait est très demandé !\n\nLe forfait "${plan.name}" n'est plus disponible pour le moment.\nNos autres offres sont toujours là pour vous ! 👆`);
-}
-
-  // Modal de paiement — étape "initiation"
   showPaymentModal(plan, phoneNumber) {
     const modal = document.getElementById('payment-modal');
     const title = document.getElementById('modal-plan-title');
@@ -162,11 +146,6 @@ showUnavailableMessage(plan) {
     if (loaderText) loaderText.textContent = `Initialisation du paiement pour ${phoneNumber}...`;
   }
 
-  /**
-   * Affiche l'état initial du paiement avec informations détaillées
-   * 
-   * @param {Object} result - Résultat de l'initiation de paiement
-   */
   showPaymentSuccess(result) {
     const loader = document.getElementById('payment-loader');
     const content = document.getElementById('payment-content');
@@ -209,12 +188,10 @@ showUnavailableMessage(plan) {
         </div>
       `;
       
-      // Démarrer le compte à rebours
       this.startPaymentCountdown();
     }
   }
 
-  // Erreur d'initiation
   showPaymentError(errorMessage) {
     const loader = document.getElementById('payment-loader');
     const content = document.getElementById('payment-content');
@@ -233,381 +210,281 @@ showUnavailableMessage(plan) {
     }
   }
 
-  // ============================
-  // Monitoring transaction — backoff progressif
-  // ============================
-/**
- * Démarre la surveillance temps réel d'une transaction via Firestore
- * 
- * Cette méthode remplace l'ancien système de polling par une écoute
- * en temps réel des modifications Firestore.
- * 
- * @param {string} transactionId - ID de la transaction à surveiller
- */
-startTransactionMonitoring(transactionId) {
-  // Arrêter toute surveillance précédente
-  this.stopTransactionMonitoring();
-
-  this.currentTransaction = transactionId;
-  const startedAt = Date.now();
-
-  console.log('🚀 Démarrage surveillance Firestore:', transactionId);
-
-  // Callbacks pour les mises à jour
-  const onUpdate = (transactionData) => {
-    try {
-      console.log('📨 Nouvelle donnée reçue:', transactionData);
-
-      // Vérifier les statuts finaux
-      if (transactionData.status === 'completed') {
-        this.showTransactionCompleted(transactionData);
-        this.stopTransactionMonitoring();
-        return;
-      }
-
-      if (transactionData.status === 'failed' || transactionData.status === 'expired') {
-        this.showTransactionFailed(
-          transactionData.providerMessage || 'Paiement échoué'
-        );
-        this.stopTransactionMonitoring();
-        return;
-      }
-
-      // Mettre à jour l'interface pour les statuts intermédiaires
-      if (transactionData.status === 'pending' || transactionData.status === 'processing') {
-        this.updateTransactionStatus(transactionData);
-      }
-      
-      // Gérer le statut "created" - en attente d'initiation Mobile Money
-      if (transactionData.status === 'created') {
-        this.updateStatusMessage("Initiation du paiement Mobile Money...");
-      }
-
-    } catch (error) {
-      console.error('❌ Erreur lors du traitement de la mise à jour:', error);
-      this.showTransactionFailed('Erreur de traitement');
-      this.stopTransactionMonitoring();
-    }
-  };
-
-  const onError = (error) => {
-    console.error('❌ Erreur de surveillance Firestore:', error);
-    
-    // En cas d'erreur, revenir au polling comme fallback
-    console.log('🔄 Basculement vers le mode polling de secours');
-    this.startPollingFallback(transactionId);
-  };
-
-  // Démarrer l'écoute Firestore
-  this.firestoreUnsubscribe = firebaseIntegration.listenToTransaction(
-    transactionId, 
-    onUpdate, 
-    onError
-  );
-
-  // Timeout de sécurité global
-  this.monitoringTimeout = setTimeout(() => {
-    console.warn('⏰ Timeout global de surveillance atteint');
-    this.showTransactionTimeout();
+  startTransactionMonitoring(transactionId) {
     this.stopTransactionMonitoring();
-  }, CONFIG.ui?.firestoreListenerTimeout || 300000);
-}
+    this.currentTransaction = transactionId;
+    const startedAt = Date.now();
 
-/**
- * Arrête la surveillance de transaction
- */
-stopTransactionMonitoring() {
-  if (this.firestoreUnsubscribe) {
-    this.firestoreUnsubscribe();
-    this.firestoreUnsubscribe = null;
-  }
+    const onUpdate = (transactionData) => {
+      try {
+        if (transactionData.status === 'completed') {
+          this.showTransactionCompleted(transactionData);
+          this.stopTransactionMonitoring();
+          return;
+        }
 
-  if (this.monitoringTimeout) {
-    clearTimeout(this.monitoringTimeout);
-    this.monitoringTimeout = null;
-  }
+        if (transactionData.status === 'failed' || transactionData.status === 'expired') {
+          this.showTransactionFailed(
+            transactionData.providerMessage || 'Paiement échoué'
+          );
+          this.stopTransactionMonitoring();
+          return;
+        }
 
-  if (this.transactionMonitorInterval) {
-    clearTimeout(this.transactionMonitorInterval);
-    this.transactionMonitorInterval = null;
-  }
+        if (transactionData.status === 'pending' || transactionData.status === 'processing') {
+          this.updateTransactionStatus(transactionData);
+        }
+        
+        if (transactionData.status === 'created') {
+          this.updateStatusMessage("Initiation du paiement Mobile Money...");
+        }
 
-  if (this.countdownInterval) {
-    clearInterval(this.countdownInterval);
-    this.countdownInterval = null;
-  }
+      } catch (error) {
+        this.showTransactionFailed('Erreur de traitement');
+        this.stopTransactionMonitoring();
+      }
+    };
 
-  this.currentTransaction = null;
-  console.log('✅ Surveillance arrêtée');
-}
+    const onError = (error) => {
+      this.startPollingFallback(transactionId);
+    };
 
-/**
- * Mode de secours avec polling en cas d'échec Firestore
- * 
- * @param {string} transactionId - ID de la transaction
- */
-startPollingFallback(transactionId) {
-  console.log('🔄 Activation du mode polling de secours');
-  
-  // Utiliser l'ancien système de polling comme fallback
-  let attempt = 0;
-  const startedAt = Date.now();
-  const HARD_TIMEOUT = 60000; // 1 minute en mode secours
-  const BASE_DELAY = 3000; // 3 secondes
-  const MAX_DELAY = 8000; // 8 secondes max
+    this.firestoreUnsubscribe = firebaseIntegration.listenToTransaction(
+      transactionId, 
+      onUpdate, 
+      onError
+    );
 
-  const poll = async () => {
-    if (Date.now() - startedAt > HARD_TIMEOUT) {
+    this.monitoringTimeout = setTimeout(() => {
       this.showTransactionTimeout();
       this.stopTransactionMonitoring();
-      return;
-    }
-
-    try {
-      const res = await firebaseIntegration.checkTransactionStatus(transactionId);
-      if (res && res.success) {
-        const tx = res.transaction;
-
-        if (tx.status === 'completed') {
-          this.showTransactionCompleted(tx);
-          this.stopTransactionMonitoring();
-          return;
-        }
-
-        if (tx.status === 'failed' || tx.status === 'expired') {
-          this.showTransactionFailed(tx.providerMessage || 'Paiement échoué');
-          this.stopTransactionMonitoring();
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn('[polling fallback]', err?.message || err);
-    }
-
-    // Backoff progressif
-    attempt++;
-    const nextDelay = Math.min(MAX_DELAY, Math.floor(BASE_DELAY * Math.pow(1.3, attempt)));
-    this.transactionMonitorInterval = setTimeout(poll, nextDelay);
-  };
-
-  // Démarrer le polling de secours
-  this.transactionMonitorInterval = setTimeout(poll, 1000);
-}
-
-/**
- * Met à jour l'interface pour les statuts intermédiaires
- * 
- * @param {Object} transactionData - Données de transaction
- */
-updateTransactionStatus(transactionData) {
-  const statusElement = document.getElementById('transaction-status');
-  const timestampElement = document.getElementById('transaction-timestamp');
-  
-  if (statusElement) {
-    const statusText = this.getStatusDisplayText(transactionData.status);
-    statusElement.textContent = statusText;
+    }, CONFIG.ui?.firestoreListenerTimeout || 300000);
   }
-  
-  if (timestampElement) {
-    const lastUpdate = transactionData.updatedAt ? 
-      new Date(transactionData.updatedAt).toLocaleTimeString() : 
-      new Date().toLocaleTimeString();
-    timestampElement.textContent = `Dernière mise à jour: ${lastUpdate}`;
-  }
-}
-
-/**
- * Convertit le statut technique en texte utilisateur
- * 
- * @param {string} status - Statut technique
- * @returns {string} Texte à afficher
- */
-getStatusDisplayText(status) {
-  const statusMap = {
-    'created': 'Transaction créée',
-    'pending': 'En attente de confirmation',
-    'processing': 'Traitement en cours',
-    'completed': 'Terminée avec succès',
-    'failed': 'Échouée',
-    'expired': 'Expirée',
-    'cancelled': 'Annulée'
-  };
-  
-  return statusMap[status] || status;
-}
-
-/**
- * Démarre le compte à rebours de 2 minutes pour le paiement
- * Met à jour l'interface en temps réel et gère l'expiration
- */
-startPaymentCountdown() {
-  const PAYMENT_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
-  const startTime = Date.now();
-  
-  const updateCountdown = () => {
-    const elapsed = Date.now() - startTime;
-    const remaining = Math.max(0, PAYMENT_TIMEOUT_MS - elapsed);
-    
-    if (remaining <= 0) {
-      this.handlePaymentTimeout();
-      return;
-    }
-    
-    const minutes = Math.floor(remaining / 60000);
-    const seconds = Math.floor((remaining % 60000) / 1000);
-    const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    
-    const timerElement = document.getElementById('countdown-timer');
-    // const statusElement = document.getElementById('status-text');
-    
-    if (timerElement) {
-      timerElement.textContent = timeString;
-      // Changer la couleur quand il reste moins de 30 secondes
-      if (remaining <= 30000) {
-        timerElement.style.color = '#ff4444';
-        timerElement.style.fontWeight = 'bold';
-      }
-    }
-    
-    // // Messages progressifs selon le temps restant
-    // if (statusElement) {
-    //   if (remaining > 90000) { // Plus de 1m30
-    //     statusElement.textContent = "En attente de votre confirmation...";
-    //   } else if (remaining > 30000) { // Plus de 30s
-    //     statusElement.textContent = "Veuillez confirmer rapidement sur votre téléphone";
-    //   } else { // Moins de 30s
-    //     statusElement.textContent = "⚠️ Attention: Temps limite bientôt écoulé !";
-    //     statusElement.style.color = '#ff4444';
-    //   }
-    // }
-  };
-  
-  // Mise à jour immédiate puis chaque seconde
-  updateCountdown();
-  this.countdownInterval = setInterval(updateCountdown, 1000);
-}
-
-/**
- * Gère l'expiration du délai de paiement (2 minutes écoulées)
- */
-handlePaymentTimeout() {
-  if (this.countdownInterval) {
-    clearInterval(this.countdownInterval);
-    this.countdownInterval = null;
-  }
-  
-  console.warn('⏰ Timeout de paiement atteint (2 minutes)');
-  
-  const content = document.getElementById('payment-content');
-  if (content) {
-    content.innerHTML = `
-      <div class="payment-timeout">
-        <div class="timeout-icon">⏰</div>
-        <h4>Délai de paiement écoulé</h4>
-        <div class="timeout-explanation">
-          <p><strong>Le délai de 2 minutes est écoulé.</strong></p>
-          <p>Votre ticket a été automatiquement libéré et le paiement annulé pour éviter tout prélèvement.</p>
-        </div>
-        
-        <div class="next-steps">
-          <h5>Que faire maintenant ?</h5>
-          <div class="step-list">
-            <div class="step-item">
-              <span class="step-number">1</span>
-              <span>Réessayez avec un nouveau paiement</span>
-            </div>
-            <div class="step-item">  
-              <span class="step-number">2</span>
-              <span>Vérifiez que votre Mobile Money est actif</span>
-            </div>
-            <div class="step-item">
-              <span class="step-number">3</span>
-              <span>Contactez le support si le problème persiste</span>
-            </div>
-          </div>
-        </div>
-        
-        <div class="support-info">
-          <p><strong>Support technique:</strong></p>
-          <p>📞 +237 6 94 22 15 06</p>
-          <p>💬 WhatsApp: <a href="https://wa.me/237694221506" target="_blank">Cliquez ici</a></p>
-        </div>
-        
-        <div class="timeout-actions">
-          <button onclick="closePaymentModal()" class="retry-button">Fermer</button>
-          <button onclick="location.reload()" class="primary-button">Réessayer</button>
-        </div>
-      </div>
-    `;
-  }
-  
-  // Arrêter toute surveillance en cours
-  this.stopTransactionMonitoring();
-}
-
-/**
- * Met à jour le message de statut sans changer le reste de l'interface
- * 
- * @param {string} message - Nouveau message à afficher
- */
-updateStatusMessage(message) {
-  const statusElement = document.getElementById('status-text');
-  if (statusElement && !message.includes('Attention')) {
-    statusElement.textContent = message;
-    statusElement.style.color = ''; // Reset color
-  }
-}
 
   stopTransactionMonitoring() {
+    if (this.firestoreUnsubscribe) {
+      this.firestoreUnsubscribe();
+      this.firestoreUnsubscribe = null;
+    }
+
+    if (this.monitoringTimeout) {
+      clearTimeout(this.monitoringTimeout);
+      this.monitoringTimeout = null;
+    }
+
     if (this.transactionMonitorInterval) {
       clearTimeout(this.transactionMonitorInterval);
       this.transactionMonitorInterval = null;
     }
+
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+
     this.currentTransaction = null;
   }
 
-  // ============================
-  // États finaux UI
-  // ============================
-  showTransactionCompleted(transaction) {
-  const content = document.getElementById('payment-content');
-  
-  // Dans ui-handlers.js, ligne ~667
-content.innerHTML = `
-  <div class="payment-completed">
-    <div class="success-icon">🎉</div>
-    <h4>Paiement réussi !</h4>
-    <p>Voici vos identifiants WiFi :</p>
-    <div class="credentials">
-      <div class="credential-item">
-        <label>Nom d'utilisateur:</label>
-        <span class="credential-value" id="final-username">${transaction.credentials.username}</span>
-      </div>
-      <div class="credential-item">
-        <label>Mot de passe:</label>
-        <span class="credential-value" id="final-password">${transaction.credentials.password}</span>
-      </div>
-    </div>
-    <div class="usage-instructions">
-      <p>✅ Utilisez ces identifiants dans le formulaire de connexion ci-dessus</p>
-      <p>⏰ Validité: ${transaction.ticketTypeName}</p>
-    </div>
+  startPollingFallback(transactionId) {
+    let attempt = 0;
+    const startedAt = Date.now();
+    const HARD_TIMEOUT = 60000;
+    const BASE_DELAY = 3000;
+    const MAX_DELAY = 8000;
+
+    const poll = async () => {
+      if (Date.now() - startedAt > HARD_TIMEOUT) {
+        this.showTransactionTimeout();
+        this.stopTransactionMonitoring();
+        return;
+      }
+
+      try {
+        const res = await firebaseIntegration.checkTransactionStatus(transactionId);
+        if (res && res.success) {
+          const tx = res.transaction;
+
+          if (tx.status === 'completed') {
+            this.showTransactionCompleted(tx);
+            this.stopTransactionMonitoring();
+            return;
+          }
+
+          if (tx.status === 'failed' || tx.status === 'expired') {
+            this.showTransactionFailed(tx.providerMessage || 'Paiement échoué');
+            this.stopTransactionMonitoring();
+            return;
+          }
+        }
+      } catch (err) {
+        // Continue polling on error
+      }
+
+      attempt++;
+      const nextDelay = Math.min(MAX_DELAY, Math.floor(BASE_DELAY * Math.pow(1.3, attempt)));
+      this.transactionMonitorInterval = setTimeout(poll, nextDelay);
+    };
+
+    this.transactionMonitorInterval = setTimeout(poll, 1000);
+  }
+
+  updateTransactionStatus(transactionData) {
+    const statusElement = document.getElementById('transaction-status');
+    const timestampElement = document.getElementById('transaction-timestamp');
     
-    <!-- ✅ BOUTON MODIFIÉ -->
-    <div class="auto-connect-section">
-      <button onclick="autoConnectAndSubmit(document.getElementById('final-username').textContent, document.getElementById('final-password').textContent)" class="auto-connect-button">
-        🚀 Se connecter automatiquement
-      </button>
-      <button onclick="closePaymentModal()" class="close-button">Fermer</button>
-    </div>
-  </div>
-`;
-}
+    if (statusElement) {
+      const statusText = this.getStatusDisplayText(transactionData.status);
+      statusElement.textContent = statusText;
+    }
+    
+    if (timestampElement) {
+      const lastUpdate = transactionData.updatedAt ? 
+        new Date(transactionData.updatedAt).toLocaleTimeString() : 
+        new Date().toLocaleTimeString();
+      timestampElement.textContent = `Dernière mise à jour: ${lastUpdate}`;
+    }
+  }
 
+  getStatusDisplayText(status) {
+    const statusMap = {
+      'created': 'Transaction créée',
+      'pending': 'En attente de confirmation',
+      'processing': 'Traitement en cours',
+      'completed': 'Terminée avec succès',
+      'failed': 'Échouée',
+      'expired': 'Expirée',
+      'cancelled': 'Annulée'
+    };
+    
+    return statusMap[status] || status;
+  }
 
-  // Accepte soit un string (message), soit un objet transaction
+  startPaymentCountdown() {
+    const PAYMENT_TIMEOUT_MS = 2 * 60 * 1000;
+    const startTime = Date.now();
+    
+    const updateCountdown = () => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, PAYMENT_TIMEOUT_MS - elapsed);
+      
+      if (remaining <= 0) {
+        this.handlePaymentTimeout();
+        return;
+      }
+      
+      const minutes = Math.floor(remaining / 60000);
+      const seconds = Math.floor((remaining % 60000) / 1000);
+      const timeString = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      
+      const timerElement = document.getElementById('countdown-timer');
+      
+      if (timerElement) {
+        timerElement.textContent = timeString;
+        if (remaining <= 30000) {
+          timerElement.style.color = '#ff4444';
+          timerElement.style.fontWeight = 'bold';
+        }
+      }
+    };
+    
+    updateCountdown();
+    this.countdownInterval = setInterval(updateCountdown, 1000);
+  }
+
+  handlePaymentTimeout() {
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+    
+    const content = document.getElementById('payment-content');
+    if (content) {
+      content.innerHTML = `
+        <div class="payment-timeout">
+          <div class="timeout-icon">⏰</div>
+          <h4>Délai de paiement écoulé</h4>
+          <div class="timeout-explanation">
+            <p><strong>Le délai de 2 minutes est écoulé.</strong></p>
+            <p>Votre ticket a été automatiquement libéré et le paiement annulé pour éviter tout prélèvement.</p>
+          </div>
+          
+          <div class="next-steps">
+            <h5>Que faire maintenant ?</h5>
+            <div class="step-list">
+              <div class="step-item">
+                <span class="step-number">1</span>
+                <span>Réessayez avec un nouveau paiement</span>
+              </div>
+              <div class="step-item">  
+                <span class="step-number">2</span>
+                <span>Vérifiez que votre Mobile Money est actif</span>
+              </div>
+              <div class="step-item">
+                <span class="step-number">3</span>
+                <span>Contactez le support si le problème persiste</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="support-info">
+            <p><strong>Support technique:</strong></p>
+            <p>📞 +237 6 94 22 15 06</p>
+            <p>💬 WhatsApp: <a href="https://wa.me/237694221506" target="_blank">Cliquez ici</a></p>
+          </div>
+          
+          <div class="timeout-actions">
+            <button onclick="closePaymentModal()" class="retry-button">Fermer</button>
+            <button onclick="location.reload()" class="primary-button">Réessayer</button>
+          </div>
+        </div>
+      `;
+    }
+    
+    this.stopTransactionMonitoring();
+  }
+
+  updateStatusMessage(message) {
+    const statusElement = document.getElementById('status-text');
+    if (statusElement && !message.includes('Attention')) {
+      statusElement.textContent = message;
+      statusElement.style.color = '';
+    }
+  }
+
+  showTransactionCompleted(transaction) {
+    const content = document.getElementById('payment-content');
+    
+    content.innerHTML = `
+      <div class="payment-completed">
+        <div class="success-icon">🎉</div>
+        <h4>Paiement réussi !</h4>
+        <p>Voici vos identifiants WiFi :</p>
+        <div class="credentials">
+          <div class="credential-item">
+            <label>Nom d'utilisateur:</label>
+            <span class="credential-value" id="final-username">${transaction.credentials.username}</span>
+          </div>
+          <div class="credential-item">
+            <label>Mot de passe:</label>
+            <span class="credential-value" id="final-password">${transaction.credentials.password}</span>
+          </div>
+        </div>
+        <div class="usage-instructions">
+          <p>✅ Utilisez ces identifiants dans le formulaire de connexion ci-dessus</p>
+          <p>⏰ Validité: ${transaction.ticketTypeName}</p>
+        </div>
+        
+        <div class="auto-connect-section">
+          <button onclick="autoConnectAndSubmit(document.getElementById('final-username').textContent, document.getElementById('final-password').textContent)" class="auto-connect-button">
+            🚀 Se connecter automatiquement
+          </button>
+          <button onclick="closePaymentModal()" class="close-button">Fermer</button>
+        </div>
+      </div>
+    `;
+  }
+
   showTransactionFailed(messageOrTx) {
-    // Arrêter le compte à rebours s'il est actif
     if (this.countdownInterval) {
       clearInterval(this.countdownInterval);
       this.countdownInterval = null;
@@ -676,12 +553,8 @@ content.innerHTML = `
   }
 }
 
-// ============================
-// Fonctions globales UI
-// ============================
 const uiHandlers = new UIHandlers();
 
-// Toggle mot de passe — FIX du SVG cassé
 function togglePassword() {
   const passwordInput = document.getElementById('password-input');
   const eyeIcon = document.getElementById('eye-icon');
@@ -710,15 +583,9 @@ function togglePassword() {
   }
 }
 
-/**
- * Copie un texte dans le presse-papiers
- * 
- * @param {string} text - Texte à copier
- */
 function copyToClipboard(text) {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => {
-      // Visual feedback
       const notification = document.createElement('div');
       notification.className = 'copy-notification';
       notification.textContent = '✅ Copié !';
@@ -737,7 +604,6 @@ function copyToClipboard(text) {
       setTimeout(() => notification.remove(), 2000);
     });
   } else {
-    // Fallback pour navigateurs plus anciens
     const textArea = document.createElement('textarea');
     textArea.value = text;
     document.body.appendChild(textArea);
@@ -748,12 +614,6 @@ function copyToClipboard(text) {
   }
 }
 
-/**
- * Remplit automatiquement le formulaire de connexion
- * 
- * @param {string} username - Nom d'utilisateur
- * @param {string} password - Mot de passe
- */
 function fillLoginForm(username, password) {
   const usernameField = document.getElementById('code-input') || document.querySelector('input[name="username"]');
   const passwordField = document.getElementById('password-input') || document.querySelector('input[name="password"]');
@@ -767,7 +627,6 @@ function fillLoginForm(username, password) {
     passwordField.value = password;
   }
   
-  // Visual feedback
   if (usernameField) {
     usernameField.style.backgroundColor = '#e8f5e8';
     setTimeout(() => {
@@ -776,21 +635,17 @@ function fillLoginForm(username, password) {
   }
 }
 
-// Modifier la fonction closePaymentModal existante
 function closePaymentModal() {
   const modal = document.getElementById('payment-modal');
   modal.style.display = 'none';
   
-  // Arrêter le monitoring si en cours
   uiHandlers.stopTransactionMonitoring();
   
-  // ✅ NOUVEAU : Vérifier s'il y a des identifiants sauvegardés
   const savedCredentials = localStorage.getItem('dnet_credentials');
   if (savedCredentials) {
     try {
       const credentials = JSON.parse(savedCredentials);
       
-      // Remplir automatiquement le formulaire si popup fermé
       const usernameInput = document.getElementById('code-input');
       const passwordInput = document.getElementById('password-input');
       
@@ -804,7 +659,6 @@ function closePaymentModal() {
   }
 }
 
-// ✅ Fonction pour la connexion automatique depuis le bouton
 function autoConnectFromCredentials() {
   try {
     const usernameElement = document.getElementById('cred-username');
@@ -823,89 +677,68 @@ function autoConnectFromCredentials() {
       return;
     }
     
-    console.log('🚀 Connexion automatique demandée');
     autoConnectAndSubmit(username, password);
     
   } catch (error) {
-    console.error('Erreur lors de la connexion automatique:', error);
     alert('❌ Erreur lors de la connexion automatique');
   }
 }
-// ✅ Fonction principale de connexion automatique AMÉLIORÉE
+
 function autoConnectAndSubmit(username, password) {
   try {
-    console.log('🔍 Début autoConnectAndSubmit');
-    
     const usernameInput = document.getElementById('code-input');
     const passwordInput = document.getElementById('password-input');
     
     if (usernameInput && passwordInput) {
-      // ✅ NOUVEAU : Scroll vers le formulaire AVANT de remplir
       scrollToLoginForm();
       
-      // Remplir les champs
       usernameInput.value = username;
       passwordInput.value = password;
       
-      // Effet visuel amélioré
       highlightFilledFields(usernameInput, passwordInput);
       
-      console.log('✅ Champs remplis pour soumission');
-      
-      // Fermer le modal
       PaymentFlow.close();
       
-      // Focus sur le premier champ pour attirer l'attention
       setTimeout(() => {
         usernameInput.focus();
-        usernameInput.select(); // Sélectionner le texte pour visibilité
+        usernameInput.select();
       }, 300);
       
-      // Soumettre automatiquement après un délai plus long pour laisser le temps de voir
       setTimeout(() => {
         const submitButton = document.querySelector('.submit-button');
         if (submitButton) {
           submitButton.click();
-          console.log('✅ Formulaire soumis automatiquement');
         } else {
           alert('❌ Bouton de connexion non trouvé');
         }
-      }, 2000); // ✅ Augmenté à 2 secondes pour laisser le temps de voir
+      }, 2000);
       
     } else {
       alert('❌ Champs de connexion non trouvés');
     }
     
   } catch (error) {
-    console.error('💥 Erreur autoConnectAndSubmit:', error);
     alert('❌ Erreur lors de la connexion automatique');
   }
 }
 
-// ✅ NOUVELLE FONCTION : Scroll fluide vers le formulaire de connexion
 function scrollToLoginForm() {
   const loginForm = document.querySelector('form[name="login"]') || document.querySelector('.login-panel');
   
   if (loginForm) {
-    // Scroll fluide vers le formulaire
     loginForm.scrollIntoView({
       behavior: 'smooth',
       block: 'start',
       inline: 'nearest'
     });
-    
-    console.log('📜 Scroll vers le formulaire de connexion');
   } else {
-    // Fallback : scroll vers le haut de la page
     window.scrollTo({
       top: 0,
       behavior: 'smooth'
     });
-    console.log('📜 Scroll vers le haut de la page');
   }
 }
 
-// ✅ NOUVELLE FONCTION : Mise en évidence des champs remplis
 function highlightFilledFields(usernameInput, passwordInput) {
   const highlightStyle = {
     backgroundColor: '#e8f5e8',
@@ -915,15 +748,12 @@ function highlightFilledFields(usernameInput, passwordInput) {
     transition: 'all 0.3s ease'
   };
   
-  // Appliquer le style de mise en évidence
   Object.assign(usernameInput.style, highlightStyle);
   Object.assign(passwordInput.style, highlightStyle);
   
-  // Ajouter une animation de "pulse"
   usernameInput.style.animation = 'credentialsPulse 1s ease-in-out';
   passwordInput.style.animation = 'credentialsPulse 1s ease-in-out';
   
-  // Retirer l'effet après quelques secondes
   setTimeout(() => {
     usernameInput.style.backgroundColor = '';
     usernameInput.style.borderColor = '';
