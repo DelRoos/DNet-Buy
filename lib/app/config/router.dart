@@ -1,6 +1,8 @@
 import 'package:dnet_buy/app/middleware/public_middleware.dart';
 import 'package:dnet_buy/app/services/portal_service.dart';
 import 'package:dnet_buy/features/portal/controllers/portal_controller.dart';
+import 'package:dnet_buy/features/user_ticket/controllers/user_tickets_controller.dart';
+import 'package:dnet_buy/features/user_ticket/views/user_tickets_page.dart';
 import 'package:dnet_buy/features/zones/controllers/add_zone_controller.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/app/middleware/auth_middleware.dart';
@@ -53,6 +55,7 @@ class AppRoutes {
       '/dashboard/zones/$zoneId/tickets/$typeId/manage';
   static String manageAllTickets(String zoneId) =>
       '/dashboard/zones/$zoneId/tickets/manage';
+      static const userTickets = '/user-tickets';
 }
 
 class AppPages {
@@ -95,6 +98,14 @@ class AppPages {
         name: AppRoutes.emailVerification,
         page: () => const EmailVerificationPage(),
         middlewares: [AuthMiddleware()]),
+GetPage(
+  name: AppRoutes.userTickets,
+  page: () => const UserTicketsPage(),
+  binding: BindingsBuilder(() {
+    Get.lazyPut(() => UserTicketsController());
+  }),
+        middlewares: [AuthMiddleware()],
+),
 
     // --- ROUTES PROTÉGÉES (DASHBOARD) ---
     GetPage(

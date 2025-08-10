@@ -599,3 +599,65 @@ async function getPaymentStatusByReference(reference) {
     throw err;
   }
 }
+
+
+
+/* ================== RÉCUPÉRER TICKETS PAR TÉLÉPHONE ================== */
+exports.getUserTicketsByPhone = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
+
+  try {
+    const { phoneNumber, limit = 20 } = req.query;
+    if (!phoneNumber) return res.status(400).json({ error: "Numéro de téléphone requis" });
+
+    // Formater le numéro de téléphone
+    const formattedPhone = formatCameroonPhone(phoneNumber);
+    
+    // Récupérer les transactions réussies pour ce numéro (du plus récent au plus ancien)
+    const transactionsSnapshot = await db.collection("transactions")
+      .where("phone", "==", formattedPhone)
+      .where("status", "==", "completed")
+      .orderBy("completedAt", "desc")
+      .limit(parseInt(limit))
+      .get();
+
+    if (transactionsSnapshot.empty) {
+      return res.json({
+        success: true,
+        tickets: [],
+        message: "Aucun ticket trouvé pour ce numéro"
+      });
+    }
+
+    // Formater les données des tickets
+    const tickets = transactionsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        transactionId: doc.id,
+        planName: data.planName,
+        ticketTypeName: data.ticketTypeName,
+        amount: data.amount,
+        formattedAmount: `${Number(data.amount).toLocaleString()} F`,
+        credentials: data.credentials || null,
+        completedAt: data.completedAt?.toDate?.()?.toISOString?.() || null,
+        freemopayReference: data.freemopayReference || null,
+        planId: data.planId || null
+      };
+    });
+
+    return res.json({
+      success: true,
+      tickets,
+      phoneNumber: formattedPhone,
+      totalTickets: tickets.length
+    });
+
+  } catch (e) {
+    logger.error("getUserTicketsByPhone error", e);
+    return res.status(500).json({ error: "Erreur interne du serveur" });
+  }
+});

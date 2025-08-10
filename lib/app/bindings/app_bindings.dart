@@ -1,4 +1,5 @@
 // lib/app/bindings/app_bindings.dart (mise à jour)
+import 'package:dnet_buy/features/user_ticket/services/user_tickets_service.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/app/controllers/auth_controller.dart';
 import 'package:dnet_buy/app/services/auth_service.dart';
@@ -12,6 +13,8 @@ import 'package:dnet_buy/app/services/ticket_service.dart';
 class AppBindings extends Bindings {
   @override
   void dependencies() {
+    // Ajouter dans la méthode dependencies()
+    Get.lazyPut(() => UserTicketsService(), fenix: true);
     // Logger (doit être initialisé en premier)
     Get.put<LoggerService>(LoggerService(), permanent: true);
     Get.put<AdvancedLoggerService>(AdvancedLoggerService(), permanent: true);
@@ -25,6 +28,7 @@ class AppBindings extends Bindings {
 
     // Contrôleur d'authentification (permanent)
     Get.put<AuthController>(AuthController(), permanent: true);
+
 
     // Log de l'initialisation
     LoggerService.to
