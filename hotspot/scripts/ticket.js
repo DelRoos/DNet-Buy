@@ -106,14 +106,95 @@ const PaymentFlow = {
     setTimeout(() => input.focus(), 50);
   },
 
-  close() {
-    const modal = document.getElementById('payment-modal');
-    modal.style.display = 'none';
-    modal.setAttribute('aria-hidden', 'true');
-    this._stop();
-    this._plan = null;
-  },
+close() {
+  console.log('🔽 Fermeture du modal de paiement');
+  
+  // ✅ NOUVEAU : Récupérer les identifiants avant de fermer
+  const usernameElement = document.getElementById('cred-username');
+  const passwordElement = document.getElementById('cred-password');
+  
+  let credentialsFound = false;
+  
+  if (usernameElement && passwordElement) {
+    const username = usernameElement.textContent.trim();
+    const password = passwordElement.textContent.trim();
+    
+    // Vérifier que les identifiants sont valides
+    if (username && password && username !== '—' && password !== '—') {
+      console.log('✅ Identifiants trouvés lors de la fermeture:', { username, password: '***' });
+      
+      // Préremplir les champs de connexion
+      const usernameInput = document.getElementById('code-input');
+      const passwordInput = document.getElementById('password-input');
+      
+      if (usernameInput && passwordInput) {
+        usernameInput.value = username;
+        passwordInput.value = password;
+        
+        // Ajouter un effet visuel pour montrer que les champs ont été remplis
+        usernameInput.style.backgroundColor = '#e8f5e8';
+        passwordInput.style.backgroundColor = '#e8f5e8';
+        usernameInput.style.borderColor = '#19c394';
+        passwordInput.style.borderColor = '#19c394';
+        
+        setTimeout(() => {
+          usernameInput.style.backgroundColor = '';
+          passwordInput.style.backgroundColor = '';
+          usernameInput.style.borderColor = '';
+          passwordInput.style.borderColor = '';
+        }, 3000);
+        
+        credentialsFound = true;
+        console.log('✅ Champs préremplis automatiquement');
+        
+        // Notification visuelle
+        this._showAutoFillNotification();
+      }
+    }
+  }
+  
+  // Fermer le modal (logique existante)
+  const modal = document.getElementById('payment-modal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  
+  // Arrêter le monitoring (logique existante)
+  this._stop();
+  this._plan = null;
+  
+  console.log(credentialsFound ? '🎯 Modal fermé avec récupération des identifiants' : '🔽 Modal fermé sans identifiants');
+},
 
+// ✅ NOUVELLE MÉTHODE : Notification d'auto-remplissage
+_showAutoFillNotification() {
+  // Supprimer notification existante
+  const existingNotification = document.querySelector('.autofill-notification');
+  if (existingNotification) {
+    existingNotification.remove();
+  }
+  
+  const notification = document.createElement('div');
+  notification.className = 'autofill-notification';
+  notification.innerHTML = `
+    <div class="notification-content">
+      <span class="notification-icon">✅</span>
+      <div class="notification-text">
+        <strong>Identifiants récupérés !</strong>
+        <small>Les champs ont été préremplis automatiquement</small>
+      </div>
+      <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+    </div>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Supprimer automatiquement après 5 secondes
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.remove();
+    }
+  }, 5000);
+},
   setStep(n) {
     document.querySelectorAll('#pay-steps li').forEach(li => {
       li.classList.toggle('active', Number(li.dataset.step) === n);

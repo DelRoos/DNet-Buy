@@ -385,3 +385,109 @@
   animation: fadeInOut 2s ease-in-out;
   font-size: 14px;
 }
+
+
+/* ===== NOTIFICATION D'AUTO-REMPLISSAGE ===== */
+.autofill-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10001;
+  background: white;
+  border: 2px solid #19c394;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  animation: slideInFromRight 0.3s ease-out;
+  max-width: 350px;
+  min-width: 300px;
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.autofill-notification .notification-content {
+  display: flex;
+  align-items: center;
+  padding: 15px 20px;
+  gap: 12px;
+}
+
+.autofill-notification .notification-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.autofill-notification .notification-text {
+  flex-grow: 1;
+}
+
+.autofill-notification .notification-text strong {
+  display: block;
+  color: #19c394;
+  font-size: 0.95rem;
+}
+
+.autofill-notification .notification-text small {
+  color: #6c757d;
+  font-size: 0.8rem;
+}
+
+.autofill-notification .notification-close {
+  background: none;
+  border: none;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  transition: all 0.2s ease;
+}
+
+.autofill-notification .notification-close:hover {
+  background: #f8f9fa;
+  color: #495057;
+}
+
+/* ===== BOUTON DE CONNEXION AUTOMATIQUE ===== */
+.auto-connect-section {
+  margin: 20px 0 10px 0;
+  text-align: center;
+}
+
+.auto-connect-button {
+  background: linear-gradient(45deg, #19c394, #13a57d);
+  color: white;
+  border: none;
+  padding: 15px 25px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(25, 195, 148, 0.3);
+  width: 100%;
+  max-width: 300px;
+}
+
+.auto-connect-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(25, 195, 148, 0.4);
+  background: linear-gradient(45deg, #13a57d, #0f8a68);
+}
+
+.auto-connect-button:active {
+  transform: translateY(0);
+}

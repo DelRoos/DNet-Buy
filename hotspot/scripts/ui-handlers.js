@@ -573,63 +573,40 @@ updateStatusMessage(message) {
   // États finaux UI
   // ============================
   showTransactionCompleted(transaction) {
-    // Arrêter le compte à rebours s'il est actif
-    if (this.countdownInterval) {
-      clearInterval(this.countdownInterval);
-      this.countdownInterval = null;
-    }
-
-    const content = document.getElementById('payment-content');
-    if (!content) return;
-
-    const username = transaction?.credentials?.username || '—';
-    const password = transaction?.credentials?.password || '—';
-    const ticketTypeName = transaction?.ticketTypeName || 'Votre forfait';
-
-    content.innerHTML = `
-      <div class="payment-completed">
-        <div class="success-icon">🎉</div>
-        <h4>Paiement confirmé avec succès !</h4>
-        <div class="success-message">
-          <p><strong>Félicitations ! Votre paiement a été validé.</strong></p>
-          <p>Voici vos identifiants WiFi pour vous connecter :</p>
-        </div>
-        
-        <div class="credentials">
-          <div class="credential-item">
-            <label>👤 Nom d'utilisateur:</label>
-            <span class="credential-value" onclick="copyToClipboard('${username}')">${username}</span>
-            <button class="copy-btn" onclick="copyToClipboard('${username}')">📋</button>
-          </div>
-          <div class="credential-item">
-            <label>🔑 Mot de passe:</label>
-            <span class="credential-value" onclick="copyToClipboard('${password}')">${password}</span>
-            <button class="copy-btn" onclick="copyToClipboard('${password}')">📋</button>
-          </div>
-        </div>
-        
-        <div class="usage-instructions">
-          <div class="instruction-box">
-            <h5>🚀 Comment vous connecter :</h5>
-            <ol>
-              <li>Copiez les identifiants ci-dessus</li>
-              <li>Collez-les dans le formulaire de connexion en haut de la page</li>
-              <li>Cliquez sur "Se connecter"</li>
-              <li>Profitez de votre connexion Internet !</li>
-            </ol>
-          </div>
-          <p class="forfait-info">📦 <strong>Forfait:</strong> ${ticketTypeName}</p>
-        </div>
-        
-        <div class="completion-actions">
-          <button onclick="closePaymentModal(); fillLoginForm('${username}', '${password}')" class="primary-button">
-            Se connecter maintenant
-          </button>
-          <button onclick="closePaymentModal()" class="secondary-button">Fermer</button>
-        </div>
+  const content = document.getElementById('payment-content');
+  
+  // Dans ui-handlers.js, ligne ~667
+content.innerHTML = `
+  <div class="payment-completed">
+    <div class="success-icon">🎉</div>
+    <h4>Paiement réussi !</h4>
+    <p>Voici vos identifiants WiFi :</p>
+    <div class="credentials">
+      <div class="credential-item">
+        <label>Nom d'utilisateur:</label>
+        <span class="credential-value" id="final-username">${transaction.credentials.username}</span>
       </div>
-    `;
-  }
+      <div class="credential-item">
+        <label>Mot de passe:</label>
+        <span class="credential-value" id="final-password">${transaction.credentials.password}</span>
+      </div>
+    </div>
+    <div class="usage-instructions">
+      <p>✅ Utilisez ces identifiants dans le formulaire de connexion ci-dessus</p>
+      <p>⏰ Validité: ${transaction.ticketTypeName}</p>
+    </div>
+    
+    <!-- ✅ BOUTON MODIFIÉ -->
+    <div class="auto-connect-section">
+      <button onclick="autoConnectAndSubmit(document.getElementById('final-username').textContent, document.getElementById('final-password').textContent)" class="auto-connect-button">
+        🚀 Se connecter automatiquement
+      </button>
+      <button onclick="closePaymentModal()" class="close-button">Fermer</button>
+    </div>
+  </div>
+`;
+}
+
 
   // Accepte soit un string (message), soit un objet transaction
   showTransactionFailed(messageOrTx) {
@@ -802,13 +779,96 @@ function fillLoginForm(username, password) {
   }
 }
 
-// Fermer le modal de paiement
+// Modifier la fonction closePaymentModal existante
 function closePaymentModal() {
   const modal = document.getElementById('payment-modal');
-  if (modal) {
-    modal.style.display = 'none';
-    modal.setAttribute('aria-hidden', 'true');
-  }
-  // Stop le monitoring si en cours
+  modal.style.display = 'none';
+  
+  // Arrêter le monitoring si en cours
   uiHandlers.stopTransactionMonitoring();
+  
+  // ✅ NOUVEAU : Vérifier s'il y a des identifiants sauvegardés
+  const savedCredentials = localStorage.getItem('dnet_credentials');
+  if (savedCredentials) {
+    try {
+      const credentials = JSON.parse(savedCredentials);
+      
+      // Remplir automatiquement le formulaire si popup fermé
+      const usernameInput = document.getElementById('code-input');
+      const passwordInput = document.getElementById('password-input');
+      
+      if (usernameInput && passwordInput) {
+        usernameInput.value = credentials.username;
+        passwordInput.value = credentials.password;
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des identifiants:', error);
+    }
+  }
+}
+
+// ✅ Fonction pour la connexion automatique depuis le bouton
+function autoConnectFromCredentials() {
+  try {
+    const usernameElement = document.getElementById('cred-username');
+    const passwordElement = document.getElementById('cred-password');
+    
+    if (!usernameElement || !passwordElement) {
+      alert('❌ Identifiants non trouvés dans le modal');
+      return;
+    }
+    
+    const username = usernameElement.textContent.trim();
+    const password = passwordElement.textContent.trim();
+    
+    if (!username || !password || username === '—' || password === '—') {
+      alert('❌ Identifiants non valides');
+      return;
+    }
+    
+    console.log('🚀 Connexion automatique demandée');
+    autoConnectAndSubmit(username, password);
+    
+  } catch (error) {
+    console.error('Erreur lors de la connexion automatique:', error);
+    alert('❌ Erreur lors de la connexion automatique');
+  }
+}
+
+// ✅ Fonction principale de connexion automatique
+function autoConnectAndSubmit(username, password) {
+  try {
+    console.log('🔍 Début autoConnectAndSubmit');
+    
+    const usernameInput = document.getElementById('code-input');
+    const passwordInput = document.getElementById('password-input');
+    
+    if (usernameInput && passwordInput) {
+      usernameInput.value = username;
+      passwordInput.value = password;
+      
+      console.log('✅ Champs remplis pour soumission');
+      
+      // Fermer le modal
+      PaymentFlow.close();
+      
+      // Soumettre automatiquement après un délai
+      setTimeout(() => {
+        const submitButton = document.querySelector('.submit-button');
+        if (submitButton) {
+          submitButton.click();
+          console.log('✅ Formulaire soumis automatiquement');
+        } else {
+          alert('❌ Bouton de connexion non trouvé');
+        }
+      }, 500);
+      
+    } else {
+      alert('❌ Champs de connexion non trouvés');
+    }
+    
+  } catch (error) {
+    console.error('💥 Erreur autoConnectAndSubmit:', error);
+    alert('❌ Erreur lors de la connexion automatique');
+  }
 }

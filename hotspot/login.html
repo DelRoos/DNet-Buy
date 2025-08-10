@@ -228,9 +228,18 @@
                     <span class="credential-value" id="cred-password">—</span>
                 </div>
                 </div>
-                <div class="usage-instructions">
+
+
+      <!-- ✅ NOUVEAU : Bouton de connexion automatique -->
+      <div class="auto-connect-section">
+        <button onclick="autoConnectFromCredentials()" class="auto-connect-button">
+          🚀 Se connecter automatiquement
+        </button>
+      </div>
+
+                <!-- <div class="usage-instructions">
                 <p>✅ Copiez ces identifiants dans le formulaire en haut.</p>
-                </div>
+                </div> -->
                 <button class="close-button" onclick="PaymentFlow.close()">Fermer</button>
             </div>
 

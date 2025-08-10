@@ -596,3 +596,30 @@ a.inline-link:hover { text-decoration: underline; }
 .button-group {
   margin-top: 20px;
 }
+
+
+/* ===== BOUTONS DE CONNEXION AUTOMATIQUE ===== */
+.auto-connect-section {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.auto-connect-button {
+  background: linear-gradient(45deg, var(--brand-color), var(--brand-dark));
+  color: white;
+  border: none;
+  padding: 15px 25px;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(25, 195, 148, 0.3);
+}
+
+.auto-connect-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(25, 195, 148, 0.4);
+}
