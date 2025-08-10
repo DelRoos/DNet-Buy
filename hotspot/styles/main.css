@@ -333,7 +333,7 @@ footer {
 .ticket-item .kv { color: var(--text-light); font-size: .9rem; }
 .ticket-item .cred { font-family: 'Courier New', monospace; font-weight: 700; }
 .ticket-item .copy-btn {
-  background: transparent; border: 1px dashed var(--border-color);
+  border: 1px dashed var(--border-color);
   padding: 6px 8px; border-radius: 8px; cursor: pointer;
 }
 .ticket-item .copy-btn:hover { border-color: var(--brand-color); }
@@ -622,4 +622,70 @@ a.inline-link:hover { text-decoration: underline; }
 .auto-connect-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(25, 195, 148, 0.4);
+}
+
+
+/* ===============================
+   MODAL "MES TICKETS" - Mise à jour
+================================== */
+.ticket-item {
+  display: grid; 
+  grid-template-columns: 1.2fr 0.8fr 1fr; 
+  gap: 10px; 
+  align-items: center;
+  border: 1px solid var(--border-color); 
+  border-radius: 10px; 
+  padding: 10px 12px; 
+  background: #fff;
+}
+
+.ticket-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.copy-btn, .use-ticket-btn {
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.copy-btn:hover {
+  border-color: var(--brand-color);
+  background: rgba(25, 195, 148, 0.05);
+}
+
+.use-ticket-btn {
+  border-color: #4CAF50;
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.use-ticket-btn:hover {
+  background: #4CAF50;
+  color: white;
+  border-color: #4CAF50;
+}
+
+/* Responsive pour les tickets */
+@media (max-width: 768px) {
+  .ticket-item {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .ticket-actions {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  
+  .copy-btn, .use-ticket-btn {
+    flex: 1;
+    text-align: center;
+  }
 }

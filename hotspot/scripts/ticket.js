@@ -13,6 +13,7 @@ const TicketStore = {
 };
 
 // ====== Vue “Mes tickets” ======
+// ====== Vue "Mes tickets" ======
 const MyTickets = {
   open() {
     const modal = document.getElementById('tickets-modal');
@@ -49,7 +50,10 @@ const MyTickets = {
         <div>
           <div>👤 <span class="cred">${t.username}</span></div>
           <div>🔑 <span class="cred">${t.password}</span></div>
-          <button class="copy-btn" onclick="MyTickets.copyCreds('${t.username}','${t.password}')">Copier</button>
+          <div class="ticket-actions">
+            <button class="copy-btn" onclick="MyTickets.copyCreds('${t.username}','${t.password}')">Copier</button>
+            <button class="use-ticket-btn" onclick="MyTickets.useTicket('${t.username}','${t.password}')">🚀 Utiliser ce ticket</button>
+          </div>
         </div>
       `;
       holder.appendChild(el);
@@ -59,6 +63,93 @@ const MyTickets = {
     const text = `Utilisateur: ${u}\nMot de passe: ${p}`;
     navigator.clipboard?.writeText(text);
     alert('Identifiants copiés.');
+  },
+  // ✅ NOUVELLE FONCTION : Utiliser un ticket pour remplir le formulaire
+  useTicket(username, password) {
+    try {
+      console.log('🎫 Utilisation du ticket:', username);
+      
+      // Fermer le modal des tickets
+      this.close();
+      
+      // Remplir les champs de connexion
+      const usernameInput = document.getElementById('code-input');
+      const passwordInput = document.getElementById('password-input');
+      
+      if (usernameInput && passwordInput) {
+        usernameInput.value = username;
+        passwordInput.value = password;
+        
+        // Effet visuel pour montrer que les champs ont été remplis
+        usernameInput.style.backgroundColor = '#e8f5e8';
+        passwordInput.style.backgroundColor = '#e8f5e8';
+        usernameInput.style.borderColor = '#19c394';
+        passwordInput.style.borderColor = '#19c394';
+        
+        // Focus sur le champ username
+        usernameInput.focus();
+        
+        // Retirer l'effet visuel après 3 secondes
+        setTimeout(() => {
+          usernameInput.style.backgroundColor = '';
+          passwordInput.style.backgroundColor = '';
+          usernameInput.style.borderColor = '';
+          passwordInput.style.borderColor = '';
+        }, 3000);
+        
+        // Afficher une notification de succès
+        this._showTicketUsedNotification();
+        
+        console.log('✅ Ticket utilisé avec succès - champs remplis');
+      } else {
+        alert('❌ Formulaire de connexion non trouvé');
+      }
+      
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'utilisation du ticket:', error);
+      alert('❌ Erreur lors de l\'utilisation du ticket');
+    }
+  },
+  
+  // ✅ NOUVELLE FONCTION : Notification de succès
+  _showTicketUsedNotification() {
+    const notification = document.createElement('div');
+    notification.textContent = '✅ Ticket utilisé ! Formulaire rempli automatiquement';
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #4CAF50;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      z-index: 10001;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      animation: slideDown 0.3s ease-out;
+    `;
+    
+    // Ajouter l'animation CSS si elle n'existe pas
+    if (!document.querySelector('#ticket-notification-style')) {
+      const style = document.createElement('style');
+      style.id = 'ticket-notification-style';
+      style.textContent = `
+        @keyframes slideDown {
+          from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+          to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(notification);
+    
+    // Retirer la notification après 3 secondes
+    setTimeout(() => {
+      notification.style.animation = 'slideDown 0.3s ease-out reverse';
+      setTimeout(() => notification.remove(), 300);
+    }, 3000);
   }
 };
 
