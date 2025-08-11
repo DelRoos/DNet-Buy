@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>4 Flyers DNet – A4</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+
+<style>
+  :root{ --t500:#14b8a6; --t600:#0d9488; --t700:#0f766e; --ink:#0f172a; }
+  html,body{height:100%;background:#ecfdf5;font-family:'Poppins',system-ui,Arial,sans-serif; margin:0; padding:0;}
+
+  /* Carte A5 (portrait) */
+  .a5{ width:148mm; height:210mm; background:#fff; border-radius:14px;
+       box-shadow:0 10px 18px rgba(0,0,0,.08); overflow:hidden; }
+
+  .hero{ background:linear-gradient(135deg,var(--t500),var(--t700)); color:#fff; }
+  .tag{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
+
+  /* Tableau compact – prix à gauche */
+  table.offers{ width:100%; border-collapse:separate; border-spacing:0; font-size:12px; }
+  table.offers th, table.offers td{ padding:.5rem .6rem; border-bottom:1px solid #e5e7eb; }
+  table.offers th{ text-align:left; font-weight:800; color:#0f766e; border-bottom:2px solid #99f6e4; font-size:11px; }
+  td.price{ text-align:left; font-weight:900; color:#0d9488; }
+  tr.best{ background:#ecfeff; }
+  tr.best td.price{ color:#065f46; }
+
+  /* Numéro rond des étapes */
+  .step-badge{
+    width:22px; height:22px; min-width:22px;
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:999px; background:var(--t600); color:#fff; font-weight:800; font-size:12px; margin-right:.5rem;
+  }
+
+  /* QR carré, taille réduite */
+  .qr-box{ display:flex; align-items:center; justify-content:center; }
+  .qr{ width:120px; height:120px; border-radius:10px; }
+
+  /* Grille pour A4 */
+  .page{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    grid-template-rows:1fr 1fr;
+    gap:10mm;
+    width:210mm;
+    height:297mm;
+    padding:10mm;
+    box-sizing:border-box;
+  }
+
+  @page{ size:A4; margin:0; }
+  @media print{
+    body{ background:#fff; }
+    .page{ box-shadow:none; }
+    .a5{ box-shadow:none; page-break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+
+
+  <section class="a5 flex flex-col">
+    <!-- Bandeau -->
+    <div class="hero px-5 py-4">
+      <div class="flex items-center justify-between">
+        <h1 class="text-3xl font-extrabold tracking-tight">DNet</h1>
+        <span class="tag bg-white/15 px-3 py-1 rounded-full">Illimité • Rapide • Pas cher</span>
+      </div>
+      <p class="mt-1 text-sm/5">Wi-Fi immédiat en 3 étapes.</p>
+    </div>
+
+    <div class="px-5 pt-4 flex-grow flex flex-col">
+      
+      <!-- QR code seul -->
+      <div class="flex flex-col items-center mb-6">
+        <img src="qr_code_dnet.png" loading="lazy" decoding="async"
+            alt="Scanner pour se connecter" style="width:100px; height:100px; border-radius:10px;"/>
+        <p class="text-[12px] text-center mt-2 text-[var(--ink)] font-medium">
+          Une fois connecté au <b>Wi-Fi DNet</b>, scannez-moi
+        </p>
+      </div>
+
+      <!-- Section : Comment se connecter -->
+      <div class="mb-4">
+        <h2 class="text-[14px] font-bold text-[var(--t700)] mb-2">📶 Comment se connecter</h2>
+        <div class="text-[13px] text-[var(--ink)] space-y-2">
+          <div class="flex items-center">
+            <span class="step-badge">1</span>
+            <span><b>Activez le Wi-Fi</b> et sélectionnez <b class="text-[var(--t700)]">DNet</b>.</span>
+          </div>
+          <div class="flex items-center">
+            <span class="step-badge">2</span>
+            <span><b>Scannez le QR code</b> ou ouvrez <b>http://dnet.net/</b>.</span>
+          </div>
+          <div class="flex items-center">
+            <span class="step-badge">3</span>
+            <span><b>Choisissez un forfait</b> et payez (Mobile/Orange Money).</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section : Nos forfaits -->
+      <div class="mb-4">
+        <h2 class="text-[14px] font-bold text-[var(--t700)] mb-2">💳 Nos forfaits</h2>
+        <table class="offers">
+          <thead>
+            <tr>
+              <th>Forfait</th>
+              <th>Vitesse</th>
+              <th>Prix</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><b>1 Heure</b> <span class="text-gray-500 font-normal">• Essai</span></td><td>2&nbsp;Mbps</td><td class="price">100&nbsp;F</td></tr>
+            <tr><td><b>1 Jour</b> <span class="text-gray-500 font-normal">• Toute la journée</span></td><td>2&nbsp;Mbps</td><td class="price">500&nbsp;F</td></tr>
+            <tr><td><b>1 Semaine</b></td><td>5&nbsp;Mbps</td><td class="price">2&nbsp;000&nbsp;F</td></tr>
+            <tr><td><b>1 Mois</b></td><td>5&nbsp;Mbps</td><td class="price">5&nbsp;000&nbsp;F</td></tr>
+            <tr class="best"><td><b>1 Mois — 3 appareils</b> <span class="text-gray-600 font-normal">• ⭐ Meilleure offre</span></td><td><b>10&nbsp;Mbps</b></td><td class="price">10&nbsp;000&nbsp;F</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section : Nous contacter -->
+    <div class="mt-auto px-5 pb-4 border-t border-gray-200">
+      <h2 class="text-[14px] font-bold text-[var(--t700)] mb-2">📞 Nous contacter</h2>
+      <p class="flex items-center gap-1 text-[12px] mb-1">
+        <span class="material-icons text-[var(--t600)] text-[16px]">call</span>
+        <a href="tel:+237694221506" class="font-semibold">+237&nbsp;694&nbsp;221&nbsp;506</a>
+      </p>
+      <p class="flex items-center gap-1 text-[12px] mb-1">
+        <img src="https://cdn.simpleicons.org/whatsapp/25D366" alt="WhatsApp" class="h-4 w-4"/>
+        <a href="https://wa.me/237694221506" class="font-semibold">+237&nbsp;694&nbsp;221&nbsp;506</a>
+      </p>
+      <p class="flex items-center gap-1 text-[12px]">
+        <span class="material-icons text-[var(--t600)] text-[16px]">mail</span>
+        <a href="mailto:dnet.infinity@gmail.com" class="font-semibold break-all">dnet.infinity@gmail.com</a>
+      </p>
+    </div>
+  </section>
+
+
+</body>
+</html>

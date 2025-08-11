@@ -29,10 +29,10 @@ class UserTicketsController extends GetxController {
     if (value == null || value.isEmpty) {
       return 'Numéro de téléphone requis';
     }
-    
+
     // Supprimer tous les caractères non numériques pour la validation
     String digitsOnly = value.replaceAll(RegExp(r'\D'), '');
-    
+
     // Vérifier les formats acceptés
     if (value.startsWith('+237')) {
       if (digitsOnly.length != 12 || !digitsOnly.startsWith('237')) {
@@ -49,7 +49,7 @@ class UserTicketsController extends GetxController {
     } else {
       return 'Format invalide. Utilisez: +237XXXXXXXXX, 237XXXXXXXXX, 6XXXXXXXX ou 2XXXXXXXX';
     }
-    
+
     return null;
   }
 
@@ -60,7 +60,7 @@ class UserTicketsController extends GetxController {
     try {
       isLoading.value = true;
       tickets.clear();
-      
+
       final phoneNumber = phoneController.text.trim();
       searchedPhoneNumber.value = phoneNumber;
 
@@ -68,8 +68,9 @@ class UserTicketsController extends GetxController {
         'phoneNumber': phoneNumber,
       });
 
-      final foundTickets = await _userTicketsService.getUserTicketsByPhone(phoneNumber);
-      
+      final foundTickets =
+          await _userTicketsService.getUserTicketsByPhone(phoneNumber);
+
       tickets.assignAll(foundTickets);
 
       if (foundTickets.isEmpty) {
@@ -86,7 +87,6 @@ class UserTicketsController extends GetxController {
           'ticketsCount': foundTickets.length,
         });
       }
-
     } catch (e) {
       _logger.error(
         'Erreur lors de la recherche de tickets',
@@ -118,9 +118,9 @@ class UserTicketsController extends GetxController {
     }
 
     final credentialsText = ticket.credentialsText;
-    
+
     Clipboard.setData(ClipboardData(text: credentialsText));
-    
+
     _logger.logUserAction('copy_ticket_credentials', details: {
       'transactionId': ticket.transactionId,
       'planName': ticket.planName,
@@ -139,7 +139,7 @@ class UserTicketsController extends GetxController {
   // Copier un identifiant spécifique
   void copySpecificCredential(String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
-    
+
     Get.snackbar(
       'Copié!',
       '$label copié dans le presse-papiers',

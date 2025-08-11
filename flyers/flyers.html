@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DNet - Connexion Illimitée</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<!-- html2pdf pour export PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+<style type="text/tailwindcss">
+  :root {
+    --teal-500: #14b8a6;
+    --teal-600: #0d9488;
+    --teal-700: #0f766e;
+    --teal-800: #115e59;
+    --teal-900: #134e4a;
+  }
+  body { font-family: 'Poppins', sans-serif; background-color: #f0fdfa; }
+  .a4-container {
+    width: 210mm; height: 297mm; margin: 2rem auto;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05);
+    overflow: hidden;
+  }
+  .gradient-bg { background: linear-gradient(135deg, var(--teal-500) 0%, var(--teal-700) 100%); }
+  /* Bouton PDF flottant */
+  .pdf-btn {
+    position: fixed; right: 1rem; bottom: 1rem; z-index: 50;
+  }
+
+
+/* ✅ Force le format et supprime les marges imprimante */
+@page {
+  size: A4;
+  margin: 0;
+}
+
+/* ✅ Imprimer UNIQUEMENT le flyer, en une page */
+@media print {
+  html, body { width: 210mm; height: 297mm; margin: 0; padding: 0; background: #fff !important; }
+
+  /* Masquer tout sauf le flyer */
+  body * { visibility: hidden; }
+  #flyer, #flyer * { visibility: visible; }
+
+  /* Le flyer occupe exactement l'A4, sans ombres ni marges */
+  #flyer {
+    position: absolute; left: 0; top: 0;
+    width: 210mm; height: 297mm;   /* pile A4 */
+    margin: 0 !important; padding: 0 !important;
+    box-shadow: none !important; background: #fff !important;
+    overflow: hidden;             /* empêche un débordement vers page 2 */
+  }
+
+  /* Réduit légèrement la mise en page pour éviter un débordement (sécure) */
+  #flyer .p-8 { padding: 24px !important; }  /* ~6mm de marge interne */
+  .pdf-btn { display: none !important; }     /* cache le bouton PDF */
+
+  /* Évite les coupures */
+  .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+}
+
+
+</style>
+</head>
+<body class="bg-gray-100">
+<!-- Bouton téléchargement PDF
+<button id="downloadPdfBtn" class="pdf-btn inline-flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold px-4 py-3 shadow-lg">
+  <span class="material-icons text-base">download</span>
+  Télécharger le flyer (PDF)
+</button> -->
+
+<div id="flyer" class="a4-container bg-white flex flex-col relative">
+  <div class="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
+    <div class="absolute -top-48 -left-48 w-96 h-96 bg-teal-500/10 rounded-full"></div>
+    <div class="absolute -bottom-64 -right-32 w-96 h-96 bg-teal-500/20 rounded-full"></div>
+  </div>
+
+  <div class="p-8 flex flex-col flex-grow z-10" id="flyerContent">
+    <header class="text-center mb-8">
+      <h1 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-500 to-teal-800">DNet</h1>
+      <p class="text-2xl text-gray-700 mt-2 font-semibold">Connexion illimitée, rapide à petit prix</p>
+    </header>
+
+    <main class="flex-grow">
+      <div class="bg-teal-50 border-2 border-dashed border-teal-200 rounded-2xl p-4 mb-6 text-center">
+        <h2 class="text-2xl font-bold text-teal-700 mb-3">Comment se connecter</h2>
+        <div class="flex items-center justify-center space-x-4 text-lg">
+          <div class="flex items-center">
+            <span class="material-icons text-teal-500 mr-2 text-2xl">wifi</span>
+            <span class="font-semibold text-gray-800">Nom du WiFi: <strong class="text-teal-600">DNet</strong></span>
+          </div>
+        </div>
+        <div class="mt-3 text-left grid grid-cols-2 gap-x-4 gap-y-2 text-base text-gray-700">
+          <div class="flex items-start">
+            <div class="flex-shrink-0 h-6 w-6 rounded-full bg-teal-500 text-white flex items-center justify-center font-bold text-sm mr-2">1</div>
+            <p>Activez le WiFi et sélectionnez "DNet".</p>
+          </div>
+          <div class="flex items-start">
+            <div class="flex-shrink-0 h-6 w-6 rounded-full bg-teal-500 text-white flex items-center justify-center font-bold text-sm mr-2">2</div>
+            <p>La page de connexion s'ouvre. Choisissez votre forfait.</p>
+          </div>
+          <div class="flex items-start">
+            <div class="flex-shrink-0 h-6 w-6 rounded-full bg-teal-500 text-white flex items-center justify-center font-bold text-sm mr-2">3</div>
+            <p>Payez en espèces ou Mobile/Orange Money.</p>
+          </div>
+          <div class="flex items-start">
+            <div class="flex-shrink-0 h-6 w-6 rounded-full bg-teal-500 text-white flex items-center justify-center font-bold text-sm mr-2">4</div>
+            <p>Recevez votre code et naviguez !</p>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="text-3xl font-bold text-center text-teal-700 mb-2 tracking-wide">Nos Forfaits</h2>
+
+      <div class="grid grid-cols-3 gap-4">
+        <div class="bg-white p-4 rounded-xl shadow-md border border-gray-200 text-center flex flex-col">
+          <h3 class="text-lg font-bold text-[var(--teal-700)]">1 Heure</h3>
+          <p class="text-gray-500 text-sm font-medium">Vitesse : 2 Mbps</p>
+          <p class="text-2xl font-extrabold text-[var(--teal-500)] mt-auto pt-2">100 F</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-md border border-gray-200 text-center flex flex-col">
+          <h3 class="text-lg font-bold text-[var(--teal-700)]">3 Heures</h3>
+          <p class="text-gray-500 text-sm font-medium">Vitesse : 2 Mbps</p>
+          <p class="text-2xl font-extrabold text-[var(--teal-500)] mt-auto pt-2">250 F</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-md border border-gray-200 text-center flex flex-col">
+          <h3 class="text-lg font-bold text-[var(--teal-700)]">1 Jour</h3>
+          <p class="text-gray-500 text-sm font-medium">Vitesse : 2 Mbps</p>
+          <p class="text-2xl font-extrabold text-[var(--teal-500)] mt-auto pt-2">500 F</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-md border border-gray-200 text-center flex flex-col">
+          <h3 class="text-lg font-bold text-[var(--teal-700)]">3 Jours</h3>
+          <p class="text-gray-500 text-sm font-medium">Vitesse rapide : 5 Mbps</p>
+          <p class="text-2xl font-extrabold text-[var(--teal-500)] mt-auto pt-2">1 000 F</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-md border border-gray-200 text-center flex flex-col">
+          <h3 class="text-lg font-bold text-[var(--teal-700)]">1 Semaine</h3>
+          <p class="text-gray-500 text-sm font-medium">Vitesse rapide : 5 Mbps</p>
+          <p class="text-2xl font-extrabold text-[var(--teal-500)] mt-auto pt-2">2 000 F</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-md border border-gray-200 text-center flex flex-col">
+          <h3 class="text-lg font-bold text-[var(--teal-700)]">1 Mois</h3>
+          <p class="text-gray-500 text-sm font-medium">Vitesse rapide : 5 Mbps</p>
+          <p class="text-2xl font-extrabold text-[var(--teal-500)] mt-auto pt-2">5 000 F</p>
+        </div>
+        <div class="gradient-bg text-white p-4 rounded-xl shadow-lg col-span-3 flex flex-col items-center justify-center text-center relative">
+          <span class="absolute top-2 right-2 bg-yellow-400 text-teal-900 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Meilleure Offre</span>
+          <h3 class="text-2xl font-black">1 Mois - 3 Appareils</h3>
+          <p class="text-teal-100 text-lg font-semibold">Vitesse : 10 Mbps</p>
+          <p class="text-4xl font-black mt-1">10 000 F</p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="mt-auto pt-6 border-t-2 border-gray-200 bg-gray-50 -mx-8 -mb-8 px-8 pb-8 rounded-b-lg">
+      <div class="grid grid-cols-2 gap-8">
+        <div>
+          <h3 class="text-lg font-bold text-teal-700 mb-3">Moyens de Paiement</h3>
+          <div class="space-y-3">
+            <div class="flex items-center">
+              <img alt="MTN" class="h-6 mr-3" src="data:image/jpeg;base64,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"/>
+              <span class="font-semibold text-gray-700">MTN Mobile Money</span>
+            </div>
+            <div class="flex items-center">
+              <img alt="Orange" class="h-6 mr-3" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALgAAACUCAMAAAAXgxO4AAAAkFBMVEX/eQD/////cAD//Pr/sIz/dwD/cgD/6dv/ZQD/6t7/dQD/vpz/59v/awD/bgD/gy//hjf/waH/8+n/5NL/9vD/2sX/tIf/vpf/yKb/qXH/q3j/dw//toz/kUf/pXL/r37/jUr/eB3/roX/oGj/gST/fRn/m1z/zK//ikH/lVT/0rv/xJ3/tpP/klj/iTL/vpGKh6i8AAAEoElEQVR4nO2bfX+aMBCAJSwB0hGtgFXxrbVVbLv6/b/dcJUKgYOYkLnud8+/xfB43l0CSQcDBEEQBEEQBEEQBEEQBEEQBEEQBEH+PzgjhPFbW1wNE9nq6Wn7HNJbm1yHWL4GsevGwf0LubXLFVBxdJ0zwY7dWkcZzt6cC+7WPOZUmZYRur3TB6dMnBrmOQuZqjcPScPNKAk5zUdpvw1NH9yKuDMNTbS5v9tHniJRMmNCUqeCz5LIi/ZLv7XJiWq8TyF/0e+KlI8iebx24jmn1RHm8flPSQYHnYY1b8ed6Wc5X8W18bqYls0p31/+MgbrjafH+kDundD2Plzv7TjHUm5WAxmPmn98mtbjnXOvLc6uzJOz3vIrJdihWnBRY71RJtflH9yFrjjb6Xg7zmtRoFQkkkvjtBI25Al4sQp+0jhgJ8HynBF8GdS+U+0ulDR7O4HcoFShYqwnHq/OoWK12o4GsgxNF8AwM91MoVSnNHPcH+fuQX7IuftzKJVnfd4pSLTnn78iXlpXVYmADqRCqJkq6uIUqMs83gbeg/ANGLUvccqh/E6eTVa1PLMrntcllCdDs9U4m9oUz+MN5rfhUwQfak2diuLhBPJuWY2pmj/rzEFK4lRMgI+b5smnOXmPrm6KKuI0tep9CszL6v1O5r31h1AQh+vSM+onFXVGZPyDZyguwLrcWHy6J7/ktdO14uEa+GiUWXyJRXYdM2qXOGWW87sZcehaCXSIt/Rvq94dedItziZAn+qhf8OQQ6d3uziF5x27damwYmwVb6nLW3u3i4PeNvObdNZll7j3AOS3N7T4Xln8ap13VMTdm+T3Rs27TRzAW9qcd6A8qUXxanG7ebIBvOPFT0Nxb2TRm0DrKnf1bCjuZbfwdmZiZCbu2axLtoHmy7ngZuLB0mo/gepyLgZm4t6HzTyB4h2vCTUTD2z2k5b8ZnRgJO4drOaJLFYw/7PHZiAe3KQu3fmnnr54MBK8Tk/eJIPqcn3e09QX39/dyyxWG9GLOjzvFN6GXaWG997H+wm2gd7Bzb/2kHsWd5zEPPNZBvWTyWXvu3dxo3f6Z28wv0vbM/2LO3uzkBMo3u6kfNbAgrhjtAwgYH6vWXnrzIb43uDgBMsg70n1bIcN8UD/TBYfgXnCqHRl/+Ix1xWnAoi3O5HP0vBhTfypEH/SFVc4UdSMmAPei9oZIErl7xhvi53lreZO6Vh7N5wDC5RJw4hiL10UFO+Kedb9vq6RV93iZLvm37ge78HptbN0cfLV5eXTE6pon5to3jCo5/cn0imL+ONr4mMfWrmSaLdxcd/k3RjvHP5SmWEn5RNC0NZxG+ON9pQvmo40yH3wAttdctm9K389St6ubizBVn+pQlb120HxPsGzokCjlXwKbqX44q5gv9Fu4vntBrXcPLYOx9PhIgmi6eFRvozyx900CtTwkuMyNVoayscAwfy+qAvf98OmbKIs9JUxff6hpFJv7kOX9z8Dq+wJdsb7H4JfnjbjtUG5/H04W4/dnHg6/EbxPkGF/7HdLsPw+/2rRR519q2yBEEQBEEQBEEQBEEQBEEQBEEQBEGQ/57fMqNU1ofTDcYAAAAASUVORK5CYII="/>
+              <span class="font-semibold text-gray-700">Orange Money</span>
+            </div>
+          </div>
+        </div>
+<!-- ====== Besoin d'aide ? (compact, aligné à gauche, bonnes icônes) ====== -->
+<div>
+  <h3 class="text-lg font-bold text-teal-700 mb-2">Besoin d'aide ?</h3>
+  <div class="flex flex-col gap-2 text-gray-800 text-base text-left">
+    <!-- Téléphone -->
+    <a href="tel:+237694221506" class="flex items-center">
+      <span class="material-icons text-teal-600 mr-2 text-lg">call</span>
+      <span class="font-semibold">+237 694 221 506</span>
+    </a>
+    <!-- WhatsApp (icône officielle) -->
+    <a href="https://wa.me/237694221506" target="_blank" rel="noopener" class="flex items-center">
+      <img src="https://cdn.simpleicons.org/whatsapp/25D366" alt="WhatsApp" class="h-5 w-5 mr-2"/>
+      <span class="font-semibold">+237 694 221 506</span>
+    </a>
+    <!-- Email -->
+    <a href="mailto:dnet.infinity@gmail.com" class="flex items-center">
+      <span class="material-icons text-teal-600 mr-2 text-lg">mail</span>
+      <span class="font-semibold break-all">dnet.infinity@gmail.com</span>
+    </a>
+  </div>
+</div>
+<!-- ====== /Besoin d'aide ? ====== -->
+
+      </div>
+
+      <div class="text-center text-xs text-gray-500 mt-6 border-t border-gray-200 pt-4">
+        © 2024 DNet. Tous droits réservés.
+      </div>
+    </footer>
+  </div>
+</div>
+<!-- 
+<script>
+  // Téléchargement du flyer en PDF (A4)
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('downloadPdfBtn');
+    const flyer = document.getElementById('flyer');
+
+    btn.addEventListener('click', () => {
+        const opt = {
+            margin: 0,
+            filename: 'DNet-flyer.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+            pagebreak: { mode: ['css', 'avoid-all'] } // respecte .avoid-break
+        };
+        html2pdf().set(opt).from(document.getElementById('flyer')).save();
+
+    });
+  });
+</script> -->
+</body></html>

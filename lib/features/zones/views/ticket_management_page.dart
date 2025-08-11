@@ -1,5 +1,7 @@
+import 'package:dnet_buy/features/zones/models/ticket_model.dart';
 import 'package:dnet_buy/shared/utils/format_utils.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/features/dashboard/views/widgets/stat_card.dart';
 import 'package:dnet_buy/features/zones/controllers/ticket_management_controller.dart';
@@ -49,23 +51,6 @@ class TicketManagementPage extends GetView<TicketManagementController> {
               label: const Text('Nouveau Forfait'),
             )
           : null,
-    );
-  }
-
-  // Vue pour la gestion d'un type de ticket spécifique
-  Widget _buildTicketTypeManagementView() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppConstants.defaultPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildTicketTypeInfo(),
-          const SizedBox(height: AppConstants.defaultPadding * 1.5),
-          _buildTicketsImportSection(),
-          const SizedBox(height: AppConstants.defaultPadding * 1.5),
-          _buildTicketsList(),
-        ],
-      ),
     );
   }
 
@@ -174,16 +159,34 @@ class TicketManagementPage extends GetView<TicketManagementController> {
     );
   }
 
-  // Liste des tickets importés
+// Améliorer l'affichage des tickets pour montrer les ventes manuelles
   Widget _buildTicketsList() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Tickets Importés',
-          style: Get.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Tickets (${controller.tickets.length})',
+              style: Get.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Obx(() {
+              final availableCount = controller.tickets
+                  .where((t) => t.status == 'available')
+                  .length;
+              final soldCount =
+                  controller.tickets.where((t) => t.status == 'used').length;
+
+              return Chip(
+                label: Text('$availableCount dispo • $soldCount vendus'),
+                backgroundColor: Colors.blue.shade100,
+                labelStyle: TextStyle(color: Colors.blue.shade800),
+              );
+            }),
+          ],
         ),
         const SizedBox(height: AppConstants.defaultPadding / 2),
         Obx(() {
@@ -191,12 +194,32 @@ class TicketManagementPage extends GetView<TicketManagementController> {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(AppConstants.defaultPadding * 2),
-                child: Text(
-                  'Aucun ticket importé',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontStyle: FontStyle.italic,
-                  ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.confirmation_number_outlined,
+                      size: 64,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Aucun ticket importé',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontStyle: FontStyle.italic,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Importez des tickets via CSV pour commencer les ventes',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
               ),
             );
@@ -208,30 +231,559 @@ class TicketManagementPage extends GetView<TicketManagementController> {
             itemCount: controller.tickets.length,
             itemBuilder: (context, index) {
               final ticket = controller.tickets[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  title: Text('Utilisateur: ${ticket.username}'),
-                  subtitle: Text('Mot de passe: ${ticket.password}'),
-                  trailing: Chip(
-                    label: Text(
-                      ticket.status == 'sold' ? 'Vendu' : 'Disponible',
-                    ),
-                    backgroundColor: ticket.status == 'sold'
-                        ? Colors.orange.shade100
-                        : Colors.green.shade100,
-                    labelStyle: TextStyle(
-                      color: ticket.status == 'sold'
-                          ? Colors.orange.shade800
-                          : Colors.green.shade800,
-                    ),
-                  ),
-                ),
-              );
+              return _buildTicketCard(ticket);
             },
           );
         }),
       ],
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'available':
+        return Colors.green;
+      case 'used':
+        return Colors.orange;
+      case 'reserved':
+        return Colors.blue;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'available':
+        return Icons.check_circle;
+      case 'used':
+        return Icons.sell;
+      case 'reserved':
+        return Icons.hourglass_empty;
+      default:
+        return Icons.help;
+    }
+  }
+
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'available':
+        return 'Disponible';
+      case 'used':
+        return 'Vendu';
+      case 'reserved':
+        return 'Réservé';
+      default:
+        return 'Inconnu';
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+// Dans la méthode _buildTicketTypeManagementView, ajouter un bouton pour la vente manuelle
+
+  Widget _buildTicketActions() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Actions',
+              style: Get.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: controller.goToManualSale,
+                    icon: const Icon(Icons.sell),
+                    label: const Text('Vente manuelle'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade600,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: controller.pickAndUploadCsv,
+                    icon: const Icon(Icons.upload_file),
+                    label: const Text('Importer CSV'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+// Mise à jour de la méthode _showTicketDetails
+  void _showTicketDetails(TicketModel ticket) {
+    Get.dialog(
+      AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              _getStatusIcon(ticket.status),
+              color: _getStatusColor(ticket.status),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                ticket.isAvailable ? 'Ticket disponible' : 'Détails du ticket',
+                style: TextStyle(
+                  color: _getStatusColor(ticket.status),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: Get.width * 0.9,
+          child: SingleChildScrollView(
+            child: Obx(() {
+              // Si on est en mode vente manuelle pour ce ticket
+              if (controller.selectedTicketForSale.value?.id == ticket.id) {
+                return _buildManualSaleForm(ticket);
+              }
+
+              // Sinon, afficher les détails normaux
+              return _buildTicketDetails(ticket);
+            }),
+          ),
+        ),
+        actions: _buildDialogActions(ticket),
+      ),
+    );
+  }
+
+  Widget _buildDetailSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade700,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            children: children,
+          ),
+        ),
+      ],
+    );
+  }
+
+// Construire les détails du ticket
+  Widget _buildTicketDetails(TicketModel ticket) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Informations de base
+        _buildDetailSection(
+          'Informations du ticket',
+          [
+            _buildDetailRow('Nom d\'utilisateur', ticket.username),
+            _buildDetailRow('Mot de passe', ticket.password),
+            _buildDetailRow('Statut', ticket.statusDisplay),
+            _buildDetailRow('Créé le', _formatDate(ticket.createdAt)),
+          ],
+        ),
+
+        // Informations de vente (si vendu)
+        if (ticket.isSold) ...[
+          const SizedBox(height: 16),
+          _buildDetailSection(
+            'Informations de vente',
+            [
+              if (ticket.soldAt != null)
+                _buildDetailRow('Vendu le', _formatDate(ticket.soldAt!)),
+              if (ticket.buyerPhoneNumber != null)
+                _buildDetailRow('Numéro client', ticket.buyerPhoneNumber!),
+              if (ticket.saleType != null)
+                _buildDetailRow('Type de vente', ticket.saleTypeDisplay),
+              if (ticket.paymentReference != null)
+                _buildDetailRow('Référence paiement', ticket.paymentReference!),
+              if (ticket.transactionId != null)
+                _buildDetailRow('Transaction ID', ticket.transactionId!),
+            ],
+          ),
+        ],
+
+        // Informations administratives (vente manuelle)
+        if (ticket.isManualSale) ...[
+          const SizedBox(height: 16),
+          _buildDetailSection(
+            'Informations administratives',
+            [
+              if (ticket.saleDescription != null &&
+                  ticket.saleDescription!.isNotEmpty)
+                _buildDetailRow('Description', ticket.saleDescription!),
+              if (ticket.adminUserId != null)
+                _buildDetailRow('Vendu par', ticket.adminUserId!),
+            ],
+          ),
+        ],
+
+        // Informations d'utilisation
+        if (ticket.firstUsedAt != null) ...[
+          const SizedBox(height: 16),
+          _buildDetailSection(
+            'Informations d\'utilisation',
+            [
+              _buildDetailRow(
+                  'Première utilisation', _formatDate(ticket.firstUsedAt!)),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+// Construire le formulaire de vente manuelle
+  Widget _buildManualSaleForm(TicketModel ticket) {
+    return Form(
+      key: controller.manualSaleFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Informations du ticket sélectionné
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ticket sélectionné pour la vente',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green.shade700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text('Utilisateur: ${ticket.username}'),
+                Text('Mot de passe: ${ticket.password}'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Formulaire de vente
+          Text(
+            'Informations de vente',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Numéro de téléphone
+          TextFormField(
+            controller: controller.manualSalePhoneController,
+            decoration: const InputDecoration(
+              labelText: 'Numéro de téléphone du client *',
+              hintText: '+237XXXXXXXXX ou 6XXXXXXXX',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.phone),
+              isDense: true,
+            ),
+            keyboardType: TextInputType.phone,
+            validator: controller.validatePhoneNumber,
+          ),
+          const SizedBox(height: 12),
+
+          // Description
+          TextFormField(
+            controller: controller.manualSaleDescriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Description (optionnel)',
+              hintText: 'Ex: Vente en magasin, client fidèle...',
+              border: OutlineInputBorder(),
+              prefixIcon: Icon(Icons.description),
+              isDense: true,
+            ),
+            maxLines: 2,
+            maxLength: 500,
+            validator: controller.validateDescription,
+          ),
+
+          // Instructions
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue.shade700, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Les identifiants seront automatiquement copiés après la vente',
+                    style: TextStyle(
+                      color: Colors.blue.shade700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+// Construire les actions du dialog
+  List<Widget> _buildDialogActions(TicketModel ticket) {
+    return [
+      // Bouton Annuler/Fermer
+      TextButton(
+        onPressed: () {
+          controller.closeManualSaleForm();
+          Get.back();
+        },
+        child: Text(controller.selectedTicketForSale.value?.id == ticket.id
+            ? 'Annuler'
+            : 'Fermer'),
+      ),
+
+      // Actions selon l'état
+      if (controller.selectedTicketForSale.value?.id == ticket.id) ...[
+        // Mode vente manuelle - Bouton vendre
+        Obx(() => ElevatedButton.icon(
+              onPressed: controller.isSellingManually.value
+                  ? null
+                  : controller.sellTicketManually,
+              icon: controller.isSellingManually.value
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sell),
+              label: Text(
+                  controller.isSellingManually.value ? 'Vente...' : 'Vendre'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade600,
+                foregroundColor: Colors.white,
+              ),
+            )),
+      ] else ...[
+        // Mode normal - Actions selon le statut du ticket
+        if (ticket.isAvailable)
+          ElevatedButton.icon(
+            onPressed: () => controller.openManualSaleForm(ticket),
+            icon: const Icon(Icons.sell),
+            label: const Text('Vendre'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade600,
+              foregroundColor: Colors.white,
+            ),
+          ),
+
+        if (ticket.isSold)
+          ElevatedButton.icon(
+            onPressed: () {
+              final credentials =
+                  'Nom d\'utilisateur: ${ticket.username}\nMot de passe: ${ticket.password}';
+              Clipboard.setData(ClipboardData(text: credentials));
+              Get.back();
+              Get.snackbar(
+                'Copié!',
+                'Les identifiants ont été copiés dans le presse-papiers',
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: Colors.green.shade100,
+                colorText: Colors.green.shade800,
+                duration: const Duration(seconds: 2),
+              );
+            },
+            icon: const Icon(Icons.copy),
+            label: const Text('Copier'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade600,
+              foregroundColor: Colors.white,
+            ),
+          ),
+      ],
+    ];
+  }
+
+// Mettre à jour _buildTicketCard pour permettre le clic sur tous les tickets
+  Widget _buildTicketCard(TicketModel ticket) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: _getStatusColor(ticket.status),
+          child: Icon(
+            _getStatusIcon(ticket.status),
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+        title: Text(
+          'Utilisateur: ${ticket.username}',
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mot de passe: ${ticket.password}'),
+            if (ticket.isSold && ticket.soldAt != null)
+              Text(
+                'Vendu le ${_formatDate(ticket.soldAt!)}',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                ),
+              ),
+            if (ticket.buyerPhoneNumber != null)
+              Text(
+                'Client: ${ticket.buyerPhoneNumber}',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                ),
+              ),
+            if (ticket.saleDescription != null &&
+                ticket.saleDescription!.isNotEmpty)
+              Text(
+                'Note: ${ticket.saleDescription}',
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Chip(
+              label: Text(ticket.statusDisplay),
+              backgroundColor: _getStatusColor(ticket.status).withOpacity(0.1),
+              labelStyle: TextStyle(
+                color: _getStatusColor(ticket.status),
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+            if (ticket.isManualSale)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'MANUEL',
+                  style: TextStyle(
+                    color: Colors.purple.shade700,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            if (ticket.isOnlineSale)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'EN LIGNE',
+                  style: TextStyle(
+                    color: Colors.green.shade700,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        // Permettre le clic sur tous les tickets (disponibles et vendus)
+        onTap: () => _showTicketDetails(ticket),
+      ),
+    );
+  }
+
+// // Modifier la méthode _buildTicketTypeManagementView pour inclure les actions
+  Widget _buildTicketTypeManagementView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppConstants.defaultPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTicketTypeInfo(),
+          const SizedBox(height: AppConstants.defaultPadding),
+          _buildTicketActions(), // Ajouter cette ligne
+          const SizedBox(height: AppConstants.defaultPadding),
+          _buildTicketsImportSection(),
+          const SizedBox(height: AppConstants.defaultPadding * 1.5),
+          _buildTicketsList(),
+        ],
+      ),
     );
   }
 

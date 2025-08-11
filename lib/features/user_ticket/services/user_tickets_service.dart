@@ -5,14 +5,16 @@ import 'package:http/http.dart' as http;
 
 class UserTicketsService {
   final LoggerService _logger = LoggerService.to;
-  static const String baseUrl = 'https://us-central1-dnet-29b02.cloudfunctions.net';
+  static const String baseUrl =
+      'https://us-central1-dnet-29b02.cloudfunctions.net';
 
-  Future<List<UserTicketModel>> getUserTicketsByPhone(String phoneNumber) async {
+  Future<List<UserTicketModel>> getUserTicketsByPhone(
+      String phoneNumber) async {
     try {
       _logger.debug('Récupération des tickets pour le numéro: $phoneNumber');
 
-      final uri = Uri.parse('$baseUrl/getUserTicketsByPhone')
-          .replace(queryParameters: {
+      final uri =
+          Uri.parse('$baseUrl/getUserTicketsByPhone').replace(queryParameters: {
         'phoneNumber': phoneNumber,
         'limit': '50' // Limiter à 50 tickets max
       });
@@ -29,7 +31,7 @@ class UserTicketsService {
 
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
-        
+
         if (jsonData['success'] == true) {
           final List ticketsJson = jsonData['tickets'] ?? [];
           final tickets = ticketsJson

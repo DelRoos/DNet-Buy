@@ -1,4 +1,7 @@
 // lib/features/zones/controllers/ticket_management_controller.dart
+import 'package:dnet_buy/app/services/manual_sale_service.dart';
+import 'package:dnet_buy/features/manual_sale/controllers/manual_sale_controller.dart';
+import 'package:dnet_buy/features/manual_sale/views/manual_sale_page.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,6 +18,7 @@ import 'package:dnet_buy/features/zones/models/ticket_type_model.dart';
 class TicketManagementController extends GetxController {
   final TicketTypeService _ticketTypeService = Get.find<TicketTypeService>();
   final TicketService _ticketService = Get.find<TicketService>();
+  final ManualSaleService _manualSaleService = Get.find<ManualSaleService>();
   final LoggerService _logger = LoggerService.to;
 
   final String zoneId;
@@ -27,6 +31,15 @@ class TicketManagementController extends GetxController {
       Rx<TicketTypeModel?>(null); // Pour stocker un type de ticket spécifique
   var isUploading = false.obs; // Pour l'état d'upload
   var tickets = <TicketModel>[].obs; // Liste de tickets génériques
+
+// États pour la vente manuelle
+  var isSellingManually = false.obs;
+  var selectedTicketForSale = Rx<TicketModel?>(null);
+
+// Contrôleurs pour le formulaire de vente manuelle
+  final manualSaleFormKey = GlobalKey<FormState>();
+  final manualSalePhoneController = TextEditingController();
+  final manualSaleDescriptionController = TextEditingController();
 
   TicketManagementController(
       {required this.zoneId,
@@ -44,6 +57,286 @@ class TicketManagementController extends GetxController {
       loadTicketTypeDetails();
       loadTickets(); // Charger aussi les tickets
     }
+  }
+
+  @override
+  void onClose() {
+    manualSalePhoneController.dispose();
+    manualSaleDescriptionController.dispose();
+    super.onClose();
+  }
+
+// Validation du numéro de téléphone
+  String? validatePhoneNumber(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Numéro de téléphone requis';
+    }
+
+    String digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+
+    if (value.startsWith('+237')) {
+      if (digitsOnly.length != 12 || !digitsOnly.startsWith('237')) {
+        return 'Format: +237XXXXXXXXX (9 chiffres après +237)';
+      }
+    } else if (value.startsWith('237')) {
+      if (digitsOnly.length != 12) {
+        return 'Format: 237XXXXXXXXX (12 chiffres au total)';
+      }
+    } else if (value.startsWith('6') || value.startsWith('2')) {
+      if (digitsOnly.length != 9) {
+        return 'Format: 6XXXXXXXX ou 2XXXXXXXX (9 chiffres)';
+      }
+    } else {
+      return 'Format invalide. Utilisez: +237XXXXXXXXX, 237XXXXXXXXX, 6XXXXXXXX ou 2XXXXXXXX';
+    }
+
+    return null;
+  }
+
+// Validation de la description
+  String? validateDescription(String? value) {
+    if (value != null && value.length > 500) {
+      return 'Description trop longue (max 500 caractères)';
+    }
+    return null;
+  }
+
+// Ouvrir le formulaire de vente manuelle
+  void openManualSaleForm(TicketModel ticket) {
+    if (!ticket.isAvailable) {
+      Get.snackbar(
+        'Erreur',
+        'Ce ticket n\'est pas disponible pour la vente',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade800,
+      );
+      return;
+    }
+
+    selectedTicketForSale.value = ticket;
+    manualSalePhoneController.clear();
+    manualSaleDescriptionController.clear();
+
+    _logger.logUserAction('manual_sale_form_opened', details: {
+      'ticketId': ticket.id,
+      'username': ticket.username,
+    });
+  }
+
+// Fermer le formulaire de vente manuelle
+  void closeManualSaleForm() {
+    selectedTicketForSale.value = null;
+    manualSalePhoneController.clear();
+    manualSaleDescriptionController.clear();
+    isSellingManually.value = false;
+  }
+
+// Effectuer la vente manuelle
+  Future<void> sellTicketManually() async {
+    if (!manualSaleFormKey.currentState!.validate()) return;
+    if (selectedTicketForSale.value == null) return;
+
+    try {
+      isSellingManually.value = true;
+
+      final result = await _manualSaleService.sellTicketManually(
+        ticketId: selectedTicketForSale.value!.id,
+        phoneNumber: manualSalePhoneController.text.trim(),
+        description: manualSaleDescriptionController.text.trim().isEmpty
+            ? null
+            : manualSaleDescriptionController.text.trim(),
+      );
+
+      if (result.isSuccess) {
+        // Copier automatiquement les identifiants
+        final credentials =
+            'Nom d\'utilisateur: ${result.credentials!.username}\nMot de passe: ${result.credentials!.password}';
+        Clipboard.setData(ClipboardData(text: credentials));
+
+        // Mettre à jour le ticket localement
+        final ticketIndex =
+            tickets.indexWhere((t) => t.id == selectedTicketForSale.value!.id);
+        if (ticketIndex != -1) {
+          tickets[ticketIndex] = selectedTicketForSale.value!.copyWith(
+            status: 'used',
+            soldAt: result.ticketInfo!.saleDate,
+            buyerPhoneNumber: result.ticketInfo!.phoneNumber,
+            saleType: 'manual',
+            saleDescription: manualSaleDescriptionController.text.trim().isEmpty
+                ? null
+                : manualSaleDescriptionController.text.trim(),
+            transactionId: result.transactionId,
+            paymentReference: 'MANUAL_${DateTime.now().millisecondsSinceEpoch}',
+          );
+        }
+
+        // Fermer le popup de détails
+        Get.back();
+
+        // Afficher le résultat de la vente
+        _showSaleSuccessDialog(result);
+
+        _logger.logUserAction('manual_sale_completed', details: {
+          'transactionId': result.transactionId,
+          'ticketId': selectedTicketForSale.value!.id,
+          'phoneNumber': manualSalePhoneController.text.trim(),
+        });
+
+        // Réinitialiser le formulaire
+        closeManualSaleForm();
+
+        // Recharger les données
+        await loadTickets();
+      } else {
+        Get.snackbar(
+          'Erreur',
+          'Impossible de vendre le ticket: ${result.error}',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red.shade100,
+          colorText: Colors.red.shade800,
+        );
+      }
+    } catch (e) {
+      _logger.error('Erreur lors de la vente manuelle', error: e);
+      Get.snackbar(
+        'Erreur',
+        'Une erreur est survenue: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade800,
+      );
+    } finally {
+      isSellingManually.value = false;
+    }
+  }
+
+// Afficher le dialog de succès de vente
+  void _showSaleSuccessDialog(ManualSaleResult result) {
+    Get.dialog(
+      AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green.shade600),
+            const SizedBox(width: 8),
+            const Text('Vente réussie!'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Transaction ID: ${result.transactionId}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Forfait: ${result.ticketInfo!.planName}'),
+                    Text('Montant: ${result.ticketInfo!.formattedAmount}'),
+                    Text('Client: ${result.ticketInfo!.phoneNumber}'),
+                    Text('Date: ${_formatDate(result.ticketInfo!.saleDate)}'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Identifiants du client:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Nom d\'utilisateur: ${result.credentials!.username}',
+                      style: const TextStyle(fontFamily: 'monospace'),
+                    ),
+                    Text(
+                      'Mot de passe: ${result.credentials!.password}',
+                      style: const TextStyle(fontFamily: 'monospace'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline,
+                        color: Colors.amber.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Les identifiants ont été automatiquement copiés dans le presse-papiers',
+                        style: TextStyle(
+                          color: Colors.amber.shade700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Fermer'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              final credentials = result.credentials!.formattedCredentials;
+              Clipboard.setData(ClipboardData(text: credentials));
+              Get.snackbar(
+                'Copié!',
+                'Identifiants copiés dans le presse-papiers',
+                snackPosition: SnackPosition.BOTTOM,
+                duration: const Duration(seconds: 2),
+              );
+            },
+            icon: const Icon(Icons.copy),
+            label: const Text('Recopier'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade600,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} à ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   // Charger les détails d'un type de ticket spécifique
@@ -64,6 +357,44 @@ class TicketManagementController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  // Ajouter cette méthode dans la classe TicketManagementController
+
+// Navigation vers la vente manuelle
+  void goToManualSale() {
+    if (tickets.isEmpty) {
+      Get.snackbar(
+        'Information',
+        'Aucun ticket disponible pour la vente',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    final availableTickets =
+        tickets.where((t) => t.status == 'available').toList();
+
+    if (availableTickets.isEmpty) {
+      Get.snackbar(
+        'Information',
+        'Aucun ticket disponible pour la vente',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+
+    _logger.logUserAction('navigate_to_manual_sale', details: {
+      'ticketTypeId': ticketTypeId,
+      'availableTickets': availableTickets.length,
+    });
+
+    Get.to(
+      () => ManualSalePage(availableTickets: availableTickets),
+      binding: BindingsBuilder(() {
+        Get.lazyPut(() => ManualSaleController());
+      }),
+    );
   }
 
   // Charger les tickets pour le type de ticket actuel

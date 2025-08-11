@@ -1,4 +1,5 @@
 // lib/app/bindings/app_bindings.dart (mise à jour)
+import 'package:dnet_buy/app/services/manual_sale_service.dart';
 import 'package:dnet_buy/features/user_ticket/services/user_tickets_service.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/app/controllers/auth_controller.dart';
@@ -29,7 +30,7 @@ class AppBindings extends Bindings {
     // Contrôleur d'authentification (permanent)
     Get.put<AuthController>(AuthController(), permanent: true);
 
-
+    Get.lazyPut(() => ManualSaleService(), fenix: true);
     // Log de l'initialisation
     LoggerService.to
         .info('✅ Application bindings initialisés avec tous les services');

@@ -661,3 +661,124 @@ exports.getUserTicketsByPhone = onRequest(async (req, res) => {
     return res.status(500).json({ error: "Erreur interne du serveur" });
   }
 });
+
+
+/* ================== VENTE MANUELLE DE TICKETS ================== */
+exports.manualTicketSale = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
+
+  try {
+    const { ticketId, phoneNumber, description, adminUserId } = req.body || {};
+    
+    if (!ticketId || !phoneNumber || !adminUserId) {
+      return res.status(400).json({ 
+        error: "ticketId, phoneNumber et adminUserId sont requis" 
+      });
+    }
+
+    // Formater le numéro de téléphone
+    const formattedPhone = formatCameroonPhone(phoneNumber);
+    
+    // Vérifier que le ticket existe et est disponible
+    const ticketDoc = await db.collection("tickets").doc(ticketId).get();
+    if (!ticketDoc.exists) {
+      return res.status(404).json({ error: "Ticket introuvable" });
+    }
+
+    const ticketData = ticketDoc.data();
+    if (ticketData.status !== "available") {
+      return res.status(400).json({ 
+        error: `Ticket non disponible (statut: ${ticketData.status})` 
+      });
+    }
+
+    // Récupérer les informations du type de ticket
+    const ticketTypeDoc = await db.collection("ticket_types")
+      .doc(ticketData.ticketTypeId)
+      .get();
+    
+    if (!ticketTypeDoc.exists) {
+      return res.status(404).json({ error: "Type de ticket introuvable" });
+    }
+
+    const ticketTypeData = ticketTypeDoc.data();
+    
+    // Créer une transaction simulée
+    const transactionRef = db.collection("transactions").doc();
+    const transactionId = transactionRef.id;
+
+    // Utiliser un batch pour la cohérence des données
+    const batch = db.batch();
+
+    // 1. Créer la transaction simulée
+    batch.set(transactionRef, {
+      createdAt: now(),
+      updatedAt: now(),
+      completedAt: now(),
+      status: "completed",
+      provider: "manual_sale",
+      amount: ticketTypeData.price,
+      currency: "XAF",
+      planId: ticketData.ticketTypeId,
+      phone: formattedPhone,
+      externalId: transactionId,
+      freemopayReference: `MANUAL_${Date.now()}`,
+      webhookReceived: true,
+      planName: ticketTypeData.name,
+      ticketTypeName: formatValidityDuration(ticketTypeData.validityHours),
+      credentials: {
+        username: ticketData.username,
+        password: ticketData.password
+      },
+      // Données spécifiques à la vente manuelle
+      isManualSale: true,
+      adminUserId: adminUserId,
+      saleDescription: description || "Vente manuelle",
+      manualSaleAt: now(),
+    });
+
+    // 2. Marquer le ticket comme vendu
+    batch.update(db.collection("tickets").doc(ticketId), {
+      status: "used",
+      usedAt: now(),
+      soldAt: now(), // Ajouter soldAt pour les statistiques
+      transactionId: transactionId,
+      buyerPhone: formattedPhone,
+      saleType: "manual",
+      adminUserId: adminUserId,
+      saleDescription: description || "Vente manuelle",
+    });
+
+    await batch.commit();
+
+    logger.info("✅ Vente manuelle effectuée avec succès", {
+      ticketId,
+      transactionId,
+      phoneNumber: formattedPhone,
+      adminUserId,
+      amount: ticketTypeData.price
+    });
+
+    return res.json({
+      success: true,
+      transactionId,
+      ticket: {
+        username: ticketData.username,
+        password: ticketData.password,
+        planName: ticketTypeData.name,
+        amount: ticketTypeData.price,
+        formattedAmount: `${Number(ticketTypeData.price).toLocaleString()} F`,
+        phoneNumber: formattedPhone,
+        saleDate: new Date().toISOString()
+      }
+    });
+
+  } catch (e) {
+    logger.error("manualTicketSale error", e);
+    return res.status(500).json({ error: "Erreur interne du serveur" });
+  }
+});

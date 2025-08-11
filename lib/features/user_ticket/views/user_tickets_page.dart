@@ -74,23 +74,24 @@ class UserTicketsPage extends GetView<UserTicketsController> {
                 children: [
                   Expanded(
                     child: Obx(() => ElevatedButton.icon(
-                      onPressed: controller.isLoading.value 
-                          ? null 
-                          : controller.searchTickets,
-                      icon: controller.isLoading.value
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.search),
-                      label: Text(controller.isLoading.value 
-                          ? 'Recherche...' 
-                          : 'Rechercher'),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.all(12),
-                      ),
-                    )),
+                          onPressed: controller.isLoading.value
+                              ? null
+                              : controller.searchTickets,
+                          icon: controller.isLoading.value
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.search),
+                          label: Text(controller.isLoading.value
+                              ? 'Recherche...'
+                              : 'Rechercher'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.all(12),
+                          ),
+                        )),
                   ),
                   const SizedBox(width: 8),
                   OutlinedButton(
@@ -116,7 +117,8 @@ class UserTicketsPage extends GetView<UserTicketsController> {
       );
     }
 
-    if (controller.tickets.isEmpty && controller.searchedPhoneNumber.value.isNotEmpty) {
+    if (controller.tickets.isEmpty &&
+        controller.searchedPhoneNumber.value.isNotEmpty) {
       return _buildEmptyState();
     }
 
@@ -231,7 +233,8 @@ class UserTicketsPage extends GetView<UserTicketsController> {
             const SizedBox(height: 8),
             Row(
               children: [
-                Icon(Icons.confirmation_number, size: 16, color: Colors.grey.shade600),
+                Icon(Icons.confirmation_number,
+                    size: 16, color: Colors.grey.shade600),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
@@ -262,12 +265,12 @@ class UserTicketsPage extends GetView<UserTicketsController> {
                     ),
                     const SizedBox(height: 8),
                     _buildCredentialRow(
-                      'Nom d\'utilisateur:', 
+                      'Nom d\'utilisateur:',
                       ticket.credentials!.username,
                     ),
                     const SizedBox(height: 4),
                     _buildCredentialRow(
-                      'Mot de passe:', 
+                      'Mot de passe:',
                       ticket.credentials!.password,
                     ),
                     const SizedBox(height: 12),
@@ -275,7 +278,8 @@ class UserTicketsPage extends GetView<UserTicketsController> {
                       children: [
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: () => controller.copyTicketCredentials(ticket),
+                            onPressed: () =>
+                                controller.copyTicketCredentials(ticket),
                             icon: const Icon(Icons.copy, size: 16),
                             label: const Text('Copier tout'),
                             style: ElevatedButton.styleFrom(

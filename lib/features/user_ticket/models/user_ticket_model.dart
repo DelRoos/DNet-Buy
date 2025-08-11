@@ -28,10 +28,10 @@ class UserTicketModel {
       ticketTypeName: json['ticketTypeName'] ?? '',
       amount: json['amount'] ?? 0,
       formattedAmount: json['formattedAmount'] ?? '',
-      credentials: json['credentials'] != null 
+      credentials: json['credentials'] != null
           ? UserTicketCredentials.fromJson(json['credentials'])
           : null,
-      completedAt: json['completedAt'] != null 
+      completedAt: json['completedAt'] != null
           ? DateTime.parse(json['completedAt'])
           : null,
       freemopayReference: json['freemopayReference'],

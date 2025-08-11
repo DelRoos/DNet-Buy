@@ -112,7 +112,6 @@ class DashboardPage extends GetView<DashboardController> {
                   subtitle: 'Gérer vos informations et clés API',
                   onTap: () => Get.toNamed('/dashboard/settings'),
                 ),
-
                 ActionListTile(
                   icon: Icons.search,
                   title: 'Tickets par téléphone',
