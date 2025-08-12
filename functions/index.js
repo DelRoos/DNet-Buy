@@ -23,8 +23,8 @@ const PROJECT_ID = "dnet-29b02";
 const REGION = "us-central1";
 const FREEMOPAY_CONFIG = {
   baseUrl: "https://api-v2.freemopay.com",
-  appKey: "7be38c1d-c0d9-4067-aba9-f0380dc68088",
-  secretKey: "r1gDV0F2eO1EyfMMrs19",
+  appKey: "1b81c681-ad0e-4e98-b185-c5207d11eb3e",
+  secretKey: "lTd08hgfThVWiK5DYIKx",
   timeout: 5000,
 };
 const WEBHOOK_URL = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/handleFreemopayWebhook`;

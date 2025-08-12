@@ -353,39 +353,41 @@ class TicketManagementPage extends GetView<TicketManagementController> {
 // Mise à jour de la méthode _showTicketDetails
   void _showTicketDetails(TicketModel ticket) {
     Get.dialog(
-      AlertDialog(
-        title: Row(
-          children: [
-            Icon(
-              _getStatusIcon(ticket.status),
-              color: _getStatusColor(ticket.status),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                ticket.isAvailable ? 'Ticket disponible' : 'Détails du ticket',
-                style: TextStyle(
-                  color: _getStatusColor(ticket.status),
+      SelectionArea(
+        child: AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                _getStatusIcon(ticket.status),
+                color: _getStatusColor(ticket.status),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  ticket.isAvailable ? 'Ticket disponible' : 'Détails du ticket',
+                  style: TextStyle(
+                    color: _getStatusColor(ticket.status),
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: Get.width * 0.9,
-          child: SingleChildScrollView(
-            child: Obx(() {
-              // Si on est en mode vente manuelle pour ce ticket
-              if (controller.selectedTicketForSale.value?.id == ticket.id) {
-                return _buildManualSaleForm(ticket);
-              }
-
-              // Sinon, afficher les détails normaux
-              return _buildTicketDetails(ticket);
-            }),
+            ],
           ),
+          content: SizedBox(
+            width: Get.width * 0.9,
+            child: SingleChildScrollView(
+              child: Obx(() {
+                // Si on est en mode vente manuelle pour ce ticket
+                if (controller.selectedTicketForSale.value?.id == ticket.id) {
+                  return _buildManualSaleForm(ticket);
+                }
+        
+                // Sinon, afficher les détails normaux
+                return _buildTicketDetails(ticket);
+              }),
+            ),
+          ),
+          actions: _buildDialogActions(ticket),
         ),
-        actions: _buildDialogActions(ticket),
       ),
     );
   }
