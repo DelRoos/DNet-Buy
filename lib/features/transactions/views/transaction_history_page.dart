@@ -64,7 +64,7 @@ class TransactionHistoryPage extends GetView<TransactionHistoryController> {
           segments: const [
             ButtonSegment(value: null, label: Text('Tous')),
             ButtonSegment(
-              value: TransactionStatus.success,
+              value: TransactionStatus.completed,
               label: Text('Succès'),
               icon: Icon(Icons.check),
             ),

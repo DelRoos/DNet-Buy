@@ -782,3 +782,506 @@ exports.manualTicketSale = onRequest(async (req, res) => {
     return res.status(500).json({ error: "Erreur interne du serveur" });
   }
 });
+
+
+/* ================== NOUVELLES APIS POUR LES TRANSACTIONS DE ZONE ================== */
+
+// Fonction utilitaire pour récupérer les IDs des types de tickets d'une zone
+async function getZoneTicketTypeIds(zoneId) {
+  try {
+    const ticketTypesSnapshot = await db.collection("ticket_types")
+      .where("zoneId", "==", zoneId)
+      .select()
+      .get();
+    return ticketTypesSnapshot.docs.map(doc => doc.id);
+  } catch (error) {
+    logger.error("getZoneTicketTypeIds error", error);
+    return [];
+  }
+}
+
+/* ================== API: RÉCUPÉRER LES TRANSACTIONS D'UNE ZONE ================== */
+exports.getZoneTransactions = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
+
+  try {
+    const { 
+      zoneId, 
+      statusFilter, 
+      limit = 50, 
+      page = 0,
+      search,
+      startDate,
+      endDate,
+      status
+    } = req.query;
+    if (!zoneId) return res.status(400).json({ error: "zoneId requis" });
+
+    // Vérifier que la zone existe
+    const zoneDoc = await db.collection("zones").doc(zoneId).get();
+    if (!zoneDoc.exists) {
+      return res.status(404).json({ error: "Zone non trouvée" });
+    }
+
+    // Récupérer les IDs des types de tickets de cette zone
+    const ticketTypeIds = await getZoneTicketTypeIds(zoneId);
+    if (ticketTypeIds.length === 0) {
+      return res.json({
+        success: true,
+        transactions: [],
+        zoneId,
+        total: 0,
+        message: "Aucun type de ticket trouvé pour cette zone"
+      });
+    }
+
+    // Construire la requête Firestore avec filtres
+    let query = db.collection("transactions")
+      .where("planId", "in", ticketTypeIds);
+
+    // Filtre par statut
+    const currentStatus = status || statusFilter;
+    if (currentStatus) {
+      const validStatuses = ["created", "pending", "completed", "failed", "expired", "cancelled"];
+      if (validStatuses.includes(currentStatus)) {
+        query = query.where("status", "==", currentStatus);
+      }
+    }
+
+    // Filtre par date
+    if (startDate) {
+      const start = admin.firestore.Timestamp.fromDate(new Date(startDate));
+      query = query.where("createdAt", ">=", start);
+    }
+    if (endDate) {
+      const end = admin.firestore.Timestamp.fromDate(new Date(endDate));
+      query = query.where("createdAt", "<=", end);
+    }
+
+    // Tri et pagination
+    query = query.orderBy("createdAt", "desc");
+    
+    // Pagination
+    const pageNum = parseInt(page) || 0;
+    const limitNum = parseInt(limit) || 50;
+    if (pageNum > 0) {
+      query = query.offset(pageNum * limitNum);
+    }
+    query = query.limit(limitNum);
+
+    const snapshot = await query.get();
+
+    // Traiter les transactions
+    let transactions = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        status: data.status,
+        amount: data.amount,
+        currency: data.currency || "XAF",
+        phone: data.phone,
+        createdAt: data.createdAt?.toDate?.()?.toISOString?.(),
+        completedAt: data.completedAt?.toDate?.()?.toISOString?.(),
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString?.(),
+        planId: data.planId,
+        planName: data.planName,
+        ticketTypeName: data.ticketTypeName,
+        freemopayReference: data.freemopayReference,
+        // Credentials uniquement si transaction completed
+        credentials: data.status === "completed" ? data.credentials : null,
+        isManualSale: data.isManualSale || false,
+        saleDescription: data.saleDescription,
+        adminUserId: data.adminUserId,
+        externalId: data.externalId,
+        provider: data.provider || "freemopay",
+        providerMessage: data.providerMessage,
+        reservedTicketId: data.reservedTicketId,
+      };
+    });
+
+    // Filtre de recherche côté serveur (si la recherche Firestore n'est pas possible)
+    if (search) {
+      const searchLower = search.toLowerCase();
+      transactions = transactions.filter(tx => 
+        tx.phone?.toLowerCase().includes(searchLower) ||
+        tx.id?.toLowerCase().includes(searchLower) ||
+        tx.freemopayReference?.toLowerCase().includes(searchLower) ||
+        tx.planName?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return res.json({
+      success: true,
+      transactions,
+      zoneId,
+      total: transactions.length,
+      page: pageNum,
+      limit: limitNum,
+      hasMore: transactions.length === limitNum,
+      filters: {
+        status: currentStatus || null,
+        search: search || null,
+        startDate: startDate || null,
+        endDate: endDate || null
+      }
+    });
+
+  } catch (e) {
+    logger.error("getZoneTransactions error", e);
+    return res.status(500).json({ error: "Erreur interne du serveur" });
+  }
+});
+
+/* ================== API: DÉTAILS COMPLETS D'UNE TRANSACTION ================== */
+exports.getTransactionDetails = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
+
+  try {
+    const { transactionId } = req.query;
+    if (!transactionId) return res.status(400).json({ error: "transactionId requis" });
+
+    const doc = await db.collection("transactions").doc(String(transactionId)).get();
+    if (!doc.exists) {
+      return res.status(404).json({ error: "Transaction introuvable" });
+    }
+
+    const tx = doc.data();
+
+    // Récupérer les informations supplémentaires en parallèle
+    const promises = [];
+    
+    // Informations du plan/type de ticket
+    if (tx.planId) {
+      promises.push(
+        db.collection("ticket_types").doc(tx.planId).get()
+          .then(planDoc => planDoc.exists ? { planDetails: planDoc.data() } : { planDetails: null })
+          .catch(() => ({ planDetails: null }))
+      );
+    } else {
+      promises.push(Promise.resolve({ planDetails: null }));
+    }
+
+    // Informations de la zone
+    if (tx.planId) {
+      promises.push(
+        db.collection("ticket_types").doc(tx.planId).get()
+          .then(async planDoc => {
+            if (planDoc.exists && planDoc.data().zoneId) {
+              const zoneDoc = await db.collection("zones").doc(planDoc.data().zoneId).get();
+              return { zoneDetails: zoneDoc.exists ? zoneDoc.data() : null };
+            }
+            return { zoneDetails: null };
+          })
+          .catch(() => ({ zoneDetails: null }))
+      );
+    } else {
+      promises.push(Promise.resolve({ zoneDetails: null }));
+    }
+
+    // Informations du ticket réservé/utilisé
+    if (tx.reservedTicketId) {
+      promises.push(
+        db.collection("tickets").doc(tx.reservedTicketId).get()
+          .then(ticketDoc => ticketDoc.exists ? { ticketDetails: ticketDoc.data() } : { ticketDetails: null })
+          .catch(() => ({ ticketDetails: null }))
+      );
+    } else {
+      promises.push(Promise.resolve({ ticketDetails: null }));
+    }
+
+    const [planInfo, zoneInfo, ticketInfo] = await Promise.all(promises);
+
+    // Construire la réponse détaillée
+    const detailedTransaction = {
+      id: doc.id,
+      status: tx.status,
+      amount: tx.amount,
+      currency: tx.currency || "XAF",
+      phone: tx.phone,
+      createdAt: tx.createdAt?.toDate?.()?.toISOString?.(),
+      completedAt: tx.completedAt?.toDate?.()?.toISOString?.(),
+      updatedAt: tx.updatedAt?.toDate?.()?.toISOString?.(),
+      planId: tx.planId,
+      planName: tx.planName,
+      ticketTypeName: tx.ticketTypeName,
+      freemopayReference: tx.freemopayReference,
+      // Credentials UNIQUEMENT si transaction completed
+      credentials: tx.status === "completed" ? tx.credentials : null,
+      isManualSale: tx.isManualSale || false,
+      saleDescription: tx.saleDescription,
+      adminUserId: tx.adminUserId,
+      externalId: tx.externalId,
+      provider: tx.provider || "freemopay",
+      providerMessage: tx.providerMessage,
+      reservedTicketId: tx.reservedTicketId,
+      
+      // Informations détaillées supplémentaires
+      planDetails: planInfo.planDetails,
+      zoneDetails: zoneInfo.zoneDetails,
+      ticketDetails: ticketInfo.ticketDetails,
+    };
+
+    return res.json({
+      success: true,
+      transaction: detailedTransaction
+    });
+
+  } catch (e) {
+    logger.error("getTransactionDetails error", e);
+    return res.status(500).json({ error: "Erreur interne du serveur" });
+  }
+});
+
+/* ================== API: STATISTIQUES DES TRANSACTIONS D'UNE ZONE ================== */
+exports.getZoneTransactionStats = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "GET") return res.status(405).json({ error: "Method Not Allowed" });
+
+  try {
+    const { zoneId } = req.query;
+    if (!zoneId) return res.status(400).json({ error: "zoneId requis" });
+
+    // Vérifier que la zone existe
+    const zoneDoc = await db.collection("zones").doc(zoneId).get();
+    if (!zoneDoc.exists) {
+      return res.status(404).json({ error: "Zone non trouvée" });
+    }
+
+    // Récupérer les IDs des types de tickets de cette zone
+    const ticketTypeIds = await getZoneTicketTypeIds(zoneId);
+    if (ticketTypeIds.length === 0) {
+      return res.json({
+        success: true,
+        stats: {
+          totalCount: 0,
+          totalAmount: 0,
+          statusCounts: {},
+          statusAmounts: {}
+        }
+      });
+    }
+
+    // Récupérer toutes les transactions - stratégie sans index complexe
+    let allTransactions = [];
+    
+    // Si peu de types de tickets, faire des requêtes séparées
+    if (ticketTypeIds.length <= 10) {
+      const promises = ticketTypeIds.map(planId => 
+        db.collection("transactions")
+          .where("planId", "==", planId)
+          .get()
+      );
+      
+      const snapshots = await Promise.all(promises);
+      allTransactions = snapshots.flatMap(snap => snap.docs.map(doc => doc.data()));
+    } else {
+      // Pour beaucoup de types, faire des requêtes par batch de 10 (limite Firestore)
+      const batches = [];
+      for (let i = 0; i < ticketTypeIds.length; i += 10) {
+        const batch = ticketTypeIds.slice(i, i + 10);
+        batches.push(
+          db.collection("transactions")
+            .where("planId", "in", batch)
+            .get()
+        );
+      }
+      
+      const snapshots = await Promise.all(batches);
+      allTransactions = snapshots.flatMap(snap => snap.docs.map(doc => doc.data()));
+    }
+
+    // Calculer les statistiques générales
+    let totalCount = 0;
+    let totalAmount = 0;
+    const statusCounts = {};
+    const statusAmounts = {};
+    
+    // Initialiser les compteurs pour tous les statuts
+    const allStatuses = ["created", "pending", "completed", "failed", "expired", "cancelled"];
+    allStatuses.forEach(status => {
+      statusCounts[status] = 0;
+      statusAmounts[status] = 0;
+    });
+
+    // Traiter toutes les transactions
+    allTransactions.forEach(data => {
+      totalCount++;
+      const amount = data.amount || 0;
+      const status = data.status || "created";
+      
+      // Total général
+      if (status === "completed") {
+        totalAmount += amount;
+      }
+      
+      // Compter par statut
+      if (statusCounts.hasOwnProperty(status)) {
+        statusCounts[status]++;
+        if (status === "completed") {
+          statusAmounts[status] += amount;
+        }
+      }
+    });
+
+    const stats = {
+      totalCount,
+      totalAmount,
+      statusCounts,
+      statusAmounts
+    };
+
+    return res.json({
+      success: true,
+      stats,
+      zoneId
+    });
+
+  } catch (e) {
+    logger.error("getZoneTransactionStats error", e);
+    return res.status(500).json({ error: "Erreur interne du serveur" });
+  }
+});
+
+/* ================== API: ANNULER UNE RÉSERVATION ================== */
+exports.cancelTransactionReservation = onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.status(204).send("");
+  if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
+
+  const t0 = Date.now();
+  const logStep = (msg) => logger.info(`⏱ [cancelTransactionReservation] ${msg} — ${Date.now() - t0} ms écoulées`);
+
+  try {
+    logStep("Début annulation de réservation");
+    
+    const { transactionId } = req.body || {};
+    if (!transactionId) return res.status(400).json({ error: "transactionId requis" });
+
+    // Récupérer la transaction
+    const txnRef = db.collection("transactions").doc(String(transactionId));
+    const txnDoc = await txnRef.get();
+    
+    if (!txnDoc.exists) {
+      return res.status(404).json({ error: "Transaction introuvable" });
+    }
+
+    const txData = txnDoc.data();
+    logStep("Transaction récupérée");
+
+    // Vérifier que la transaction peut être annulée
+    const cancellableStatuses = ["created", "pending"];
+    if (!cancellableStatuses.includes(txData.status)) {
+      return res.status(400).json({ 
+        error: `Impossible d'annuler une transaction avec le statut: ${txData.status}`,
+        currentStatus: txData.status
+      });
+    }
+
+    // Vérifier qu'il y a un ticket réservé
+    if (!txData.reservedTicketId) {
+      return res.status(400).json({ 
+        error: "Aucun ticket réservé trouvé pour cette transaction" 
+      });
+    }
+
+    logStep("Validations passées");
+
+    // Utiliser une transaction Firestore pour l'atomicité
+    const result = await db.runTransaction(async (transaction) => {
+      // Re-vérifier la transaction dans la transaction
+      const currentTxn = await transaction.get(txnRef);
+      if (!currentTxn.exists || !cancellableStatuses.includes(currentTxn.data().status)) {
+        throw new Error("Transaction déjà modifiée ou ne peut plus être annulée");
+      }
+
+      const currentTxnData = currentTxn.data();
+
+      // Récupérer le ticket réservé
+      const ticketRef = db.collection("tickets").doc(currentTxnData.reservedTicketId);
+      const ticketDoc = await transaction.get(ticketRef);
+      
+      if (!ticketDoc.exists) {
+        throw new Error("Ticket réservé introuvable");
+      }
+
+      const ticketData = ticketDoc.data();
+      
+      // Vérifier que le ticket est bien réservé pour cette transaction
+      if (ticketData.status !== "reserved") {
+        throw new Error(`Ticket dans un état incorrect: ${ticketData.status}`);
+      }
+
+      // 1. Libérer le ticket
+      transaction.update(ticketRef, {
+        status: "available",
+        reservedAt: admin.firestore.FieldValue.delete(),
+        transactionId: admin.firestore.FieldValue.delete(),
+        // Nettoyer toute trace de la transaction
+        cancelledFromTransactionId: currentTxnData.externalId || transactionId,
+        cancelledAt: admin.firestore.Timestamp.now(),
+      });
+
+      // 2. Marquer la transaction comme annulée
+      transaction.update(txnRef, {
+        status: "cancelled",
+        updatedAt: admin.firestore.Timestamp.now(),
+        cancelledAt: admin.firestore.Timestamp.now(),
+        providerMessage: "Réservation annulée manuellement",
+        // Supprimer la référence au ticket
+        reservedTicketId: admin.firestore.FieldValue.delete(),
+        // Conserver l'historique
+        originalReservedTicketId: currentTxnData.reservedTicketId,
+        // Supprimer les credentials potentiels
+        credentials: admin.firestore.FieldValue.delete(),
+      });
+
+      return {
+        ticketId: currentTxnData.reservedTicketId,
+        transactionId: transactionId,
+      };
+    });
+
+    logStep("Transaction Firestore terminée");
+
+    logger.info("✅ Réservation annulée avec succès", {
+      transactionId: transactionId,
+      ticketId: result.ticketId,
+      duration: Date.now() - t0
+    });
+
+    return res.json({
+      success: true,
+      message: "Réservation annulée avec succès",
+      transactionId: transactionId,
+      ticketId: result.ticketId,
+      timestamp: new Date().toISOString(),
+    });
+
+  } catch (e) {
+    logger.error("cancelTransactionReservation error", e);
+    
+    // Retourner des erreurs spécifiques
+    if (e.message.includes("déjà modifiée")) {
+      return res.status(409).json({ error: "Transaction déjà modifiée par un autre processus" });
+    }
+    
+    if (e.message.includes("état incorrect")) {
+      return res.status(409).json({ error: "Le ticket n'est plus dans l'état attendu" });
+    }
+    
+    return res.status(500).json({ error: "Erreur interne du serveur" });
+  }
+});

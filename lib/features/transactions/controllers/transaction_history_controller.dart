@@ -22,16 +22,16 @@ class TransactionHistoryController extends GetxController {
     await Future.delayed(const Duration(seconds: 1));
 
     allTransactions.assignAll([
-      TransactionModel(
+      TransactionModel.fromLegacy(
         id: 'a67691ed',
-        status: TransactionStatus.success,
+        status: TransactionStatus.completed,
         amount: 1000,
         buyerPhoneNumber: '699112233',
         transactionDate: DateTime.now().subtract(const Duration(hours: 1)),
         ticketUsername: 'user-abc1',
         ticketTypeName: 'Pass Journée',
       ),
-      TransactionModel(
+      TransactionModel.fromLegacy(
         id: 'cecb550c',
         status: TransactionStatus.failed,
         amount: 500,
@@ -40,18 +40,18 @@ class TransactionHistoryController extends GetxController {
         ticketUsername: 'N/A',
         ticketTypeName: 'Forfait Soirée',
       ),
-      TransactionModel(
+      TransactionModel.fromLegacy(
         id: 'b4766726',
-        status: TransactionStatus.success,
+        status: TransactionStatus.completed,
         amount: 200,
         buyerPhoneNumber: '655889900',
         transactionDate: DateTime.now().subtract(const Duration(hours: 3)),
         ticketUsername: 'user-xyz9',
         ticketTypeName: 'Boost 1 Heure',
       ),
-      TransactionModel(
+      TransactionModel.fromLegacy(
         id: 'd1e2f3g4',
-        status: TransactionStatus.success,
+        status: TransactionStatus.completed,
         amount: 1000,
         buyerPhoneNumber: '699112233',
         transactionDate: DateTime.now().subtract(const Duration(days: 1)),
@@ -75,8 +75,33 @@ class TransactionHistoryController extends GetxController {
     }
   }
 
-  Color getStatusColor(TransactionStatus status) =>
-      status == TransactionStatus.success ? Colors.green : Colors.red;
-  IconData getStatusIcon(TransactionStatus status) =>
-      status == TransactionStatus.success ? Icons.check_circle : Icons.cancel;
+  Color getStatusColor(TransactionStatus status) {
+    switch (status) {
+      case TransactionStatus.completed:
+        return Colors.green;
+      case TransactionStatus.failed:
+        return Colors.red;
+      case TransactionStatus.expired:
+        return Colors.orange;
+      case TransactionStatus.pending:
+        return Colors.blue;
+      case TransactionStatus.created:
+        return Colors.grey;
+    }
+  }
+
+  IconData getStatusIcon(TransactionStatus status) {
+    switch (status) {
+      case TransactionStatus.completed:
+        return Icons.check_circle;
+      case TransactionStatus.failed:
+        return Icons.cancel;
+      case TransactionStatus.expired:
+        return Icons.access_time;
+      case TransactionStatus.pending:
+        return Icons.hourglass_empty;
+      case TransactionStatus.created:
+        return Icons.radio_button_unchecked;
+    }
+  }
 }

@@ -6,6 +6,9 @@ import 'package:dnet_buy/features/portal/controllers/portal_controller.dart';
 import 'package:dnet_buy/features/user_ticket/controllers/user_tickets_controller.dart';
 import 'package:dnet_buy/features/user_ticket/views/user_tickets_page.dart';
 import 'package:dnet_buy/features/zones/controllers/add_zone_controller.dart';
+import 'package:dnet_buy/features/zones/controllers/zone_transactions_controller.dart';
+import 'package:dnet_buy/features/zones/services/zone_transaction_service.dart';
+import 'package:dnet_buy/features/zones/views/zone_transactions_page.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/app/middleware/auth_middleware.dart';
 import 'package:dnet_buy/features/auth/views/login_page.dart';
@@ -64,7 +67,7 @@ class AppRoutes {
 class AppPages {
   static final routes = [
     // --- ROUTES PUBLIQUES ---
-    GetPage(name: AppRoutes.splash, page: () => const SplashScreen()),
+    // GetPage(name: AppRoutes.splash, page: () => const SplashScreen()),
     GetPage(
         name: AppRoutes.login,
         page: () => const LoginPage(),
@@ -198,6 +201,21 @@ class AppPages {
           () => TicketManagementController(
               zoneId: Get.parameters['zoneId']!,
               ticketTypeId: Get.parameters['typeId']))),
+      middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
+    ),
+    
+    // Page des transactions de zone
+    GetPage(
+      name: '/zones/:zoneId/transactions',
+      page: () => const ZoneTransactionsPage(),
+      binding: BindingsBuilder(() {
+        final zoneId = Get.parameters['zoneId'] ?? '';
+        final arguments = Get.arguments as Map<String, dynamic>? ?? {};
+        final zoneName = arguments['zoneName'] ?? 'Zone';
+        
+        Get.lazyPut<ZoneTransactionService>(() => ZoneTransactionService());
+        Get.put(ZoneTransactionsController(zoneId: zoneId, zoneName: zoneName));
+      }),
       middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
     ),
   ];

@@ -7,6 +7,8 @@ import 'package:dnet_buy/app/services/ticket_type_service.dart';
 import 'package:dnet_buy/app/services/logger_service.dart';
 import 'package:dnet_buy/features/zones/models/zone_model.dart';
 import 'package:dnet_buy/features/zones/models/ticket_type_model.dart';
+import 'package:dnet_buy/features/zones/services/zone_transaction_service.dart';
+import 'package:dnet_buy/features/transactions/models/transaction_model.dart';
 
 class ZoneDetailsController extends GetxController {
   final String zoneId;
@@ -14,6 +16,7 @@ class ZoneDetailsController extends GetxController {
 
   final ZoneService _zoneService = Get.find<ZoneService>();
   final TicketTypeService _ticketTypeService = Get.find<TicketTypeService>();
+  final ZoneTransactionService _transactionService = Get.find<ZoneTransactionService>();
   final LoggerService _logger = LoggerService.to;
 
   // États réactifs
@@ -23,6 +26,14 @@ class ZoneDetailsController extends GetxController {
   var ticketTypes = <TicketTypeModel>[].obs;
   var zoneStats = RxMap<String, dynamic>({});
   var selectedFilter = 'all'.obs; // all, active, inactive
+
+  // Nouvelles propriétés pour les transactions
+  var zoneTransactions = <TransactionModel>[].obs;
+  var filteredZoneTransactions = <TransactionModel>[].obs;
+  var transactionFilter = Rx<TransactionStatus?>(null);
+  var isLoadingTransactions = false.obs;
+  var showTransactions = false.obs;
+  var transactionStats = Rx<ZoneTransactionStats?>(null);
 
   // Getters
   List<TicketTypeModel> get filteredTicketTypes {
@@ -419,6 +430,190 @@ class ZoneDetailsController extends GetxController {
     );
   }
 
+  // ================== NOUVELLES MÉTHODES POUR LES TRANSACTIONS ==================
+
+  /// Charger les transactions de la zone
+  Future<void> loadZoneTransactions() async {
+    isLoadingTransactions.value = true;
+    try {
+      _logger.debug('Chargement des transactions pour la zone: $zoneId');
+      
+      final transactions = await _transactionService.getZoneTransactions(
+        zoneId: zoneId,
+        statusFilter: transactionFilter.value,
+        limit: 100,
+      );
+      
+      zoneTransactions.assignAll(transactions);
+      _applyTransactionFilter();
+      
+      _logger.info('✅ ${transactions.length} transactions chargées pour la zone $zoneId');
+      
+    } catch (e, stackTrace) {
+      _logger.error('Erreur lors du chargement des transactions',
+          error: e,
+          stackTrace: stackTrace,
+          category: 'ZONE_DETAILS_CONTROLLER');
+      
+      Get.snackbar(
+        'Erreur',
+        'Impossible de charger les transactions: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade100,
+        colorText: Colors.red.shade800,
+      );
+    } finally {
+      isLoadingTransactions.value = false;
+    }
+  }
+
+  /// Basculer l'affichage des transactions
+  void toggleTransactionsView() {
+    showTransactions.toggle();
+    _logger.debug('Toggle transactions view: ${showTransactions.value}');
+    
+    if (showTransactions.value && zoneTransactions.isEmpty) {
+      loadZoneTransactions();
+    }
+  }
+
+  /// Filtrer les transactions par statut
+  void filterTransactions(TransactionStatus? status) {
+    transactionFilter.value = status;
+    _applyTransactionFilter();
+    _logger.debug('Filtre transactions appliqué: ${status?.name ?? 'all'}');
+  }
+
+  /// Appliquer le filtre aux transactions
+  void _applyTransactionFilter() {
+    if (transactionFilter.value == null) {
+      filteredZoneTransactions.assignAll(zoneTransactions);
+    } else {
+      filteredZoneTransactions.assignAll(
+        zoneTransactions.where((t) => t.status == transactionFilter.value).toList()
+      );
+    }
+  }
+
+  /// Afficher les détails d'une transaction
+  void showTransactionDetails(TransactionModel transaction) {
+    _logger.logUserAction('view_transaction_details', details: {
+      'transactionId': transaction.id,
+      'zoneId': zoneId,
+      'status': transaction.status.name,
+    });
+    
+    // Le dialog sera affiché par la page
+  }
+
+  /// Rafraîchir les transactions
+  Future<void> refreshTransactions() async {
+    if (showTransactions.value) {
+      await loadZoneTransactions();
+    }
+  }
+
+  /// Charger les statistiques des transactions
+  Future<void> loadTransactionStats() async {
+    try {
+      _logger.debug('Chargement des statistiques de transactions pour la zone: $zoneId');
+      
+      final stats = await _transactionService.getZoneTransactionStats(zoneId: zoneId);
+      transactionStats.value = stats;
+      
+      _logger.debug('Statistiques de transactions chargées', 
+          category: 'ZONE_DETAILS_CONTROLLER',
+          data: {
+            'totalCount': stats.totalCount,
+            'totalAmount': stats.totalAmount,
+          });
+      
+    } catch (e) {
+      _logger.error('Erreur lors du chargement des statistiques de transactions',
+          error: e, category: 'ZONE_DETAILS_CONTROLLER');
+    }
+  }
+
+  /// Copier les credentials d'une transaction
+  void copyTransactionCredentials(TransactionModel transaction) {
+    if (!transaction.hasCredentials) {
+      Get.snackbar(
+        'Information',
+        'Aucun identifiant disponible pour cette transaction',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+      return;
+    }
+    
+    final credentials = 'Nom d\'utilisateur: ${transaction.credentials!.username}\n'
+                       'Mot de passe: ${transaction.credentials!.password}';
+    
+    Clipboard.setData(ClipboardData(text: credentials));
+    
+    Get.snackbar(
+      'Copié',
+      'Identifiants copiés dans le presse-papier',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.green.shade100,
+      colorText: Colors.green.shade800,
+      duration: const Duration(seconds: 2),
+    );
+    
+    _logger.logUserAction('copy_transaction_credentials', details: {
+      'transactionId': transaction.id,
+      'zoneId': zoneId,
+    });
+  }
+
+  /// Actualiser une transaction spécifique
+  Future<void> refreshTransaction(TransactionModel transaction) async {
+    try {
+      final updated = await _transactionService.refreshTransaction(transaction);
+      if (updated != null) {
+        final index = zoneTransactions.indexWhere((t) => t.id == transaction.id);
+        if (index != -1) {
+          zoneTransactions[index] = updated;
+          _applyTransactionFilter();
+        }
+      }
+    } catch (e) {
+      _logger.error('Erreur lors de l\'actualisation de la transaction',
+          error: e, category: 'ZONE_DETAILS_CONTROLLER');
+    }
+  }
+
+  /// Obtenir la couleur du statut de transaction
+  Color getTransactionStatusColor(TransactionStatus status) {
+    switch (status) {
+      case TransactionStatus.completed:
+        return Colors.green;
+      case TransactionStatus.failed:
+        return Colors.red;
+      case TransactionStatus.expired:
+        return Colors.orange;
+      case TransactionStatus.pending:
+        return Colors.blue;
+      case TransactionStatus.created:
+        return Colors.grey;
+    }
+  }
+
+  /// Obtenir l'icône du statut de transaction
+  IconData getTransactionStatusIcon(TransactionStatus status) {
+    switch (status) {
+      case TransactionStatus.completed:
+        return Icons.check_circle;
+      case TransactionStatus.failed:
+        return Icons.error;
+      case TransactionStatus.expired:
+        return Icons.access_time;
+      case TransactionStatus.pending:
+        return Icons.hourglass_empty;
+      case TransactionStatus.created:
+        return Icons.radio_button_unchecked;
+    }
+  }
+
   @override
   void onClose() {
     _logger.debug('ZoneDetailsController fermé pour zone: $zoneId',
@@ -426,3 +621,4 @@ class ZoneDetailsController extends GetxController {
     super.onClose();
   }
 }
+

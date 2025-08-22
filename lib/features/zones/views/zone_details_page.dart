@@ -47,6 +47,11 @@ class ZoneDetailsPage extends GetView<ZoneDetailsController> {
 
                 // Section des types de tickets
                 _buildTicketTypesSection(),
+
+                const SizedBox(height: AppConstants.defaultPadding * 1.5),
+
+                // Section des transactions (lien vers page dédiée)
+                _buildTransactionsLinkSection(),
               ],
             ),
           ),
@@ -394,6 +399,161 @@ class ZoneDetailsPage extends GetView<ZoneDetailsController> {
   //     ),
   //   );
   // }
+
+  Widget _buildTransactionsLinkSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.receipt_long,
+                color: Colors.blue.shade700,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Transactions',
+                      style: Get.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade800,
+                      ),
+                    ),
+                    Text(
+                      'Consultez toutes les transactions de cette zone',
+                      style: Get.textTheme.bodySmall?.copyWith(
+                        color: Colors.blue.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Statistiques rapides
+          _buildQuickTransactionStats(),
+          
+          const SizedBox(height: 16),
+          
+          // Bouton pour aller à la page des transactions
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _goToTransactionsPage,
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Voir toutes les transactions'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickTransactionStats() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.shade100),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildQuickStat(
+              'Total',
+              '---', // Placeholder - sera chargé dynamiquement
+              Icons.receipt,
+              Colors.blue,
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 24,
+            color: Colors.blue.shade200,
+          ),
+          Expanded(
+            child: _buildQuickStat(
+              'Succès',
+              '---', // Placeholder
+              Icons.check_circle,
+              Colors.green,
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 24,
+            color: Colors.blue.shade200,
+          ),
+          Expanded(
+            child: _buildQuickStat(
+              'Revenus',
+              '--- XAF', // Placeholder
+              Icons.payments,
+              Colors.amber,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickStat(String label, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey.shade600,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _goToTransactionsPage() {
+    final zoneName = controller.zone.value?.name ?? 'Zone';
+    
+    // Navigation vers la page des transactions
+    Get.toNamed(
+      '/zones/${controller.zoneId}/transactions',
+      arguments: {
+        'zoneId': controller.zoneId,
+        'zoneName': zoneName,
+      },
+    );
+  }
 
   void _handleMenuAction(String action) {
     switch (action) {

@@ -34,7 +34,7 @@ class TransactionListItem extends StatelessWidget {
             Text('Date: ${dateFormatter.format(transaction.transactionDate)}'),
           ],
         ),
-        trailing: transaction.status == TransactionStatus.success
+        trailing: transaction.status == TransactionStatus.completed
             ? Text(
                 transaction.ticketUsername,
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
