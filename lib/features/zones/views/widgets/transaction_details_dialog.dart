@@ -25,38 +25,40 @@ class TransactionDetailsDialog extends StatelessWidget {
             children: [
               // En-tête
               _buildHeader(),
-              
+
               const SizedBox(height: 24),
-              
+
               // Badge de statut
               _buildStatusBadge(),
-              
+
               const SizedBox(height: 24),
-              
+
               // Informations principales
               _buildSection(
                 'Informations Générales',
                 Icons.info_outline,
                 [
-                  _buildInfoRow('ID Transaction', transaction.id, copyable: true),
+                  _buildInfoRow('ID Transaction', transaction.id,
+                      copyable: true),
                   _buildInfoRow('Montant', transaction.formattedAmount),
                   _buildInfoRow('Forfait', transaction.planName),
                   _buildInfoRow('Durée', transaction.ticketTypeName),
-                  _buildInfoRow('Client', transaction.buyerPhoneNumber, copyable: true),
+                  _buildInfoRow('Client', transaction.buyerPhoneNumber,
+                      copyable: true),
                   _buildInfoRow(
-                    'Date création', 
-                    DateFormat('dd/MM/yyyy à HH:mm').format(transaction.createdAt)
-                  ),
+                      'Date création',
+                      DateFormat('dd/MM/yyyy à HH:mm')
+                          .format(transaction.createdAt)),
                   if (transaction.completedAt != null)
                     _buildInfoRow(
-                      'Date completion', 
-                      DateFormat('dd/MM/yyyy à HH:mm').format(transaction.completedAt!)
-                    ),
+                        'Date completion',
+                        DateFormat('dd/MM/yyyy à HH:mm')
+                            .format(transaction.completedAt!)),
                 ],
               ),
-              
+
               // Informations de paiement
-              if (transaction.freemopayReference != null || 
+              if (transaction.freemopayReference != null ||
                   transaction.isManualSale ||
                   transaction.provider != 'freemopay') ...[
                 const SizedBox(height: 20),
@@ -66,30 +68,29 @@ class TransactionDetailsDialog extends StatelessWidget {
                   [
                     _buildInfoRow('Fournisseur', _getProviderText()),
                     if (transaction.freemopayReference != null)
-                      _buildInfoRow(
-                        'Référence Freemopay', 
-                        transaction.freemopayReference!,
-                        copyable: true
-                      ),
+                      _buildInfoRow('Référence Freemopay',
+                          transaction.freemopayReference!,
+                          copyable: true),
                     if (transaction.isManualSale) ...[
                       _buildInfoRow('Type de vente', 'Vente manuelle'),
                       if (transaction.saleDescription != null)
-                        _buildInfoRow('Description', transaction.saleDescription!),
+                        _buildInfoRow(
+                            'Description', transaction.saleDescription!),
                     ],
                     if (transaction.providerMessage != null)
                       _buildInfoRow('Message', transaction.providerMessage!),
                   ],
                 ),
               ],
-              
+
               // Credentials (si disponibles)
               if (transaction.hasCredentials) ...[
                 const SizedBox(height: 20),
                 _buildCredentialsSection(),
               ],
-              
+
               // Informations techniques (si pertinentes)
-              if (transaction.externalId != null || 
+              if (transaction.externalId != null ||
                   transaction.reservedTicketId != null) ...[
                 const SizedBox(height: 20),
                 _buildSection(
@@ -99,13 +100,14 @@ class TransactionDetailsDialog extends StatelessWidget {
                     if (transaction.externalId != null)
                       _buildInfoRow('ID Externe', transaction.externalId!),
                     if (transaction.reservedTicketId != null)
-                      _buildInfoRow('ID Ticket Réservé', transaction.reservedTicketId!),
+                      _buildInfoRow(
+                          'ID Ticket Réservé', transaction.reservedTicketId!),
                   ],
                 ),
               ],
-              
+
               const SizedBox(height: 32),
-              
+
               // Actions
               _buildActions(),
             ],
@@ -287,14 +289,10 @@ class TransactionDetailsDialog extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _buildCredentialRow(
-            'Nom d\'utilisateur', 
-            transaction.credentials!.username
-          ),
+              'Nom d\'utilisateur', transaction.credentials!.username),
           const SizedBox(height: 12),
           _buildCredentialRow(
-            'Mot de passe', 
-            transaction.credentials!.password
-          ),
+              'Mot de passe', transaction.credentials!.password),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -439,10 +437,11 @@ class TransactionDetailsDialog extends StatelessWidget {
 
   void _copyCredentials() {
     if (!transaction.hasCredentials) return;
-    
-    final credentials = 'Nom d\'utilisateur: ${transaction.credentials!.username}\n'
-                       'Mot de passe: ${transaction.credentials!.password}';
-    
+
+    final credentials =
+        'Nom d\'utilisateur: ${transaction.credentials!.username}\n'
+        'Mot de passe: ${transaction.credentials!.password}';
+
     Clipboard.setData(ClipboardData(text: credentials));
     Get.snackbar(
       'Copié',

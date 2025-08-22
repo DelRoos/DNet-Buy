@@ -7,9 +7,9 @@ class ManualSalePage extends GetView<ManualSaleController> {
   final List<TicketModel> availableTickets;
 
   const ManualSalePage({
-    Key? key,
+    super.key,
     required this.availableTickets,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +120,7 @@ class ManualSalePage extends GetView<ManualSaleController> {
           child: Column(
             children: availableOnly.map((ticket) {
               return Obx(() => ListTile(
-                    title: Text('${ticket.username}'),
+                    title: Text(ticket.username),
                     subtitle: Text('Mot de passe: ${ticket.password}'),
                     trailing: controller.selectedTicket.value?.id == ticket.id
                         ? Icon(Icons.check_circle, color: Colors.green.shade600)

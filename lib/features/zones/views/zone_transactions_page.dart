@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 import 'package:dnet_buy/features/zones/controllers/zone_transactions_controller.dart';
 import 'package:dnet_buy/features/zones/views/widgets/zone_transaction_list_item.dart';
 import 'package:dnet_buy/features/transactions/models/transaction_model.dart';
-import 'package:dnet_buy/shared/constants/app_constants.dart';
 
 class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
   const ZoneTransactionsPage({super.key});
@@ -17,7 +15,7 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
         children: [
           // Filtres et statistiques
           _buildFiltersSection(),
-          
+
           // Liste des transactions
           Expanded(
             child: _buildTransactionsList(),
@@ -91,7 +89,7 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
         children: [
           // Ligne de filtres
           _buildFiltersRow(),
-          
+
           // Statistiques générales et filtrées
           Obx(() => _buildStatsRow()),
         ],
@@ -110,14 +108,14 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
             child: _buildStatusFilter(),
           ),
           const SizedBox(width: 12),
-          
+
           // Filtre date
           Expanded(
             flex: 3,
             child: _buildDateFilter(),
           ),
           const SizedBox(width: 12),
-          
+
           // Bouton effacer filtres
           _buildClearFiltersButton(),
         ],
@@ -127,81 +125,82 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
 
   Widget _buildStatusFilter() {
     return Obx(() => Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-        color: Colors.white,
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<TransactionStatus?>(
-          value: controller.selectedStatus.value,
-          onChanged: controller.filterByStatus,
-          isExpanded: true,
-          hint: const Text('Statut'),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          items: [
-            const DropdownMenuItem(
-              value: null,
-              child: Text('Tous les statuts'),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
+            color: Colors.white,
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<TransactionStatus?>(
+              value: controller.selectedStatus.value,
+              onChanged: controller.filterByStatus,
+              isExpanded: true,
+              hint: const Text('Statut'),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              items: [
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('Tous les statuts'),
+                ),
+                ...TransactionStatus.values.map((status) => DropdownMenuItem(
+                      value: status,
+                      child: Row(
+                        children: [
+                          Icon(
+                            _getStatusIcon(status),
+                            size: 16,
+                            color: _getStatusColor(status),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(_getStatusText(status)),
+                        ],
+                      ),
+                    )),
+              ],
             ),
-            ...TransactionStatus.values.map((status) => DropdownMenuItem(
-              value: status,
-              child: Row(
-                children: [
-                  Icon(
-                    _getStatusIcon(status),
-                    size: 16,
-                    color: _getStatusColor(status),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(_getStatusText(status)),
-                ],
-              ),
-            )),
-          ],
-        ),
-      ),
-    ));
+          ),
+        ));
   }
 
   Widget _buildDateFilter() {
     return Obx(() => InkWell(
-      onTap: _showDateFilterDialog,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-          color: Colors.white,
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.date_range, color: Colors.grey.shade600),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                controller.formatDateRange(controller.selectedDateRange.value),
-                style: TextStyle(
-                  color: controller.selectedDateRange.value != null 
-                    ? Colors.black87 
-                    : Colors.grey.shade600,
-                ),
-              ),
+          onTap: _showDateFilterDialog,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(8),
+              color: Colors.white,
             ),
-            if (controller.selectedDateRange.value != null)
-              Icon(Icons.close, size: 16, color: Colors.grey.shade600),
-          ],
-        ),
-      ),
-    ));
+            child: Row(
+              children: [
+                Icon(Icons.date_range, color: Colors.grey.shade600),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    controller
+                        .formatDateRange(controller.selectedDateRange.value),
+                    style: TextStyle(
+                      color: controller.selectedDateRange.value != null
+                          ? Colors.black87
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ),
+                if (controller.selectedDateRange.value != null)
+                  Icon(Icons.close, size: 16, color: Colors.grey.shade600),
+              ],
+            ),
+          ),
+        ));
   }
 
   Widget _buildClearFiltersButton() {
     return Obx(() {
       final hasFilters = controller.selectedStatus.value != null ||
-                        controller.selectedDateRange.value != null ||
-                        controller.searchQuery.value.isNotEmpty;
-      
+          controller.selectedDateRange.value != null ||
+          controller.searchQuery.value.isNotEmpty;
+
       return AnimatedOpacity(
         opacity: hasFilters ? 1.0 : 0.3,
         duration: const Duration(milliseconds: 200),
@@ -210,8 +209,10 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
           icon: const Icon(Icons.filter_alt_off),
           tooltip: 'Effacer les filtres',
           style: IconButton.styleFrom(
-            backgroundColor: hasFilters ? Colors.red.shade50 : Colors.grey.shade100,
-            foregroundColor: hasFilters ? Colors.red.shade600 : Colors.grey.shade400,
+            backgroundColor:
+                hasFilters ? Colors.red.shade50 : Colors.grey.shade100,
+            foregroundColor:
+                hasFilters ? Colors.red.shade600 : Colors.grey.shade400,
           ),
         ),
       );
@@ -238,13 +239,13 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
               Colors.blue,
             ),
           ),
-          
+
           Container(
             width: 1,
             height: 30,
             color: Colors.grey.shade300,
           ),
-          
+
           // Résultats filtrés
           Expanded(
             child: _buildStatItem(
@@ -254,29 +255,30 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
               Colors.orange,
             ),
           ),
-          
+
           Container(
             width: 1,
             height: 30,
             color: Colors.grey.shade300,
           ),
-          
+
           // Montant total général
           Expanded(
             child: _buildStatItem(
               'Revenus',
-              controller.formatAmount(controller.generalStats.value.totalAmount),
+              controller
+                  .formatAmount(controller.generalStats.value.totalAmount),
               Icons.payments,
               Colors.green,
             ),
           ),
-          
+
           Container(
             width: 1,
             height: 30,
             color: Colors.grey.shade300,
           ),
-          
+
           // Répartition par statut (générale)
           Expanded(
             flex: 2,
@@ -287,7 +289,8 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+  Widget _buildStatItem(
+      String label, String value, IconData icon, Color color) {
     return Column(
       children: [
         Row(
@@ -331,7 +334,7 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
 
   Widget _buildStatusStat(TransactionStatus status, Color color) {
     final count = controller.generalStats.value.statusCounts[status] ?? 0;
-    
+
     return Column(
       children: [
         Icon(
@@ -367,17 +370,17 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
         child: ListView.builder(
           controller: controller.scrollController,
           padding: const EdgeInsets.all(16),
-          itemCount: controller.transactions.length + 
-                     (controller.isLoadingMore.value ? 1 : 0),
+          itemCount: controller.transactions.length +
+              (controller.isLoadingMore.value ? 1 : 0),
           itemBuilder: (context, index) {
             // Indicateur de chargement automatique en bas
             if (index == controller.transactions.length) {
-              return controller.isLoadingMore.value 
-                ? const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                : const SizedBox.shrink();
+              return controller.isLoadingMore.value
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : const SizedBox.shrink();
             }
 
             final transaction = controller.transactions[index];
@@ -439,17 +442,17 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
 
   Widget _buildFloatingActionButton() {
     return Obx(() => FloatingActionButton(
-      onPressed: controller.isRefreshing.value 
-        ? null 
-        : controller.refreshTransactions,
-      child: controller.isRefreshing.value
-        ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        : const Icon(Icons.refresh),
-    ));
+          onPressed: controller.isRefreshing.value
+              ? null
+              : controller.refreshTransactions,
+          child: controller.isRefreshing.value
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.refresh),
+        ));
   }
 
   // Méthodes utilitaires
@@ -509,8 +512,8 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
 
   bool _hasActiveFilters() {
     return controller.selectedStatus.value != null ||
-           controller.selectedDateRange.value != null ||
-           controller.searchQuery.value.isNotEmpty;
+        controller.selectedDateRange.value != null ||
+        controller.searchQuery.value.isNotEmpty;
   }
 
   void _showSearchDialog() {
@@ -562,7 +565,7 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
               ),
             ),
             const SizedBox(height: 20),
-            
+
             // Raccourcis de dates
             Wrap(
               spacing: 8,
@@ -571,7 +574,8 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
                 return FilterChip(
                   label: Text(shortcut['label']),
                   selected: controller.selectedDateRange.value != null &&
-                           _isDateRangeEqual(controller.selectedDateRange.value!, shortcut['range']),
+                      _isDateRangeEqual(controller.selectedDateRange.value!,
+                          shortcut['range']),
                   onSelected: (_) {
                     controller.filterByDateRange(shortcut['range']);
                     Get.back();
@@ -579,9 +583,9 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
                 );
               }).toList(),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Sélection personnalisée
             Row(
               children: [
@@ -607,9 +611,9 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
                   ),
               ],
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             SizedBox(
               width: double.infinity,
               child: TextButton(
@@ -639,11 +643,11 @@ class ZoneTransactionsPage extends GetView<ZoneTransactionsController> {
 
   bool _isDateRangeEqual(DateTimeRange range1, DateTimeRange range2) {
     return range1.start.year == range2.start.year &&
-           range1.start.month == range2.start.month &&
-           range1.start.day == range2.start.day &&
-           range1.end.year == range2.end.year &&
-           range1.end.month == range2.end.month &&
-           range1.end.day == range2.end.day;
+        range1.start.month == range2.start.month &&
+        range1.start.day == range2.start.day &&
+        range1.end.year == range2.end.year &&
+        range1.end.month == range2.end.month &&
+        range1.end.day == range2.end.day;
   }
 
   void _handleMenuAction(String action) {

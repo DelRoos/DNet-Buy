@@ -21,13 +21,11 @@ class ZoneTransactionStats {
       totalCount: map['totalCount'] ?? 0,
       totalAmount: (map['totalAmount'] ?? 0).toDouble(),
       statusCounts: Map<String, int>.from(map['statusCounts'] ?? {}),
-      statusAmounts: Map<String, double>.from(
-        (map['statusAmounts'] ?? {}).map((key, value) => 
-          MapEntry(key, (value as num).toDouble()))
-      ),
+      statusAmounts: Map<String, double>.from((map['statusAmounts'] ?? {})
+          .map((key, value) => MapEntry(key, (value as num).toDouble()))),
     );
   }
-  
+
   // Operateurs pour accès aux données comme une Map
   dynamic operator [](String key) {
     switch (key) {
@@ -46,10 +44,11 @@ class ZoneTransactionStats {
 }
 
 class ZoneTransactionService extends GetxService {
-  static const String baseUrl = 'https://us-central1-dnet-29b02.cloudfunctions.net';
-  
+  static const String baseUrl =
+      'https://us-central1-dnet-29b02.cloudfunctions.net';
+
   final http.Client _httpClient = http.Client();
-  
+
   @override
   void onClose() {
     _httpClient.close();
@@ -68,21 +67,21 @@ class ZoneTransactionService extends GetxService {
         'zoneId': zoneId,
         'limit': limit.toString(),
       };
-      
+
       // Ajouter les paramètres de requête passés
       if (queryParams != null) {
         queryParams.forEach((key, value) {
           params[key] = value.toString();
         });
       }
-      
+
       if (statusFilter != null) {
         params['statusFilter'] = statusFilter.name;
       }
-      
+
       final uri = Uri.parse('$baseUrl/getZoneTransactions')
           .replace(queryParameters: params);
-      
+
       final response = await _httpClient.get(
         uri,
         headers: {
@@ -90,19 +89,21 @@ class ZoneTransactionService extends GetxService {
         },
       ).timeout(
         const Duration(seconds: 10),
-        onTimeout: () => throw Exception('Timeout lors de la récupération des transactions'),
+        onTimeout: () =>
+            throw Exception('Timeout lors de la récupération des transactions'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['success'] == true) {
           final List<dynamic> transactionsJson = data['transactions'] ?? [];
           return transactionsJson
               .map((json) => TransactionModel.fromMap(json))
               .toList();
         } else {
-          throw Exception(data['error'] ?? 'Erreur lors de la récupération des transactions');
+          throw Exception(data['error'] ??
+              'Erreur lors de la récupération des transactions');
         }
       } else if (response.statusCode == 404) {
         throw Exception('Zone non trouvée');
@@ -112,7 +113,8 @@ class ZoneTransactionService extends GetxService {
         throw Exception('Erreur serveur: ${response.statusCode}');
       }
     } catch (e) {
-      if (e.toString().contains('SocketException') || e.toString().contains('HandshakeException')) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('HandshakeException')) {
         throw Exception('Pas de connexion internet');
       }
       rethrow;
@@ -124,7 +126,7 @@ class ZoneTransactionService extends GetxService {
     try {
       final uri = Uri.parse('$baseUrl/getTransactionDetails')
           .replace(queryParameters: {'transactionId': transactionId});
-      
+
       final response = await _httpClient.get(
         uri,
         headers: {
@@ -132,16 +134,18 @@ class ZoneTransactionService extends GetxService {
         },
       ).timeout(
         const Duration(seconds: 10),
-        onTimeout: () => throw Exception('Timeout lors de la récupération des détails'),
+        onTimeout: () =>
+            throw Exception('Timeout lors de la récupération des détails'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['success'] == true) {
           return TransactionModel.fromMap(data['transaction']);
         } else {
-          throw Exception(data['error'] ?? 'Erreur lors de la récupération des détails');
+          throw Exception(
+              data['error'] ?? 'Erreur lors de la récupération des détails');
         }
       } else if (response.statusCode == 404) {
         return null; // Transaction non trouvée
@@ -149,7 +153,8 @@ class ZoneTransactionService extends GetxService {
         throw Exception('Erreur serveur: ${response.statusCode}');
       }
     } catch (e) {
-      if (e.toString().contains('SocketException') || e.toString().contains('HandshakeException')) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('HandshakeException')) {
         throw Exception('Pas de connexion internet');
       }
       rethrow;
@@ -157,11 +162,12 @@ class ZoneTransactionService extends GetxService {
   }
 
   /// Récupérer les statistiques des transactions d'une zone
-  Future<ZoneTransactionStats> getZoneTransactionStats({required String zoneId}) async {
+  Future<ZoneTransactionStats> getZoneTransactionStats(
+      {required String zoneId}) async {
     try {
       final uri = Uri.parse('$baseUrl/getZoneTransactionStats')
           .replace(queryParameters: {'zoneId': zoneId});
-      
+
       final response = await _httpClient.get(
         uri,
         headers: {
@@ -169,16 +175,18 @@ class ZoneTransactionService extends GetxService {
         },
       ).timeout(
         const Duration(seconds: 10),
-        onTimeout: () => throw Exception('Timeout lors de la récupération des statistiques'),
+        onTimeout: () =>
+            throw Exception('Timeout lors de la récupération des statistiques'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['success'] == true) {
           return ZoneTransactionStats.fromMap(data['stats']);
         } else {
-          throw Exception(data['error'] ?? 'Erreur lors de la récupération des statistiques');
+          throw Exception(data['error'] ??
+              'Erreur lors de la récupération des statistiques');
         }
       } else if (response.statusCode == 404) {
         throw Exception('Zone non trouvée');
@@ -186,7 +194,8 @@ class ZoneTransactionService extends GetxService {
         throw Exception('Erreur serveur: ${response.statusCode}');
       }
     } catch (e) {
-      if (e.toString().contains('SocketException') || e.toString().contains('HandshakeException')) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('HandshakeException')) {
         throw Exception('Pas de connexion internet');
       }
       rethrow;
@@ -198,7 +207,7 @@ class ZoneTransactionService extends GetxService {
     try {
       final uri = Uri.parse('$baseUrl/checkTransactionStatus')
           .replace(queryParameters: {'transactionId': transactionId});
-      
+
       final response = await _httpClient.get(
         uri,
         headers: {
@@ -206,16 +215,18 @@ class ZoneTransactionService extends GetxService {
         },
       ).timeout(
         const Duration(seconds: 10),
-        onTimeout: () => throw Exception('Timeout lors de la vérification du statut'),
+        onTimeout: () =>
+            throw Exception('Timeout lors de la vérification du statut'),
       );
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['success'] == true) {
           return TransactionModel.fromMap(data['transaction']);
         } else {
-          throw Exception(data['error'] ?? 'Erreur lors de la vérification du statut');
+          throw Exception(
+              data['error'] ?? 'Erreur lors de la vérification du statut');
         }
       } else if (response.statusCode == 404) {
         return null; // Transaction non trouvée
@@ -223,7 +234,8 @@ class ZoneTransactionService extends GetxService {
         throw Exception('Erreur serveur: ${response.statusCode}');
       }
     } catch (e) {
-      if (e.toString().contains('SocketException') || e.toString().contains('HandshakeException')) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('HandshakeException')) {
         throw Exception('Pas de connexion internet');
       }
       rethrow;
@@ -231,15 +243,14 @@ class ZoneTransactionService extends GetxService {
   }
 
   /// Méthode utilitaire pour rafraîchir une transaction
-  Future<TransactionModel?> refreshTransaction(TransactionModel transaction) async {
+  Future<TransactionModel?> refreshTransaction(
+      TransactionModel transaction) async {
     return await checkTransactionStatus(transaction.id);
   }
 
   /// Méthode utilitaire pour filtrer les transactions localement
   List<TransactionModel> filterTransactions(
-    List<TransactionModel> transactions, 
-    TransactionStatus? statusFilter
-  ) {
+      List<TransactionModel> transactions, TransactionStatus? statusFilter) {
     if (statusFilter == null) {
       return transactions;
     }
@@ -250,32 +261,37 @@ class ZoneTransactionService extends GetxService {
   Future<void> cancelReservation(String transactionId) async {
     try {
       final uri = Uri.parse('$baseUrl/cancelTransactionReservation');
-      
-      final response = await _httpClient.post(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'transactionId': transactionId,
-        }),
-      ).timeout(
-        const Duration(seconds: 15), // Plus long timeout pour cette opération
-        onTimeout: () => throw Exception('Timeout lors de l\'annulation de la réservation'),
-      );
-      
+
+      final response = await _httpClient
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: json.encode({
+              'transactionId': transactionId,
+            }),
+          )
+          .timeout(
+            const Duration(
+                seconds: 15), // Plus long timeout pour cette opération
+            onTimeout: () => throw Exception(
+                'Timeout lors de l\'annulation de la réservation'),
+          );
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         if (data['success'] != true) {
           throw Exception(data['error'] ?? 'Erreur lors de l\'annulation');
         }
-        
+
         // Succès - l'API nous confirme que l'annulation a eu lieu
         return;
       } else if (response.statusCode == 400) {
         final data = json.decode(response.body);
-        throw Exception(data['error'] ?? 'Transaction ne peut pas être annulée');
+        throw Exception(
+            data['error'] ?? 'Transaction ne peut pas être annulée');
       } else if (response.statusCode == 404) {
         throw Exception('Transaction introuvable');
       } else if (response.statusCode == 409) {
@@ -285,7 +301,8 @@ class ZoneTransactionService extends GetxService {
         throw Exception('Erreur serveur: ${response.statusCode}');
       }
     } catch (e) {
-      if (e.toString().contains('SocketException') || e.toString().contains('HandshakeException')) {
+      if (e.toString().contains('SocketException') ||
+          e.toString().contains('HandshakeException')) {
         throw Exception('Pas de connexion internet');
       }
       rethrow;

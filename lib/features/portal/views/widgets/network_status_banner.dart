@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class NetworkStatusBanner extends StatelessWidget {
-  const NetworkStatusBanner({Key? key}) : super(key: key);
+  const NetworkStatusBanner({super.key});
 
   @override
   Widget build(BuildContext context) {

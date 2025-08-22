@@ -6,10 +6,10 @@ class TicketCard extends StatelessWidget {
   final VoidCallback onBuy;
 
   const TicketCard({
-    Key? key,
+    super.key,
     required this.ticketType,
     required this.onBuy,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

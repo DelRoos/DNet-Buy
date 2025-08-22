@@ -441,14 +441,14 @@ class ZoneDetailsPage extends GetView<ZoneDetailsController> {
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Statistiques rapides
           _buildQuickTransactionStats(),
-          
+
           const SizedBox(height: 16),
-          
+
           // Bouton pour aller à la page des transactions
           SizedBox(
             width: double.infinity,
@@ -517,7 +517,8 @@ class ZoneDetailsPage extends GetView<ZoneDetailsController> {
     );
   }
 
-  Widget _buildQuickStat(String label, String value, IconData icon, Color color) {
+  Widget _buildQuickStat(
+      String label, String value, IconData icon, Color color) {
     return Column(
       children: [
         Icon(icon, size: 16, color: color),
@@ -544,7 +545,7 @@ class ZoneDetailsPage extends GetView<ZoneDetailsController> {
 
   void _goToTransactionsPage() {
     final zoneName = controller.zone.value?.name ?? 'Zone';
-    
+
     // Navigation vers la page des transactions
     Get.toNamed(
       '/zones/${controller.zoneId}/transactions',

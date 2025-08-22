@@ -32,10 +32,10 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
         children: [
           // Handle
           _buildHandle(),
-          
+
           // Header
           _buildHeader(),
-          
+
           // Content
           Expanded(
             child: SingleChildScrollView(
@@ -45,31 +45,33 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
                 children: [
                   // Badge de statut
                   _buildStatusBadge(),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Informations principales
                   _buildSection(
                     'Informations Générales',
                     Icons.info_outline,
                     [
-                      _buildInfoRow('ID Transaction', transaction.id, copyable: true),
+                      _buildInfoRow('ID Transaction', transaction.id,
+                          copyable: true),
                       _buildInfoRow('Montant', transaction.formattedAmount),
                       _buildInfoRow('Forfait', transaction.planName),
                       _buildInfoRow('Durée', transaction.ticketTypeName),
-                      _buildInfoRow('Client', transaction.buyerPhoneNumber, copyable: true),
+                      _buildInfoRow('Client', transaction.buyerPhoneNumber,
+                          copyable: true),
                       _buildInfoRow(
-                        'Date création', 
-                        DateFormat('dd/MM/yyyy à HH:mm').format(transaction.createdAt)
-                      ),
+                          'Date création',
+                          DateFormat('dd/MM/yyyy à HH:mm')
+                              .format(transaction.createdAt)),
                       if (transaction.completedAt != null)
                         _buildInfoRow(
-                          'Date completion', 
-                          DateFormat('dd/MM/yyyy à HH:mm').format(transaction.completedAt!)
-                        ),
+                            'Date completion',
+                            DateFormat('dd/MM/yyyy à HH:mm')
+                                .format(transaction.completedAt!)),
                     ],
                   ),
-                  
+
                   // Informations de paiement
                   if (_shouldShowPaymentInfo()) ...[
                     const SizedBox(height: 20),
@@ -79,34 +81,34 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
                       [
                         _buildInfoRow('Fournisseur', _getProviderText()),
                         if (transaction.freemopayReference != null)
-                          _buildInfoRow(
-                            'Référence Freemopay', 
-                            transaction.freemopayReference!,
-                            copyable: true
-                          ),
+                          _buildInfoRow('Référence Freemopay',
+                              transaction.freemopayReference!,
+                              copyable: true),
                         if (transaction.isManualSale) ...[
                           _buildInfoRow('Type de vente', 'Vente manuelle'),
                           if (transaction.saleDescription != null)
-                            _buildInfoRow('Description', transaction.saleDescription!),
+                            _buildInfoRow(
+                                'Description', transaction.saleDescription!),
                         ],
                         if (transaction.providerMessage != null)
-                          _buildInfoRow('Message', transaction.providerMessage!),
+                          _buildInfoRow(
+                              'Message', transaction.providerMessage!),
                       ],
                     ),
                   ],
-                  
+
                   // Credentials (si disponibles)
                   if (transaction.hasCredentials) ...[
                     const SizedBox(height: 20),
                     _buildCredentialsSection(),
                   ],
-                  
+
                   // Actions disponibles
                   if (_hasAvailableActions()) ...[
                     const SizedBox(height: 20),
                     _buildActionsSection(),
                   ],
-                  
+
                   // Informations techniques
                   if (_shouldShowTechnicalInfo()) ...[
                     const SizedBox(height: 20),
@@ -117,18 +119,19 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
                         if (transaction.externalId != null)
                           _buildInfoRow('ID Externe', transaction.externalId!),
                         if (transaction.reservedTicketId != null)
-                          _buildInfoRow('ID Ticket Réservé', transaction.reservedTicketId!),
+                          _buildInfoRow('ID Ticket Réservé',
+                              transaction.reservedTicketId!),
                       ],
                     ),
                   ],
-                  
+
                   // Espacement pour les actions flottantes
                   const SizedBox(height: 80),
                 ],
               ),
             ),
           ),
-          
+
           // Actions du bas
           _buildBottomActions(),
         ],
@@ -330,14 +333,10 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _buildCredentialRow(
-            'Nom d\'utilisateur', 
-            transaction.credentials!.username
-          ),
+              'Nom d\'utilisateur', transaction.credentials!.username),
           const SizedBox(height: 12),
           _buildCredentialRow(
-            'Mot de passe', 
-            transaction.credentials!.password
-          ),
+              'Mot de passe', transaction.credentials!.password),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -427,7 +426,7 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // Bouton annuler réservation
           if (_canCancelReservation()) ...[
             SizedBox(
@@ -474,10 +473,8 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
                 label: const Text('Copier credentials'),
               ),
             ),
-          
           if (transaction.hasCredentials && _canCancelReservation())
             const SizedBox(width: 12),
-          
           if (_canCancelReservation())
             Expanded(
               child: ElevatedButton.icon(
@@ -498,12 +495,13 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
   // Méthodes utilitaires
   bool _shouldShowPaymentInfo() {
     return transaction.freemopayReference != null ||
-           transaction.isManualSale ||
-           transaction.provider != 'freemopay';
+        transaction.isManualSale ||
+        transaction.provider != 'freemopay';
   }
 
   bool _shouldShowTechnicalInfo() {
-    return transaction.externalId != null || transaction.reservedTicketId != null;
+    return transaction.externalId != null ||
+        transaction.reservedTicketId != null;
   }
 
   bool _hasAvailableActions() {
@@ -513,7 +511,7 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
   bool _canCancelReservation() {
     return (transaction.status == TransactionStatus.pending ||
             transaction.status == TransactionStatus.created) &&
-           onCancelReservation != null;
+        onCancelReservation != null;
   }
 
   String _getProviderText() {
@@ -572,10 +570,11 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
 
   void _copyCredentials() {
     if (!transaction.hasCredentials) return;
-    
-    final credentials = 'Nom d\'utilisateur: ${transaction.credentials!.username}\n'
-                       'Mot de passe: ${transaction.credentials!.password}';
-    
+
+    final credentials =
+        'Nom d\'utilisateur: ${transaction.credentials!.username}\n'
+        'Mot de passe: ${transaction.credentials!.password}';
+
     Clipboard.setData(ClipboardData(text: credentials));
     Get.snackbar(
       'Copié',
@@ -595,9 +594,7 @@ class TransactionDetailsBottomSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Êtes-vous sûr de vouloir annuler cette réservation ?'
-            ),
+            const Text('Êtes-vous sûr de vouloir annuler cette réservation ?'),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),

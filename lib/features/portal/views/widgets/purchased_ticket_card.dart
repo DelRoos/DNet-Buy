@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:dnet_buy/features/portal/models/purchased_ticket_model.dart';
 import 'package:dnet_buy/features/portal/views/widgets/ticket_details_dialog.dart';
@@ -9,9 +8,9 @@ class PurchasedTicketCard extends StatelessWidget {
   final PurchasedTicketModel ticket;
 
   const PurchasedTicketCard({
-    Key? key,
+    super.key,
     required this.ticket,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

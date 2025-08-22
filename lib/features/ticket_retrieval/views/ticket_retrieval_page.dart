@@ -3,10 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:dnet_buy/features/ticket_retrieval/controllers/ticket_retrieval_controller.dart';
 import 'package:dnet_buy/features/portal/views/widgets/ticket_details_dialog.dart';
-import 'package:dnet_buy/shared/constants/app_constants.dart';
 
 class TicketRetrievalPage extends GetView<TicketRetrievalController> {
-  const TicketRetrievalPage({Key? key}) : super(key: key);
+  const TicketRetrievalPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -145,10 +144,10 @@ class TicketRetrievalPage extends GetView<TicketRetrievalController> {
           const SizedBox(height: 16),
           OutlinedButton(
             onPressed: controller.resetForm,
-            child: const Text('Réessayer avec un autre ID'),
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(double.infinity, 40),
             ),
+            child: const Text('Réessayer avec un autre ID'),
           ),
         ],
       ),

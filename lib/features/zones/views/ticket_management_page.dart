@@ -364,7 +364,9 @@ class TicketManagementPage extends GetView<TicketManagementController> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  ticket.isAvailable ? 'Ticket disponible' : 'Détails du ticket',
+                  ticket.isAvailable
+                      ? 'Ticket disponible'
+                      : 'Détails du ticket',
                   style: TextStyle(
                     color: _getStatusColor(ticket.status),
                   ),
@@ -380,7 +382,7 @@ class TicketManagementPage extends GetView<TicketManagementController> {
                 if (controller.selectedTicketForSale.value?.id == ticket.id) {
                   return _buildManualSaleForm(ticket);
                 }
-        
+
                 // Sinon, afficher les détails normaux
                 return _buildTicketDetails(ticket);
               }),

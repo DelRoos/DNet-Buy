@@ -47,9 +47,9 @@ class ZoneTransactionListItem extends StatelessWidget {
                   size: 20,
                 ),
               ),
-              
+
               const SizedBox(width: 12),
-              
+
               // Contenu principal
               Expanded(
                 child: Column(
@@ -91,9 +91,9 @@ class ZoneTransactionListItem extends StatelessWidget {
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 4),
-                    
+
                     // Deuxième ligne : Nom du forfait
                     Text(
                       transaction.planName,
@@ -103,9 +103,9 @@ class ZoneTransactionListItem extends StatelessWidget {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 4),
-                    
+
                     // Troisième ligne : Client et date
                     Row(
                       children: [
@@ -139,9 +139,9 @@ class ZoneTransactionListItem extends StatelessWidget {
                         ),
                       ],
                     ),
-                    
+
                     // Quatrième ligne : Informations supplémentaires (si pertinentes)
-                    if (transaction.isManualSale || 
+                    if (transaction.isManualSale ||
                         transaction.credentials != null ||
                         transaction.freemopayReference != null) ...[
                       const SizedBox(height: 4),
@@ -181,7 +181,7 @@ class ZoneTransactionListItem extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                           ],
-                          
+
                           // Indicateur de credentials disponibles
                           if (transaction.credentials != null) ...[
                             Container(
@@ -192,7 +192,8 @@ class ZoneTransactionListItem extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: Colors.green.shade50,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.green.shade200),
+                                border:
+                                    Border.all(color: Colors.green.shade200),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -222,15 +223,15 @@ class ZoneTransactionListItem extends StatelessWidget {
                   ],
                 ),
               ),
-              
+
               // Actions
               Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Bouton refresh (si transaction en cours)
-                  if (onRefresh != null && 
+                  if (onRefresh != null &&
                       (transaction.status == TransactionStatus.pending ||
-                       transaction.status == TransactionStatus.created)) ...[
+                          transaction.status == TransactionStatus.created)) ...[
                     IconButton(
                       onPressed: onRefresh,
                       icon: const Icon(Icons.refresh),
@@ -243,7 +244,7 @@ class ZoneTransactionListItem extends StatelessWidget {
                       tooltip: 'Actualiser',
                     ),
                   ],
-                  
+
                   // Flèche d'indication
                   Icon(
                     Icons.chevron_right,

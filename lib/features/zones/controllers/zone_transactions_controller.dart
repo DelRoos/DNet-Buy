@@ -55,7 +55,8 @@ class ZoneTransactionsController extends GetxController {
     required this.zoneName,
   });
 
-  final ZoneTransactionService _transactionService = Get.find<ZoneTransactionService>();
+  final ZoneTransactionService _transactionService =
+      Get.find<ZoneTransactionService>();
   final LoggerService _logger = LoggerService.to;
 
   // États réactifs
@@ -65,7 +66,7 @@ class ZoneTransactionsController extends GetxController {
   var transactions = <TransactionModel>[].obs;
   var generalStats = Rx<GeneralStats>(GeneralStats.empty());
   var filteredStats = Rx<FilteredStats>(FilteredStats.empty());
-  
+
   // Scroll controller pour détection automatique
   final ScrollController scrollController = ScrollController();
 
@@ -82,16 +83,17 @@ class ZoneTransactionsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _logger.info('🚀 ZoneTransactionsController initialisé pour zone: $zoneId ($zoneName)');
+    _logger.info(
+        '🚀 ZoneTransactionsController initialisé pour zone: $zoneId ($zoneName)');
     _setupScrollListener();
     loadTransactions();
     loadGeneralStats();
   }
-  
+
   /// Configuration du scroll listener pour chargement automatique
   void _setupScrollListener() {
     scrollController.addListener(() {
-      if (scrollController.position.pixels >= 
+      if (scrollController.position.pixels >=
           scrollController.position.maxScrollExtent - 200) {
         // Charger plus quand on arrive à 200px de la fin
         loadMoreTransactions();
@@ -102,7 +104,7 @@ class ZoneTransactionsController extends GetxController {
   /// Charger les transactions avec filtres côté serveur
   Future<void> loadTransactions({bool loadMore = false}) async {
     if ((isLoading.value || isLoadingMore.value) && !loadMore) return;
-    
+
     try {
       if (loadMore) {
         isLoadingMore.value = true;
@@ -120,16 +122,17 @@ class ZoneTransactionsController extends GetxController {
         'page': currentPage.value,
         'limit': itemsPerPage,
       };
-      
+
       if (selectedStatus.value != null) {
         queryParams['status'] = selectedStatus.value!.name;
       }
-      
+
       if (selectedDateRange.value != null) {
-        queryParams['startDate'] = selectedDateRange.value!.start.toIso8601String();
+        queryParams['startDate'] =
+            selectedDateRange.value!.start.toIso8601String();
         queryParams['endDate'] = selectedDateRange.value!.end.toIso8601String();
       }
-      
+
       if (searchQuery.value.isNotEmpty) {
         queryParams['search'] = searchQuery.value;
       }
@@ -150,12 +153,12 @@ class ZoneTransactionsController extends GetxController {
 
       calculateFilteredStats();
 
-      _logger.info('✅ ${newTransactions.length} transactions chargées (total: ${transactions.length})');
-
+      _logger.info(
+          '✅ ${newTransactions.length} transactions chargées (total: ${transactions.length})');
     } catch (e, stackTrace) {
       _logger.error('Erreur lors du chargement des transactions',
           error: e, stackTrace: stackTrace);
-      
+
       Get.snackbar(
         'Erreur',
         'Impossible de charger les transactions: ${e.toString()}',
@@ -181,35 +184,36 @@ class ZoneTransactionsController extends GetxController {
     if (!hasMoreData.value || isLoading.value || isLoadingMore.value) return;
     await loadTransactions(loadMore: true);
   }
-  
+
   /// Charger les statistiques générales (non filtrées)
   Future<void> loadGeneralStats() async {
     try {
       _logger.debug('Chargement des statistiques générales');
-      
-      final stats = await _transactionService.getZoneTransactionStats(zoneId: zoneId);
-      
+
+      final stats =
+          await _transactionService.getZoneTransactionStats(zoneId: zoneId);
+
       generalStats.value = GeneralStats(
         totalCount: stats['totalCount'] ?? 0,
         totalAmount: (stats['totalAmount'] ?? 0).toDouble(),
         statusCounts: Map<TransactionStatus, int>.from(
-          (stats['statusCounts'] ?? {}).map((key, value) => 
-            MapEntry(TransactionStatus.values.firstWhere(
-              (status) => status.name == key,
-              orElse: () => TransactionStatus.created,
-            ), value as int))
-        ),
+            (stats['statusCounts'] ?? {}).map((key, value) => MapEntry(
+                TransactionStatus.values.firstWhere(
+                  (status) => status.name == key,
+                  orElse: () => TransactionStatus.created,
+                ),
+                value as int))),
         statusAmounts: Map<TransactionStatus, double>.from(
-          (stats['statusAmounts'] ?? {}).map((key, value) => 
-            MapEntry(TransactionStatus.values.firstWhere(
-              (status) => status.name == key,
-              orElse: () => TransactionStatus.created,
-            ), (value as num).toDouble()))
-        ),
+            (stats['statusAmounts'] ?? {}).map((key, value) => MapEntry(
+                TransactionStatus.values.firstWhere(
+                  (status) => status.name == key,
+                  orElse: () => TransactionStatus.created,
+                ),
+                (value as num).toDouble()))),
       );
-      
-      _logger.info('✅ Statistiques générales chargées: ${stats['totalCount']} transactions');
-      
+
+      _logger.info(
+          '✅ Statistiques générales chargées: ${stats['totalCount']} transactions');
     } catch (e, stackTrace) {
       _logger.error('Erreur lors du chargement des statistiques',
           error: e, stackTrace: stackTrace);
@@ -219,16 +223,14 @@ class ZoneTransactionsController extends GetxController {
   /// Calculer les statistiques des transactions filtrées
   void calculateFilteredStats() {
     final filtered = transactions.length;
-    final filteredAmount = transactions.fold<double>(
-      0.0, (sum, t) => sum + t.amount.toDouble()
-    );
+    final filteredAmount =
+        transactions.fold<double>(0.0, (sum, t) => sum + t.amount.toDouble());
 
     filteredStats.value = FilteredStats(
       filteredCount: filtered,
       filteredAmount: filteredAmount,
     );
   }
-
 
   /// Filtrer par statut (recharge depuis le serveur)
   void filterByStatus(TransactionStatus? status) {
@@ -299,14 +301,15 @@ class ZoneTransactionsController extends GetxController {
         }
       }
     } catch (e) {
-      _logger.error('Erreur lors de l\'actualisation de la transaction', error: e);
+      _logger.error('Erreur lors de l\'actualisation de la transaction',
+          error: e);
     }
   }
 
   /// Annuler la réservation d'un ticket
   Future<void> cancelReservation(TransactionModel transaction) async {
     // Vérifier si la réservation peut être annulée
-    if (transaction.status != TransactionStatus.pending && 
+    if (transaction.status != TransactionStatus.pending &&
         transaction.status != TransactionStatus.created) {
       Get.snackbar(
         'Impossible',
@@ -323,10 +326,9 @@ class ZoneTransactionsController extends GetxController {
       AlertDialog(
         title: const Text('Annuler la réservation'),
         content: Text(
-          'Êtes-vous sûr de vouloir annuler la réservation pour cette transaction ?\n\n'
-          'Montant: ${transaction.formattedAmount}\n'
-          'Client: ${transaction.buyerPhoneNumber}'
-        ),
+            'Êtes-vous sûr de vouloir annuler la réservation pour cette transaction ?\n\n'
+            'Montant: ${transaction.formattedAmount}\n'
+            'Client: ${transaction.buyerPhoneNumber}'),
         actions: [
           TextButton(
             onPressed: () => Get.back(result: false),
@@ -344,15 +346,16 @@ class ZoneTransactionsController extends GetxController {
     if (confirmed != true) return;
 
     try {
-      _logger.debug('Annulation de la réservation pour la transaction: ${transaction.id}');
-      
+      _logger.debug(
+          'Annulation de la réservation pour la transaction: ${transaction.id}');
+
       await _transactionService.cancelReservation(transaction.id);
-      
+
       // Actualiser la transaction
       await refreshTransaction(transaction);
-      
+
       Get.back(); // Fermer le BottomSheet
-      
+
       Get.snackbar(
         'Succès',
         'Réservation annulée avec succès',
@@ -365,11 +368,10 @@ class ZoneTransactionsController extends GetxController {
         'transactionId': transaction.id,
         'zoneId': zoneId,
       });
-
     } catch (e, stackTrace) {
       _logger.error('Erreur lors de l\'annulation de la réservation',
           error: e, stackTrace: stackTrace);
-      
+
       Get.snackbar(
         'Erreur',
         'Impossible d\'annuler la réservation: ${e.toString()}',
@@ -383,7 +385,7 @@ class ZoneTransactionsController extends GetxController {
   /// Formater une période pour l'affichage
   String formatDateRange(DateTimeRange? range) {
     if (range == null) return 'Toutes les dates';
-    
+
     final formatter = DateFormat('dd/MM/yyyy');
     if (range.start.year == range.end.year &&
         range.start.month == range.end.month &&
@@ -403,7 +405,7 @@ class ZoneTransactionsController extends GetxController {
   List<Map<String, dynamic>> getDateShortcuts() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    
+
     return [
       {
         'label': 'Aujourd\'hui',
@@ -447,4 +449,3 @@ class ZoneTransactionsController extends GetxController {
     super.onClose();
   }
 }
-

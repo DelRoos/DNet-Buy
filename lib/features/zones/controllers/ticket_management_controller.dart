@@ -495,8 +495,8 @@ class TicketManagementController extends GetxController {
     if (GetPlatform.isWeb) {
       // En mode web, récupérer l'URL de base actuelle
       final uri = Uri.parse(Uri.base.toString());
-      final baseUrl = '${uri.scheme}://${uri.host}' +
-          (uri.port != 80 && uri.port != 443 ? ':${uri.port}' : '');
+      final baseUrl =
+          '${uri.scheme}://${uri.host}${uri.port != 80 && uri.port != 443 ? ':${uri.port}' : ''}';
       return baseUrl;
     } else {
       // Pour les applications mobiles, utiliser l'URL de votre application web
@@ -589,8 +589,8 @@ class TicketManagementController extends GetxController {
             ),
             TextButton(
               onPressed: () => Get.back(result: true),
-              child: const Text('Supprimer'),
               style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Supprimer'),
             ),
           ],
         ),

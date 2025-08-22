@@ -15,7 +15,6 @@ import 'package:dnet_buy/features/auth/views/login_page.dart';
 import 'package:dnet_buy/features/auth/views/register_page.dart';
 import 'package:dnet_buy/features/auth/views/email_verification_page.dart';
 import 'package:dnet_buy/features/auth/views/forgot_password_page.dart';
-import 'package:dnet_buy/features/auth/views/splash_screen.dart';
 import 'package:dnet_buy/features/dashboard/views/dashboard_page.dart';
 import 'package:dnet_buy/features/portal/views/portal_page.dart';
 import 'package:dnet_buy/features/settings/views/settings_page.dart';
@@ -203,7 +202,7 @@ class AppPages {
               ticketTypeId: Get.parameters['typeId']))),
       middlewares: [AuthMiddleware(requireVerifiedEmail: true)],
     ),
-    
+
     // Page des transactions de zone
     GetPage(
       name: '/zones/:zoneId/transactions',
@@ -212,7 +211,7 @@ class AppPages {
         final zoneId = Get.parameters['zoneId'] ?? '';
         final arguments = Get.arguments as Map<String, dynamic>? ?? {};
         final zoneName = arguments['zoneName'] ?? 'Zone';
-        
+
         Get.lazyPut<ZoneTransactionService>(() => ZoneTransactionService());
         Get.put(ZoneTransactionsController(zoneId: zoneId, zoneName: zoneName));
       }),

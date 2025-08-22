@@ -5,7 +5,7 @@ import 'package:get/get.dart';
 import 'package:dnet_buy/features/portal/controllers/portal_controller.dart';
 
 class PortalPage extends GetView<PortalController> {
-  const PortalPage({Key? key}) : super(key: key);
+  const PortalPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -78,9 +78,9 @@ class PortalPage extends GetView<PortalController> {
                       controller.pageStatus.value == PaymentPageStatus.idle
                   ? controller.initiatePaymentProcess
                   : null,
-              child: const Text('Payer'),
               style:
                   ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+              child: const Text('Payer'),
             )),
       ],
     );
@@ -169,7 +169,7 @@ class PortalPage extends GetView<PortalController> {
           ),
         )),
         const SizedBox(height: 16),
-        Text("En cas d'oubli, retrouvez vos identifiants à tout moment.",
+        const Text("En cas d'oubli, retrouvez vos identifiants à tout moment.",
             textAlign: TextAlign.center),
         TextButton(
             onPressed: () => Get.toNamed('/retrieve-ticket'),

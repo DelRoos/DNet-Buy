@@ -16,7 +16,8 @@ class ZoneDetailsController extends GetxController {
 
   final ZoneService _zoneService = Get.find<ZoneService>();
   final TicketTypeService _ticketTypeService = Get.find<TicketTypeService>();
-  final ZoneTransactionService _transactionService = Get.find<ZoneTransactionService>();
+  final ZoneTransactionService _transactionService =
+      Get.find<ZoneTransactionService>();
   final LoggerService _logger = LoggerService.to;
 
   // États réactifs
@@ -437,24 +438,24 @@ class ZoneDetailsController extends GetxController {
     isLoadingTransactions.value = true;
     try {
       _logger.debug('Chargement des transactions pour la zone: $zoneId');
-      
+
       final transactions = await _transactionService.getZoneTransactions(
         zoneId: zoneId,
         statusFilter: transactionFilter.value,
         limit: 100,
       );
-      
+
       zoneTransactions.assignAll(transactions);
       _applyTransactionFilter();
-      
-      _logger.info('✅ ${transactions.length} transactions chargées pour la zone $zoneId');
-      
+
+      _logger.info(
+          '✅ ${transactions.length} transactions chargées pour la zone $zoneId');
     } catch (e, stackTrace) {
       _logger.error('Erreur lors du chargement des transactions',
           error: e,
           stackTrace: stackTrace,
           category: 'ZONE_DETAILS_CONTROLLER');
-      
+
       Get.snackbar(
         'Erreur',
         'Impossible de charger les transactions: ${e.toString()}',
@@ -471,7 +472,7 @@ class ZoneDetailsController extends GetxController {
   void toggleTransactionsView() {
     showTransactions.toggle();
     _logger.debug('Toggle transactions view: ${showTransactions.value}');
-    
+
     if (showTransactions.value && zoneTransactions.isEmpty) {
       loadZoneTransactions();
     }
@@ -489,9 +490,9 @@ class ZoneDetailsController extends GetxController {
     if (transactionFilter.value == null) {
       filteredZoneTransactions.assignAll(zoneTransactions);
     } else {
-      filteredZoneTransactions.assignAll(
-        zoneTransactions.where((t) => t.status == transactionFilter.value).toList()
-      );
+      filteredZoneTransactions.assignAll(zoneTransactions
+          .where((t) => t.status == transactionFilter.value)
+          .toList());
     }
   }
 
@@ -502,7 +503,7 @@ class ZoneDetailsController extends GetxController {
       'zoneId': zoneId,
       'status': transaction.status.name,
     });
-    
+
     // Le dialog sera affiché par la page
   }
 
@@ -516,21 +517,24 @@ class ZoneDetailsController extends GetxController {
   /// Charger les statistiques des transactions
   Future<void> loadTransactionStats() async {
     try {
-      _logger.debug('Chargement des statistiques de transactions pour la zone: $zoneId');
-      
-      final stats = await _transactionService.getZoneTransactionStats(zoneId: zoneId);
+      _logger.debug(
+          'Chargement des statistiques de transactions pour la zone: $zoneId');
+
+      final stats =
+          await _transactionService.getZoneTransactionStats(zoneId: zoneId);
       transactionStats.value = stats;
-      
-      _logger.debug('Statistiques de transactions chargées', 
+
+      _logger.debug('Statistiques de transactions chargées',
           category: 'ZONE_DETAILS_CONTROLLER',
           data: {
             'totalCount': stats.totalCount,
             'totalAmount': stats.totalAmount,
           });
-      
     } catch (e) {
-      _logger.error('Erreur lors du chargement des statistiques de transactions',
-          error: e, category: 'ZONE_DETAILS_CONTROLLER');
+      _logger.error(
+          'Erreur lors du chargement des statistiques de transactions',
+          error: e,
+          category: 'ZONE_DETAILS_CONTROLLER');
     }
   }
 
@@ -544,12 +548,13 @@ class ZoneDetailsController extends GetxController {
       );
       return;
     }
-    
-    final credentials = 'Nom d\'utilisateur: ${transaction.credentials!.username}\n'
-                       'Mot de passe: ${transaction.credentials!.password}';
-    
+
+    final credentials =
+        'Nom d\'utilisateur: ${transaction.credentials!.username}\n'
+        'Mot de passe: ${transaction.credentials!.password}';
+
     Clipboard.setData(ClipboardData(text: credentials));
-    
+
     Get.snackbar(
       'Copié',
       'Identifiants copiés dans le presse-papier',
@@ -558,7 +563,7 @@ class ZoneDetailsController extends GetxController {
       colorText: Colors.green.shade800,
       duration: const Duration(seconds: 2),
     );
-    
+
     _logger.logUserAction('copy_transaction_credentials', details: {
       'transactionId': transaction.id,
       'zoneId': zoneId,
@@ -570,7 +575,8 @@ class ZoneDetailsController extends GetxController {
     try {
       final updated = await _transactionService.refreshTransaction(transaction);
       if (updated != null) {
-        final index = zoneTransactions.indexWhere((t) => t.id == transaction.id);
+        final index =
+            zoneTransactions.indexWhere((t) => t.id == transaction.id);
         if (index != -1) {
           zoneTransactions[index] = updated;
           _applyTransactionFilter();
@@ -621,4 +627,3 @@ class ZoneDetailsController extends GetxController {
     super.onClose();
   }
 }
-

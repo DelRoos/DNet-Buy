@@ -33,6 +33,7 @@ dependencies:
   connectivity_plus: ^6.1.4
 
 # --- DÉPENDANCES DE DÉVELOPPEMENT ---
+  http: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

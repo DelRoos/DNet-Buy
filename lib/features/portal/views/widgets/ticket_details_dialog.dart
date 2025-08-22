@@ -7,9 +7,9 @@ class TicketDetailsDialog extends StatelessWidget {
   final PurchasedTicketModel ticket;
 
   const TicketDetailsDialog({
-    Key? key,
+    super.key,
     required this.ticket,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -164,7 +164,6 @@ class TicketDetailsDialog extends StatelessWidget {
                 if (actionLabel != null && onAction != null)
                   TextButton(
                     onPressed: onAction,
-                    child: Text(actionLabel),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -172,6 +171,7 @@ class TicketDetailsDialog extends StatelessWidget {
                       ),
                       visualDensity: VisualDensity.compact,
                     ),
+                    child: Text(actionLabel),
                   ),
               ],
             ),
