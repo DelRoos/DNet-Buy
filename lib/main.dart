@@ -1,3 +1,4 @@
+// lib/main.dart - Solution temporaire
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -8,10 +9,18 @@ import 'package:dnet_buy/firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialiser Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  
+  // ✅ Initialisation Firebase avec gestion d'erreur
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    print('Erreur Firebase: $e');
+    // Continuer sans Firebase pour le développement
+    // await Firebase.initializeApp(); // Version par défaut
+  }
+  
   runApp(const DNetApp());
 }
 

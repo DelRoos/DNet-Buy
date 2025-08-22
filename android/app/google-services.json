@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "791903475945",
+    "project_id": "dnet-29b02",
+    "storage_bucket": "dnet-29b02.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:791903475945:android:ecc613ff9c3de95c01f878",
+        "android_client_info": {
+          "package_name": "com.dnet.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCcxLF0dCSy3F0AGM3W5XVePFGDB-m66Rg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

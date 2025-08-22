@@ -21,15 +21,9 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for android - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -60,5 +54,22 @@ class DefaultFirebaseOptions {
     authDomain: 'dnet-29b02.firebaseapp.com',
     storageBucket: 'dnet-29b02.firebasestorage.app',
     measurementId: 'G-WHZBPHR1XD',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyCcxLF0dCSy3F0AGM3W5XVePFGDB-m66Rg',
+    appId: '1:791903475945:android:ecc613ff9c3de95c01f878',
+    messagingSenderId: '791903475945',
+    projectId: 'dnet-29b02',
+    storageBucket: 'dnet-29b02.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyCH4sgR5fNRMAZm8Huwn5pvtpdR7QAF0iU',
+    appId: '1:791903475945:ios:631c907131a8ca6b01f878',
+    messagingSenderId: '791903475945',
+    projectId: 'dnet-29b02',
+    storageBucket: 'dnet-29b02.firebasestorage.app',
+    iosBundleId: 'com.example.dnetBuy',
   );
 }
