@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:dnet_buy/app/services/auth_service.dart';
 import 'package:dnet_buy/app/services/merchant_service.dart';
 import 'package:dnet_buy/app/services/logger_service.dart';
+import 'package:dnet_buy/app/services/notification_service.dart';
 
 class AuthController extends GetxController {
   final AuthService _authService = Get.find<AuthService>();
@@ -259,6 +260,18 @@ class AuthController extends GetxController {
 
     try {
       _logger.debug('Déconnexion de l\'utilisateur: $userEmail');
+
+      // Supprimer le token FCM avant la déconnexion
+      try {
+        if (Get.isRegistered<NotificationService>()) {
+          final notificationService = Get.find<NotificationService>();
+          await notificationService.clearFCMToken();
+          _logger.info('🗑️ Token FCM supprimé lors de la déconnexion');
+        }
+      } catch (e) {
+        _logger.error('Erreur lors de la suppression du token FCM', error: e);
+        // Continuer la déconnexion même si la suppression du token échoue
+      }
 
       await _authService.signOut();
       Get.offAllNamed('/login');

@@ -8,6 +8,7 @@ import 'package:dnet_buy/app/services/auth_service.dart';
 import 'package:dnet_buy/app/services/merchant_service.dart';
 import 'package:dnet_buy/app/services/logger_service.dart';
 import 'package:dnet_buy/app/services/advanced_logger_service.dart';
+import 'package:dnet_buy/app/services/notification_service.dart';
 import 'package:dnet_buy/app/services/zone_service.dart';
 import 'package:dnet_buy/app/services/ticket_type_service.dart';
 import 'package:dnet_buy/app/services/ticket_service.dart';
@@ -28,9 +29,12 @@ class AppBindings extends Bindings {
     Get.put<TicketTypeService>(TicketTypeService(), permanent: true);
     Get.put<TicketService>(TicketService(), permanent: true);
     Get.put<ZoneTransactionService>(ZoneTransactionService(), permanent: true);
-
-    // Contrôleur d'authentification (permanent)
+    
+    // Contrôleur d'authentification (permanent) - DOIT être initialisé avant NotificationService
     Get.put<AuthController>(AuthController(), permanent: true);
+
+    // Service de notifications push (maintenant configuré pour Android)
+    Get.put<NotificationService>(NotificationService(), permanent: true);
 
     Get.lazyPut(() => ManualSaleService(), fenix: true);
     // Log de l'initialisation

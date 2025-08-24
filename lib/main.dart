@@ -2,10 +2,22 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dnet_buy/app/bindings/app_bindings.dart';
 import 'package:dnet_buy/app/config/router.dart';
 import 'package:dnet_buy/app/config/theme.dart';
 import 'package:dnet_buy/firebase_options.dart';
+
+// Handler pour les messages reçus en background
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Initialiser Firebase pour ce handler
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  debugPrint('📱 Message reçu en background: ${message.messageId}');
+  debugPrint('Titre: ${message.notification?.title}');
+  debugPrint('Contenu: ${message.notification?.body}');
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,10 +27,13 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    
+    // ✅ Configuration du handler pour les messages en background
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    
+    debugPrint('✅ Firebase initialisé avec succès');
   } catch (e) {
-    print('Erreur Firebase: $e');
-    // Continuer sans Firebase pour le développement
-    // await Firebase.initializeApp(); // Version par défaut
+    debugPrint('❌ Erreur Firebase: $e');
   }
 
   runApp(const DNetApp());

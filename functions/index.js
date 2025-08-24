@@ -14,7 +14,15 @@ const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const axios = require("axios");
 
-admin.initializeApp();
+// Initialiser Firebase Admin
+try {
+  admin.initializeApp();
+  logger.info('✅ Firebase Admin SDK initialisé avec succès');
+} catch (error) {
+  logger.error('❌ Erreur lors de l\'initialisation de Firebase Admin SDK:', error);
+  throw error;
+}
+
 const db = admin.firestore();
 setGlobalOptions({ maxInstances: 10 });
 
@@ -31,6 +39,228 @@ const WEBHOOK_URL = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/handleFr
 
 /* ================== UTILS ================== */
 const now = () => admin.firestore.Timestamp.now();
+
+/* ================== PUSH NOTIFICATIONS ================== */
+// Fonction de test pour vérifier Firebase Messaging
+async function testFirebaseMessaging() {
+  try {
+    // Essayer avec un token factice pour tester la réponse de Firebase
+    const testMessage = {
+      notification: {
+        title: 'Test Firebase Messaging',
+        body: 'Test de configuration Firebase Admin'
+      },
+      data: {
+        test: 'true'
+      },
+      token: 'dummy-token' // Token factice pour le test
+    };
+    
+    // Ceci devrait échouer avec un message d'erreur spécifique plutôt qu'HTML
+    await admin.messaging().send(testMessage);
+    logger.info('✅ Firebase Messaging test réussi (succès inattendu)');
+    return true;
+  } catch (error) {
+    if (error.message.includes('<!DOCTYPE html>')) {
+      logger.error('🚨 Firebase Admin SDK retourne du HTML - problème de configuration');
+      logger.error('Erreur complète:', error.message.substring(0, 200));
+      return false;
+    }
+    
+    // Ces erreurs indiquent que Firebase fonctionne mais le token est invalide (normal)
+    if (error.code === 'messaging/registration-token-not-registered' || 
+        error.code === 'messaging/invalid-registration-token' ||
+        error.message.includes('not a valid FCM registration token') ||
+        error.message.includes('Invalid registration token')) {
+      logger.info('✅ Firebase Messaging fonctionne (erreur de token invalide attendue)');
+      return true;
+    }
+    
+    // Autres erreurs qui indiquent un problème de configuration
+    logger.error('⚠️ Erreur inattendue lors du test Firebase Messaging:', {
+      code: error.code,
+      message: error.message,
+      details: error.details
+    });
+    return false;
+  }
+}
+
+/* ================== PUSH NOTIFICATIONS ================== */
+let firebaseMessagingTested = false;
+
+async function sendPushNotification(userTokens, title, body, data = {}) {
+  // Test de configuration Firebase une seule fois (temporairement désactivé)
+  if (!firebaseMessagingTested) {
+    // const isWorking = await testFirebaseMessaging();
+    firebaseMessagingTested = true;
+    
+    // Assumer que Firebase fonctionne et laisser la vraie tentative d'envoi déterminer les erreurs
+    logger.info('🔧 Test Firebase désactivé - tentative d\'envoi direct');
+  }
+
+  if (!userTokens || userTokens.length === 0) {
+    logger.info('Aucun token FCM trouvé pour les notifications');
+    return;
+  }
+
+  // Valider et nettoyer les tokens
+  const validTokens = Array.isArray(userTokens) ? userTokens : [userTokens];
+  const cleanTokens = validTokens.filter(token => token && typeof token === 'string' && token.trim().length > 0);
+  
+  if (cleanTokens.length === 0) {
+    logger.warn('Aucun token FCM valide après nettoyage');
+    return;
+  }
+
+  // Convertir toutes les données en string pour FCM
+  const stringData = {};
+  Object.keys(data).forEach(key => {
+    stringData[key] = String(data[key]);
+  });
+
+  const message = {
+    notification: { title, body },
+    data: {
+      ...stringData,
+      click_action: 'FLUTTER_NOTIFICATION_CLICK',
+    },
+  };
+
+  try {
+    logger.info(`📤 Envoi de ${cleanTokens.length} notification(s): ${title}`);
+    logger.debug('Payload notification:', { 
+      title, 
+      body, 
+      data: stringData,
+      tokenCount: cleanTokens.length 
+    });
+    
+    const response = await admin.messaging().sendMulticast({
+      ...message,
+      tokens: cleanTokens,
+    });
+
+    logger.info(`📱 Notifications push envoyées: ${response.successCount}/${response.responses.length}`);
+    
+    if (response.failureCount > 0) {
+      const errors = response.responses
+        .map((resp, index) => resp.success ? null : { 
+          token: cleanTokens[index], 
+          error: resp.error?.message,
+          code: resp.error?.code 
+        })
+        .filter(Boolean);
+      
+      logger.warn(`Échecs d'envoi: ${response.failureCount}`, { errors });
+      
+      // Séparer les erreurs par type
+      const expiredTokens = [];
+      const criticalErrors = [];
+      
+      errors.forEach(({ token, error, code }) => {
+        if (code === 'messaging/registration-token-not-registered' || 
+            code === 'messaging/invalid-registration-token' ||
+            error?.includes('not a valid FCM registration token')) {
+          expiredTokens.push({ token: token?.substring(0, 20) + '...', error });
+        } else {
+          criticalErrors.push({ token: token?.substring(0, 20) + '...', error, code });
+        }
+      });
+      
+      if (expiredTokens.length > 0) {
+        logger.info(`📝 ${expiredTokens.length} tokens expirés/invalides (normal)`, expiredTokens);
+      }
+      
+      if (criticalErrors.length > 0) {
+        logger.error(`🚨 ${criticalErrors.length} erreurs critiques FCM:`, criticalErrors);
+      }
+    }
+    
+    return response;
+  } catch (error) {
+    logger.error('Erreur critique lors de l\'envoi des notifications push', {
+      error: error.message,
+      code: error.code,
+      details: error.details,
+      tokens: cleanTokens.map(t => t.substring(0, 20) + '...')
+    });
+    
+    // Ne pas faire planter l'application pour les erreurs de notification
+    return null;
+  }
+}
+
+async function getUserFCMTokens(userId = null) {
+  try {
+    let tokens = [];
+    
+    if (userId) {
+      // Récupérer le token d'un utilisateur spécifique depuis la collection merchants
+      logger.info(`🔍 Recherche du token FCM pour l'utilisateur: ${userId}`);
+      const userDoc = await db.collection('merchants').doc(userId).get();
+      
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        // Nouvelle structure: fcmTokens.current
+        if (userData.fcmTokens && userData.fcmTokens.current) {
+          const token = userData.fcmTokens.current;
+          
+          // Valider le format du token FCM
+          if (typeof token === 'string' && token.length > 50) {
+            tokens.push(token);
+            logger.info(`✅ Token FCM valide trouvé pour l'utilisateur ${userId}: ${token.substring(0, 20)}...`);
+          } else {
+            logger.warn(`⚠️ Token FCM invalide pour l'utilisateur ${userId}: ${token}`);
+          }
+        } else {
+          logger.info(`⚠️ Aucun token FCM stocké pour l'utilisateur ${userId}`);
+          logger.debug('Structure userData:', { 
+            hasUserData: !!userData, 
+            hasFcmTokens: !!userData?.fcmTokens,
+            fcmTokensStructure: userData?.fcmTokens 
+          });
+        }
+      } else {
+        logger.warn(`⚠️ Utilisateur ${userId} non trouvé dans la collection merchants`);
+      }
+    } else {
+      // Récupérer tous les tokens (pour les notifications globales)
+      logger.info('🔍 Recherche de tous les tokens FCM actifs');
+      const usersSnapshot = await db.collection('merchants')
+        .where('fcmTokens.current', '!=', null)
+        .get();
+      
+      usersSnapshot.forEach(doc => {
+        const userData = doc.data();
+        if (userData.fcmTokens && userData.fcmTokens.current) {
+          const token = userData.fcmTokens.current;
+          if (typeof token === 'string' && token.length > 50) {
+            tokens.push(token);
+          }
+        }
+      });
+      
+      logger.info(`✅ ${tokens.length} tokens FCM valides récupérés pour notification globale`);
+    }
+    
+    // Déduplication des tokens
+    const uniqueTokens = [...new Set(tokens.filter(token => token && token.length > 0))];
+    
+    if (uniqueTokens.length !== tokens.length) {
+      logger.info(`🔄 ${tokens.length - uniqueTokens.length} tokens dupliqués supprimés`);
+    }
+    
+    return uniqueTokens;
+  } catch (error) {
+    logger.error('❌ Erreur lors de la récupération des tokens FCM:', {
+      error: error.message,
+      userId: userId,
+      stack: error.stack
+    });
+    return [];
+  }
+}
 
 function formatCameroonPhone(phoneNumber) {
   if (!phoneNumber) throw new Error("Numéro de téléphone requis");
@@ -112,10 +342,49 @@ async function reserveTicketForPlan(planId) {
   if (snap.empty) return null;
 
   const doc = snap.docs[0];
+  const ticketData = doc.data();
+  
   await doc.ref.update({
     status: "reserved",
     reservedAt: now(),
   });
+
+  // 📱 NOTIFICATION PUSH : Ticket réservé
+  try {
+    // Récupérer les infos du plan pour la notification
+    const plan = await getPlanCached(planId);
+    
+    // Récupérer le merchantId depuis la zone liée au plan
+    const merchantId = plan?.merchantId || tx.merchantId;
+    
+    if (merchantId) {
+      const tokens = await getUserFCMTokens(merchantId);
+      if (tokens.length > 0) {
+        await sendPushNotification(
+          tokens,
+          '🔒 Ticket réservé',
+          `Réservation d'un ticket ${plan?.name || 'WiFi'} (${ticketData.username})`,
+          {
+            type: 'ticket_reserved',
+            ticketId: doc.id,
+            zoneId: ticketData.zoneId || '',
+            zoneName: plan?.zoneName || 'Zone',
+            planName: plan?.name || '',
+            username: ticketData.username || '',
+            transactionId: doc.id,
+          }
+        );
+        logger.info(`📱 Notification de réservation envoyée au marchand ${merchantId}`);
+      } else {
+        logger.info(`⚠️ Aucun token FCM pour le marchand ${merchantId}`);
+      }
+    } else {
+      logger.warn(`⚠️ MerchantId non trouvé pour le plan ${planId}`);
+    }
+  } catch (notifError) {
+    logger.error('Erreur lors de l\'envoi de la notification de réservation', notifError);
+    // Ne pas faire échouer le processus principal
+  }
 
   return { id: doc.id, ...doc.data() };
 }
@@ -389,6 +658,7 @@ exports.handleFreemopayWebhook = onRequest(async (req, res) => {
 
     if (!snap || !snap.exists) return res.status(404).send("transaction not found");
     const tx = snap.data();
+    const txnId = txnRef.id; // ✅ Définir txnId pour les notifications
 
     // 🔹 3) Si déjà traité, on marque juste webhookReceived
     if (["completed", "failed", "expired"].includes(tx.status)) {
@@ -398,7 +668,7 @@ exports.handleFreemopayWebhook = onRequest(async (req, res) => {
 
     const s = String(status).toUpperCase();
 
-if (String(status).toUpperCase() === "SUCCESS") {
+    if (s === "SUCCESS") {
   logStep("Paiement réussi - génération des credentials");
   
   let credentials = null;
@@ -463,29 +733,74 @@ if (String(status).toUpperCase() === "SUCCESS") {
   
   await batch.commit();
   logStep("Transaction et ticket mis à jour avec succès");
+
+  // 📱 NOTIFICATION PUSH : Transaction réussie/Nouvelle vente
+  try {
+    // Utiliser le merchantId de la transaction
+    const merchantId = plan?.merchantId || tx.merchantId;
+    
+    if (merchantId) {
+      const tokens = await getUserFCMTokens(merchantId);
+      if (tokens.length > 0) {
+        await sendPushNotification(
+          tokens,
+          '✅ Nouvelle vente réalisée',
+          `Vente de ${tx.planName || 'un forfait'} pour ${tx.amount} XAF`,
+          {
+            type: 'transaction_completed',
+            transactionId: txnId,
+            zoneId: tx.zoneId || '',
+            zoneName: tx.zoneName || 'Zone',
+            amount: tx.amount?.toString() || '0',
+            planName: tx.planName || '',
+            phone: tx.phone || '',
+          }
+        );
+        logger.info(`📱 Notification de succès envoyée au marchand ${merchantId}`);
+      } else {
+        logger.info(`⚠️ Aucun token FCM pour le marchand ${merchantId}`);
+      }
+    } else {
+      logger.warn(`⚠️ MerchantId non trouvé pour la transaction ${txnId}`);
+    }
+  } catch (notifError) {
+    logger.error('Erreur lors de l\'envoi de la notification de succès', notifError);
+    // Ne pas faire échouer le processus principal
+  }
   
   return res.status(200).send("");
 }
 
-// ✅ NOUVEAU CODE FAILED/EXPIRED SÉCURISÉ
-if (String(status).toUpperCase() === "FAILED" || String(status).toUpperCase() === "EXPIRED") {
-  logStep("Paiement échoué - nettoyage des ressources");
-  
-  const batch = db.batch();
-  
-  // ✅ Libérer le ticket réservé
-  if (tx.reservedTicketId) {
-    batch.update(db.collection("tickets").doc(tx.reservedTicketId), {
-      status: "available",
-      reservedAt: admin.firestore.FieldValue.delete(),
-      // ✅ Nettoyer toute trace de la transaction échouée
-      transactionId: admin.firestore.FieldValue.delete()
-    });
-    logStep("Ticket libéré");
-  }
-  
-  // ✅ Mise à jour sécurisée de la transaction
-  batch.update(txnRef, {
+    // ✅ NOUVEAU CODE FAILED/EXPIRED SÉCURISÉ
+    if (s === "FAILED" || s === "EXPIRED") {
+      logStep("Paiement échoué - nettoyage des ressources");
+      
+      const batch = db.batch();
+      
+      // ✅ Libérer le ticket réservé
+      let releasedTicketData = null;
+      if (tx.reservedTicketId) {
+        // Récupérer les données du ticket avant libération pour la notification
+        try {
+          const ticketDoc = await db.collection("tickets").doc(tx.reservedTicketId).get();
+          if (ticketDoc.exists) {
+            releasedTicketData = ticketDoc.data();
+          }
+        } catch (ticketError) {
+          logger.warn('Impossible de récupérer les données du ticket pour la notification', ticketError);
+        }
+
+        batch.update(db.collection("tickets").doc(tx.reservedTicketId), {
+          status: "available",
+          reservedAt: admin.firestore.FieldValue.delete(),
+          // ✅ Nettoyer toute trace de la transaction échouée
+          transactionId: admin.firestore.FieldValue.delete()
+        });
+        logStep("Ticket libéré");
+      }
+      
+      // ✅ Mise à jour sécurisée de la transaction
+      batch.update(txnRef, {
     status: status.toLowerCase() === "expired" ? "expired" : "failed",
     updatedAt: now(),
     providerStatus: status,
@@ -499,6 +814,76 @@ if (String(status).toUpperCase() === "FAILED" || String(status).toUpperCase() ==
   
   await batch.commit();
   logStep("Nettoyage terminé");
+
+  // 📱 NOTIFICATION PUSH : Transaction échouée
+  try {
+    // Utiliser le merchantId de la transaction
+    const merchantId = plan?.merchantId || tx.merchantId;
+    
+    if (merchantId) {
+      const tokens = await getUserFCMTokens(merchantId);
+      if (tokens.length > 0) {
+        await sendPushNotification(
+          tokens,
+          '❌ Transaction échouée',
+          `Paiement échoué pour ${tx.planName || 'un forfait'} (${tx.amount} XAF)`,
+          {
+            type: 'transaction_failed',
+            transactionId: txnId,
+            zoneId: tx.zoneId || '',
+            zoneName: tx.zoneName || 'Zone',
+            amount: tx.amount?.toString() || '0',
+            planName: tx.planName || '',
+            phone: tx.phone || '',
+          }
+        );
+        logger.info(`📱 Notification d'échec envoyée au marchand ${merchantId}`);
+      } else {
+        logger.info(`⚠️ Aucun token FCM pour le marchand ${merchantId}`);
+      }
+    } else {
+      logger.warn(`⚠️ MerchantId non trouvé pour la transaction échouée ${txnId}`);
+    }
+  } catch (notifError) {
+    logger.error('Erreur lors de l\'envoi de la notification d\'échec', notifError);
+    // Ne pas faire échouer le webhook principal
+  }
+
+  // 📱 NOTIFICATION PUSH : Ticket libéré (si applicable)
+  if (releasedTicketData) {
+    try {
+      // Utiliser le merchantId de la transaction
+      const merchantId = plan?.merchantId || tx.merchantId;
+      
+      if (merchantId) {
+        const tokens = await getUserFCMTokens(merchantId);
+        if (tokens.length > 0) {
+          await sendPushNotification(
+            tokens,
+            '🔓 Ticket libéré',
+            `Ticket ${releasedTicketData.username} redevenu disponible`,
+            {
+              type: 'ticket_released',
+              ticketId: tx.reservedTicketId,
+              zoneId: releasedTicketData.zoneId || tx.zoneId || '',
+              zoneName: tx.zoneName || 'Zone',
+              username: releasedTicketData.username || '',
+              reason: 'transaction_failed',
+              transactionId: txnId,
+            }
+          );
+          logger.info(`📱 Notification de libération envoyée au marchand ${merchantId}`);
+        } else {
+          logger.info(`⚠️ Aucun token FCM pour le marchand ${merchantId}`);
+        }
+      } else {
+        logger.warn(`⚠️ MerchantId non trouvé pour la libération du ticket ${tx.reservedTicketId}`);
+      }
+    } catch (notifError) {
+      logger.error('Erreur lors de l\'envoi de la notification de libération', notifError);
+      // Ne pas faire échouer le webhook principal
+    }
+  }
   
   return res.status(200).send("");
 }
@@ -557,14 +942,11 @@ exports.cleanExpiredReservations = onSchedule(
 
       // ✅ Marquer les transactions expirées
       for (const txDoc of expiredTransactionsSnap.docs) {
-        const txData = txDoc.data();
-        
         batch.update(txDoc.ref, {
           status: "expired",
           updatedAt: nowTs,
           expiredAt: nowTs,
           providerMessage: "Transaction expirée - délai dépassé",
-          // ✅ SÉCURITÉ : Nettoyer les credentials potentiels
           credentials: admin.firestore.FieldValue.delete(),
           reservedTicketId: admin.firestore.FieldValue.delete()
         });
