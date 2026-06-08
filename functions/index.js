@@ -29,12 +29,18 @@ setGlobalOptions({ maxInstances: 10 });
 /* ================== CONFIG ================== */
 const PROJECT_ID = "dnet-29b02";
 const REGION = "us-central1";
-const FREEMOPAY_CONFIG = {
-  baseUrl: "https://api-v2.freemopay.com",
-  appKey: "0c96c26a-ffe5-490d-a150-ecf97545be9d",
-  secretKey: "2uM2OeqnuMeo9fc1E6oB",
-  timeout: 5000,
+
+// Sharepay (DNet account central). TODO: déplacer dans Secret Manager avant prod réelle.
+// NOTE: la doc Sharepay liste http:// mais le serveur force HTTPS via redirect 301.
+// Axios change POST→GET lors d'un 301 et perd le body → 500. On utilise donc directement HTTPS.
+const SHAREPAY_CONFIG = {
+  baseUrl: "https://sharepay-api.te-sea.com",
+  apiKey: "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",
+  timeout: 8000,
 };
+
+// On garde l'ancien nom de Cloud Function (handleFreemopayWebhook) pour ne pas changer
+// l'URL du webhook déjà configurée. C'est juste un nom interne — le comportement est Sharepay.
 const WEBHOOK_URL = `https://${REGION}-${PROJECT_ID}.cloudfunctions.net/handleFreemopayWebhook`;
 
 /* ================== UTILS ================== */
@@ -277,25 +283,104 @@ function formatCameroonPhone(phoneNumber) {
   return formatted;
 }
 
-function validateFreemopayConfig() {
-  if (!FREEMOPAY_CONFIG.appKey) throw new Error("App Key manquante");
-  if (!FREEMOPAY_CONFIG.secretKey) throw new Error("Secret Key manquante");
+function validateSharepayConfig() {
+  if (!SHAREPAY_CONFIG.apiKey) throw new Error("Sharepay API Key manquante");
 }
 
-function getBasicAuthHeader() {
-  const token = Buffer.from(
-    `${FREEMOPAY_CONFIG.appKey}:${FREEMOPAY_CONFIG.secretKey}`
-  ).toString("base64");
-  return `Basic ${token}`;
+function getSharepayHeaders() {
+  return {
+    "X-API-KEY": SHAREPAY_CONFIG.apiKey,
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+  };
 }
 
-async function callFreemopay(endpoint, payload, timeoutMs = FREEMOPAY_CONFIG.timeout) {
-  const url = `${FREEMOPAY_CONFIG.baseUrl}${endpoint}`;
-  const headers = { Authorization: getBasicAuthHeader(), "Content-Type": "application/json" };
-  logger.info("➡️ Freemopay call", { url, payload: { ...payload, secretKey: undefined } });
-  const resp = await axios.post(url, payload, { headers, timeout: timeoutMs });
-  logger.info("⬅️ Freemopay response", { status: resp.status, data: resp.data });
+async function callSharepay(method, endpoint, payload = null, timeoutMs = SHAREPAY_CONFIG.timeout) {
+  const url = `${SHAREPAY_CONFIG.baseUrl}${endpoint}`;
+  const headers = getSharepayHeaders();
+  logger.info("➡️ Sharepay call", { method, url, payload });
+  const config = { headers, timeout: timeoutMs };
+  const resp = method === "GET"
+    ? await axios.get(url, config)
+    : await axios.post(url, payload, config);
+  logger.info("⬅️ Sharepay response", { status: resp.status, data: resp.data });
   return resp.data;
+}
+
+// Déduit le paymentMethod Sharepay à partir d'un numéro camerounais au format 237XXXXXXXXX.
+// Préfixes officiels ART (source: doc Sharepay) :
+//   MTN Cameroun   : 650, 651, 652, 653, 654, 67x, 680, 681, 682, 683
+//   Orange Cameroun: 640, 655, 656, 657, 658, 659, 686, 687, 688, 689, 69x
+// Note: 66x n'est pas listé dans la doc — fallback MTN par défaut.
+function detectPaymentMethod(phone237) {
+  const local = String(phone237 || "").replace(/^237/, "");
+  if (!local || local.length < 3) return "MTN_MOMO_CM";
+
+  const p2 = local.substring(0, 2);
+  const p3 = local.substring(0, 3);
+
+  // Orange par préfixes longs
+  if (["640", "655", "656", "657", "658", "659", "686", "687", "688", "689"].includes(p3)) {
+    return "ORANGE_MONEY_CM";
+  }
+  // MTN par préfixes longs
+  if (["650", "651", "652", "653", "654", "680", "681", "682", "683"].includes(p3)) {
+    return "MTN_MOMO_CM";
+  }
+  // Préfixes courts
+  if (p2 === "69") return "ORANGE_MONEY_CM";
+  if (p2 === "67") return "MTN_MOMO_CM";
+
+  return "MTN_MOMO_CM"; // fallback (inclut 66x non documenté)
+}
+
+// Mappe un statut Sharepay -> statut interne (compatible hotspot).
+function mapSharepayStatus(sharepayStatus) {
+  const s = String(sharepayStatus || "").toUpperCase();
+  switch (s) {
+    case "SUCCESS": return "completed";
+    case "FAILED": return "failed";
+    case "CANCELLED": return "failed";
+    case "EXPIRED": return "expired";
+    case "REFUNDED": return "completed"; // on garde completed, le ticket reste utilisé
+    case "PROCESSING":
+    case "PENDING":
+    default:
+      return "pending";
+  }
+}
+
+// Normalise l'event d'un webhook Sharepay vers un statut Sharepay équivalent.
+// Observé en prod: Sharepay envoie `event: "payment.success"` même quand `data.status` est encore "PENDING".
+// L'event est la source de vérité (confirmé par GET /pay-in/check_status/{ref}).
+function eventToSharepayStatus(eventName) {
+  const e = String(eventName || "").toLowerCase();
+  switch (e) {
+    case "payment.success":
+    case "payment.completed":
+    case "payin.success":
+    case "payin.completed":
+      return "SUCCESS";
+    case "payment.failed":
+    case "payin.failed":
+      return "FAILED";
+    case "payment.cancelled":
+    case "payin.cancelled":
+      return "CANCELLED";
+    case "payment.expired":
+    case "payin.expired":
+      return "EXPIRED";
+    case "payment.refunded":
+    case "payin.refunded":
+      return "REFUNDED";
+    case "payment.created":
+    case "payment.pending":
+    case "payin.created":
+    case "payin.pending":
+      return "PENDING";
+    default:
+      return null; // inconnu -> fallback sur data.status
+  }
 }
 
 /* ================== FORMATAGE DUREE ================== */
@@ -321,7 +406,7 @@ async function getPlanCached(planId) {
   const FieldPath = admin.firestore.FieldPath;
   const qs = await db.collection("ticket_types")
     .where(FieldPath.documentId(), "==", planId)
-    .select("price", "isActive", "name", "validityHours")
+    .select("price", "isActive", "name", "validityHours", "zoneId")
     .limit(1)
     .get();
 
@@ -332,7 +417,35 @@ async function getPlanCached(planId) {
   return data;
 }
 
-async function reserveTicketForPlan(planId) {
+/* ================== CACHE ZONE→MERCHANT (TTL 5 min) ================== */
+const zoneMerchantCache = new Map(); // key: zoneId -> {merchantId, exp}
+
+async function getMerchantIdForZone(zoneId) {
+  if (!zoneId) return null;
+  const hit = zoneMerchantCache.get(zoneId);
+  if (hit && Date.now() < hit.exp) return hit.merchantId;
+
+  try {
+    const zoneDoc = await db.collection("zones").doc(zoneId).get();
+    const merchantId = zoneDoc.exists ? (zoneDoc.data().merchantId || null) : null;
+    zoneMerchantCache.set(zoneId, { merchantId, exp: Date.now() + PLAN_TTL_MS });
+    return merchantId;
+  } catch (e) {
+    logger.warn("getMerchantIdForZone error", { zoneId, error: e.message });
+    return null;
+  }
+}
+
+async function getMerchantIdForPlan(planId) {
+  try {
+    const plan = await getPlanCached(planId);
+    return await getMerchantIdForZone(plan?.zoneId);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function reserveTicketForPlan(planId, merchantId = null) {
   const snap = await db.collection("tickets")
     .where("ticketTypeId", "==", planId)
     .where("status", "==", "available")
@@ -343,21 +456,16 @@ async function reserveTicketForPlan(planId) {
 
   const doc = snap.docs[0];
   const ticketData = doc.data();
-  
+
   await doc.ref.update({
     status: "reserved",
     reservedAt: now(),
   });
 
-  // 📱 NOTIFICATION PUSH : Ticket réservé
-  try {
-    // Récupérer les infos du plan pour la notification
-    const plan = await getPlanCached(planId);
-    
-    // Récupérer le merchantId depuis la zone liée au plan
-    const merchantId = plan?.merchantId || tx.merchantId;
-    
-    if (merchantId) {
+  // 📱 NOTIFICATION PUSH : Ticket réservé (best-effort, jamais bloquant)
+  if (merchantId) {
+    try {
+      const plan = await getPlanCached(planId);
       const tokens = await getUserFCMTokens(merchantId);
       if (tokens.length > 0) {
         await sendPushNotification(
@@ -367,23 +475,17 @@ async function reserveTicketForPlan(planId) {
           {
             type: 'ticket_reserved',
             ticketId: doc.id,
-            zoneId: ticketData.zoneId || '',
-            zoneName: plan?.zoneName || 'Zone',
+            zoneId: ticketData.zoneId || plan?.zoneId || '',
             planName: plan?.name || '',
             username: ticketData.username || '',
             transactionId: doc.id,
           }
         );
         logger.info(`📱 Notification de réservation envoyée au marchand ${merchantId}`);
-      } else {
-        logger.info(`⚠️ Aucun token FCM pour le marchand ${merchantId}`);
       }
-    } else {
-      logger.warn(`⚠️ MerchantId non trouvé pour le plan ${planId}`);
+    } catch (notifError) {
+      logger.error('Erreur lors de l\'envoi de la notification de réservation', notifError);
     }
-  } catch (notifError) {
-    logger.error('Erreur lors de l\'envoi de la notification de réservation', notifError);
-    // Ne pas faire échouer le processus principal
   }
 
   return { id: doc.id, ...doc.data() };
@@ -467,7 +569,7 @@ exports.getPublicTicketTypes = onRequest(async (req, res) => {
     if (req.method !== "POST") return res.status(405).json({ error: "Method Not Allowed" });
 
     try {
-      validateFreemopayConfig();
+      validateSharepayConfig();
       const { planId, phoneNumber } = req.body || {};
       if (!planId || !phoneNumber) return res.status(400).json({ error: "planId et phoneNumber sont requis" });
 
@@ -475,8 +577,12 @@ exports.getPublicTicketTypes = onRequest(async (req, res) => {
       const planData = await getPlanCached(planId);
       if (!planData.isActive) throw new HttpsError("failed-precondition", "Forfait inactif");
 
+      // 🔎 Résoudre le merchantId via la zone du plan (pour les notifications FCM downstream)
+      const zoneId = planData.zoneId || null;
+      const merchantId = await getMerchantIdForZone(zoneId);
+
       // ✅ Réservation ticket
-      const reservedTicket = await reserveTicketForPlan(planId);
+      const reservedTicket = await reserveTicketForPlan(planId, merchantId);
       if (!reservedTicket) return res.status(409).json({ error: "Aucun ticket disponible" });
 
       // ✅ ID transaction
@@ -487,13 +593,16 @@ await txnRef.set({
   createdAt: now(),
   updatedAt: now(),
   status: "created",
-  provider: "freemopay",
+  provider: "sharepay",
   amount: planData.price,
   currency: "XAF",
   planId,
+  zoneId,
+  merchantId,
   phone,
   externalId: txnId,
-  freemopayReference: null,
+  providerReference: null,
+  freemopayReference: null, // alias conservé pour compat hotspot (dual-write)
   webhookReceived: false,
   reservedTicketId: reservedTicket.id,
   planName: planData.name,
@@ -521,33 +630,41 @@ exports.onTransactionCreated = onDocumentCreated("transactions/{transactionId}",
     const tx = event.data?.data();
     if (!tx || tx.status !== "created") return;
 
-    // Init paiement
+    // Init paiement Sharepay — POST /api/v1/pay-in/charge
+    const paymentMethod = detectPaymentMethod(tx.phone);
     const payload = {
       amount: tx.amount,
-      externalId: tx.externalId || txnId,   // chez nous: = txnId
-      callback: WEBHOOK_URL,
-      payer: tx.phone,
+      currency: tx.currency || "XAF",
+      paymentMethod,
+      payerAccount: tx.phone,
+      merchantReference: txnId, // notre ID de transaction Firestore = identifiant idempotent
+      idempotencyKey: txnId,
+      description: tx.planName ? `Achat ticket ${tx.planName}` : "Achat ticket WiFi",
     };
-    const data = await callFreemopay("/api/v2/payment", payload);
+    const data = await callSharepay("POST", "/api/v1/pay-in/charge", payload);
+
+    const sharepayRef = data.reference || null;
 
     await db.collection("transactions").doc(txnId).update({
-      status: "pending",
+      status: mapSharepayStatus(data.status) || "pending",
       updatedAt: now(),
-      freemopayReference: data.reference || null,
+      providerReference: sharepayRef,
+      freemopayReference: sharepayRef, // alias compat hotspot
+      paymentMethod,
       providerInitResponse: data,
     });
 
     // ✅ Fast path: 2s plus tard on regarde si le statut est déjà final
-    if (data.reference) {
+    if (sharepayRef) {
       setTimeout(async () => {
         try {
-          const st = await getPaymentStatusByReference(data.reference);
+          const st = await getPaymentStatusByReference(sharepayRef);
           const s = String(st?.status || "").toUpperCase();
-          if (s === "SUCCESS" || s === "FAILED") {
-            // Simule le webhook pour finaliser immédiatement
-            const fakeReq = { body: { status: s, reference: data.reference, externalId: txnId, message: st?.message || null } };
+          if (s === "SUCCESS" || s === "FAILED" || s === "CANCELLED") {
+            // Simule le webhook pour finaliser immédiatement (format Sharepay)
+            const fakeReq = { body: { status: s, reference: sharepayRef, merchantReference: txnId, message: st?.message || null } };
             const fakeRes = { status: () => ({ send: () => {} }) };
-            await exports.handleFreemopayWebhook.run(fakeReq, fakeRes); // gcf v2: appelle la même logique
+            await exports.handleFreemopayWebhook.run(fakeReq, fakeRes);
           }
         } catch (_) { /* ignore: si PENDING, le webhook finira le job */ }
       }, 2000);
@@ -559,6 +676,7 @@ exports.onTransactionCreated = onDocumentCreated("transactions/{transactionId}",
         status: "failed",
         updatedAt: now(),
         providerStatus: "INIT_FAILED",
+        providerMessage: e?.response?.data?.message || e.message || "Échec d'initiation Sharepay",
       });
     }
   }
@@ -590,7 +708,8 @@ exports.checkTransactionStatus = onRequest(async (req, res) => {
       id: doc.id,
       status: tx.status,
       amount: tx.amount,
-      freemopayReference: tx.freemopayReference || null,
+      providerReference: tx.providerReference || tx.freemopayReference || null,
+      freemopayReference: tx.freemopayReference || tx.providerReference || null, // alias compat hotspot
       ticketTypeName: tx.ticketTypeName || null,
       updatedAt: tx.updatedAt?.toDate?.()?.toISOString?.() || null,
       planName: tx.planName || null
@@ -625,31 +744,62 @@ exports.checkTransactionStatus = onRequest(async (req, res) => {
    ================================================================== */
 exports.handleFreemopayWebhook = onRequest(async (req, res) => {
   const t0 = Date.now();
-  const logStep = (msg) => logger.info(`⏱ [handleFreemopayWebhook] ${msg} — ${Date.now() - t0} ms écoulées`);
+  const logStep = (msg) => logger.info(`⏱ [handleSharepayWebhook] ${msg} — ${Date.now() - t0} ms écoulées`);
 
   try {
+    // 🔎 Log brut du payload pour qu'on découvre le format Sharepay au 1er vrai webhook.
+    // TODO: une fois le format confirmé, retirer ce log verbose.
+    logger.info("📥 Webhook Sharepay - payload brut", {
+      headers: req.headers,
+      body: req.body,
+    });
     logStep("Webhook reçu");
 
-    const { status, reference, externalId, message } = req.body || {};
-    if (!status || (!externalId && !reference)) {
+    // TODO sécurité: vérifier X-Sharepay-Signature (HMAC-SHA256) avec le webhook secret.
+    //                Récupérer le secret via rotation POST /api/v1/merchants/apps/{appId}/webhook-secret/rotate.
+
+    const body = req.body || {};
+    // Format webhook Sharepay observé en prod:
+    //   { applicationId, event: "payment.success"|..., data: {merchantReference, reference, status, ...}, timestamp }
+    // ⚠️ data.status est souvent obsolète (reste "PENDING" même après succès).
+    //    L'event (et le header X-Sharepay-Event) est la source de vérité.
+    const eventName = body.event || req.headers["x-sharepay-event"] || null;
+    const dataStatus = body.data?.status || body.status;
+    const eventStatus = eventToSharepayStatus(eventName);
+    const status = eventStatus || dataStatus; // event prioritaire, sinon fallback
+    const reference = body.data?.reference || body.reference; // Sharepay PI-...
+    const merchantReference = body.data?.merchantReference || body.merchantReference || body.externalId; // notre txnId
+    const message = body.data?.failureReason || body.message || body.failureReason || null;
+    const failureCode = body.data?.failureCode || body.failureCode || null;
+
+    logger.info("🔎 Webhook parsing", { eventName, eventStatus, dataStatus, resolvedStatus: status, reference, merchantReference });
+
+    if (!status || (!merchantReference && !reference)) {
+      logger.warn("Webhook payload invalide", { body });
       return res.status(400).send("Missing status or ID");
     }
 
     let txnRef = null, snap = null;
 
-    // 🔹 1) Lecture directe par externalId (doc.get)
-    if (externalId) {
-      txnRef = db.collection("transactions").doc(String(externalId));
+    // 🔹 1) Lookup direct par merchantReference (= notre txnId)
+    if (merchantReference) {
+      txnRef = db.collection("transactions").doc(String(merchantReference));
       snap = await txnRef.get();
     }
-    logStep("Lecture transaction par externalId");
+    logStep("Lecture transaction par merchantReference");
 
-    // 🔹 2) Fallback par reference si pas trouvé
+    // 🔹 2) Fallback par reference Sharepay (providerReference ou alias freemopayReference)
     if ((!snap || !snap.exists) && reference) {
-      const byRef = await db.collection("transactions")
-        .where("freemopayReference", "==", reference)
+      let byRef = await db.collection("transactions")
+        .where("providerReference", "==", reference)
         .limit(1)
         .get();
+      if (byRef.empty) {
+        byRef = await db.collection("transactions")
+          .where("freemopayReference", "==", reference)
+          .limit(1)
+          .get();
+      }
       if (!byRef.empty) {
         snap = byRef.docs[0];
         txnRef = snap.ref;
@@ -720,7 +870,8 @@ exports.handleFreemopayWebhook = onRequest(async (req, res) => {
     providerStatus: status,
     webhookReceived: true,
     providerMessage: message || null,
-    freemopayReference: reference || tx.freemopayReference || null,
+    providerReference: reference || tx.providerReference || null,
+    freemopayReference: reference || tx.freemopayReference || null, // alias compat hotspot
     ticketTypeName: tx.ticketTypeName || null,
     credentials: credentials, // ✅ Credentials générés ici UNIQUEMENT
     completedAt: now() // ✅ Timestamp de completion
@@ -736,8 +887,8 @@ exports.handleFreemopayWebhook = onRequest(async (req, res) => {
 
   // 📱 NOTIFICATION PUSH : Transaction réussie/Nouvelle vente
   try {
-    // Utiliser le merchantId de la transaction
-    const merchantId = plan?.merchantId || tx.merchantId;
+    // merchantId stocké dans la transaction au moment de la création (initiatePublicPayment)
+    const merchantId = tx.merchantId || (tx.planId ? await getMerchantIdForPlan(tx.planId) : null);
     
     if (merchantId) {
       const tokens = await getUserFCMTokens(merchantId);
@@ -771,12 +922,12 @@ exports.handleFreemopayWebhook = onRequest(async (req, res) => {
   return res.status(200).send("");
 }
 
-    // ✅ NOUVEAU CODE FAILED/EXPIRED SÉCURISÉ
-    if (s === "FAILED" || s === "EXPIRED") {
-      logStep("Paiement échoué - nettoyage des ressources");
-      
+    // ✅ Échec / Annulation / Expiration → libération ticket + cleanup
+    if (s === "FAILED" || s === "EXPIRED" || s === "CANCELLED") {
+      logStep("Paiement échoué/annulé - nettoyage des ressources");
+
       const batch = db.batch();
-      
+
       // ✅ Libérer le ticket réservé
       let releasedTicketData = null;
       if (tx.reservedTicketId) {
@@ -798,15 +949,19 @@ exports.handleFreemopayWebhook = onRequest(async (req, res) => {
         });
         logStep("Ticket libéré");
       }
-      
+
       // ✅ Mise à jour sécurisée de la transaction
       batch.update(txnRef, {
-    status: status.toLowerCase() === "expired" ? "expired" : "failed",
+    status: s === "EXPIRED" ? "expired" : "failed", // CANCELLED → failed
     updatedAt: now(),
     providerStatus: status,
+    providerFailureCode: failureCode || null,
     webhookReceived: true,
-    providerMessage: message || "Paiement échoué ou expiré",
+    providerMessage: message || "Paiement échoué, annulé ou expiré",
     failedAt: now(), // ✅ Timestamp d'échec
+    // Conserver la ref provider même en cas d'échec (utile pour réconciliation)
+    providerReference: reference || tx.providerReference || null,
+    freemopayReference: reference || tx.freemopayReference || null, // alias compat hotspot
     // ✅ SÉCURITÉ : Supprimer toute trace de credentials
     credentials: admin.firestore.FieldValue.delete(),
     reservedTicketId: admin.firestore.FieldValue.delete() // ✅ Nettoyer la référence
@@ -817,8 +972,8 @@ exports.handleFreemopayWebhook = onRequest(async (req, res) => {
 
   // 📱 NOTIFICATION PUSH : Transaction échouée
   try {
-    // Utiliser le merchantId de la transaction
-    const merchantId = plan?.merchantId || tx.merchantId;
+    // merchantId stocké dans la transaction au moment de la création (initiatePublicPayment)
+    const merchantId = tx.merchantId || (tx.planId ? await getMerchantIdForPlan(tx.planId) : null);
     
     if (merchantId) {
       const tokens = await getUserFCMTokens(merchantId);
@@ -852,8 +1007,8 @@ exports.handleFreemopayWebhook = onRequest(async (req, res) => {
   // 📱 NOTIFICATION PUSH : Ticket libéré (si applicable)
   if (releasedTicketData) {
     try {
-      // Utiliser le merchantId de la transaction
-      const merchantId = plan?.merchantId || tx.merchantId;
+      // merchantId stocké dans la transaction (créée par initiatePublicPayment)
+      const merchantId = tx.merchantId || (tx.planId ? await getMerchantIdForPlan(tx.planId) : null);
       
       if (merchantId) {
         const tokens = await getUserFCMTokens(merchantId);
@@ -963,17 +1118,14 @@ exports.cleanExpiredReservations = onSchedule(
 );
 
 async function getPaymentStatusByReference(reference) {
-  const url = `${FREEMOPAY_CONFIG.baseUrl}/api/v2/payment/${reference}`;
-  // --- Basic Auth (doc officielle) ---
-  const auth = {
-    username: FREEMOPAY_CONFIG.appKey,
-    password: FREEMOPAY_CONFIG.secretKey
-  };
+  const url = `${SHAREPAY_CONFIG.baseUrl}/api/v1/pay-in/check_status/${encodeURIComponent(reference)}`;
   try {
-    const resp = await axios.get(url, { auth, timeout: FREEMOPAY_CONFIG.timeout });
-    return resp.data; // attendu: { status: "PENDING"|"SUCCESS"|"FAILED", reference: "...", ... }
+    const resp = await axios.get(url, {
+      headers: getSharepayHeaders(),
+      timeout: SHAREPAY_CONFIG.timeout,
+    });
+    return resp.data; // attendu: { reference, type, status: "PENDING"|"SUCCESS"|"FAILED"|"CANCELLED"|"REFUNDED", ... }
   } catch (err) {
-    // si rate limit, respecte Retry-After
     if (err?.response?.status === 429) {
       const ra = Number(err.response.headers["retry-after"] || 1);
       await new Promise(r => setTimeout(r, Math.min(ra, 5) * 1000));
@@ -1018,6 +1170,7 @@ exports.getUserTicketsByPhone = onRequest(async (req, res) => {
     // Formater les données des tickets
     const tickets = transactionsSnapshot.docs.map(doc => {
       const data = doc.data();
+      const providerRef = data.providerReference || data.freemopayReference || null;
       return {
         transactionId: doc.id,
         planName: data.planName,
@@ -1026,7 +1179,8 @@ exports.getUserTicketsByPhone = onRequest(async (req, res) => {
         formattedAmount: `${Number(data.amount).toLocaleString()} F`,
         credentials: data.credentials || null,
         completedAt: data.completedAt?.toDate?.()?.toISOString?.() || null,
-        freemopayReference: data.freemopayReference || null,
+        providerReference: providerRef,
+        freemopayReference: providerRef, // alias compat hotspot
         planId: data.planId || null
       };
     });
@@ -1097,6 +1251,7 @@ exports.manualTicketSale = onRequest(async (req, res) => {
     const batch = db.batch();
 
     // 1. Créer la transaction simulée
+    const manualRef = `MANUAL_${Date.now()}`;
     batch.set(transactionRef, {
       createdAt: now(),
       updatedAt: now(),
@@ -1108,7 +1263,8 @@ exports.manualTicketSale = onRequest(async (req, res) => {
       planId: ticketData.ticketTypeId,
       phone: formattedPhone,
       externalId: transactionId,
-      freemopayReference: `MANUAL_${Date.now()}`,
+      providerReference: manualRef,
+      freemopayReference: manualRef, // alias compat hotspot
       webhookReceived: true,
       planName: ticketTypeData.name,
       ticketTypeName: formatValidityDuration(ticketTypeData.validityHours),
@@ -1260,6 +1416,7 @@ exports.getZoneTransactions = onRequest(async (req, res) => {
     // Traiter les transactions
     let transactions = snapshot.docs.map(doc => {
       const data = doc.data();
+      const providerRef = data.providerReference || data.freemopayReference || null;
       return {
         id: doc.id,
         status: data.status,
@@ -1272,14 +1429,15 @@ exports.getZoneTransactions = onRequest(async (req, res) => {
         planId: data.planId,
         planName: data.planName,
         ticketTypeName: data.ticketTypeName,
-        freemopayReference: data.freemopayReference,
+        providerReference: providerRef,
+        freemopayReference: providerRef, // alias compat hotspot
         // Credentials uniquement si transaction completed
         credentials: data.status === "completed" ? data.credentials : null,
         isManualSale: data.isManualSale || false,
         saleDescription: data.saleDescription,
         adminUserId: data.adminUserId,
         externalId: data.externalId,
-        provider: data.provider || "freemopay",
+        provider: data.provider || "sharepay",
         providerMessage: data.providerMessage,
         reservedTicketId: data.reservedTicketId,
       };
@@ -1288,10 +1446,10 @@ exports.getZoneTransactions = onRequest(async (req, res) => {
     // Filtre de recherche côté serveur (si la recherche Firestore n'est pas possible)
     if (search) {
       const searchLower = search.toLowerCase();
-      transactions = transactions.filter(tx => 
+      transactions = transactions.filter(tx =>
         tx.phone?.toLowerCase().includes(searchLower) ||
         tx.id?.toLowerCase().includes(searchLower) ||
-        tx.freemopayReference?.toLowerCase().includes(searchLower) ||
+        tx.providerReference?.toLowerCase().includes(searchLower) ||
         tx.planName?.toLowerCase().includes(searchLower)
       );
     }
@@ -1382,6 +1540,7 @@ exports.getTransactionDetails = onRequest(async (req, res) => {
     const [planInfo, zoneInfo, ticketInfo] = await Promise.all(promises);
 
     // Construire la réponse détaillée
+    const providerRefDetail = tx.providerReference || tx.freemopayReference || null;
     const detailedTransaction = {
       id: doc.id,
       status: tx.status,
@@ -1394,17 +1553,18 @@ exports.getTransactionDetails = onRequest(async (req, res) => {
       planId: tx.planId,
       planName: tx.planName,
       ticketTypeName: tx.ticketTypeName,
-      freemopayReference: tx.freemopayReference,
+      providerReference: providerRefDetail,
+      freemopayReference: providerRefDetail, // alias compat hotspot
       // Credentials UNIQUEMENT si transaction completed
       credentials: tx.status === "completed" ? tx.credentials : null,
       isManualSale: tx.isManualSale || false,
       saleDescription: tx.saleDescription,
       adminUserId: tx.adminUserId,
       externalId: tx.externalId,
-      provider: tx.provider || "freemopay",
+      provider: tx.provider || "sharepay",
       providerMessage: tx.providerMessage,
       reservedTicketId: tx.reservedTicketId,
-      
+
       // Informations détaillées supplémentaires
       planDetails: planInfo.planDetails,
       zoneDetails: zoneInfo.zoneDetails,
